@@ -72,8 +72,15 @@ model InventoryItem {
   unitType         String?
   quantityOnHand   Float    @default(0)
   reorderThreshold Float    @default(2)
+  costPerUnit      Float?
+  ouncesPerUnit    Float?
+  ouncesPerService Float?
   ouncesOnHand     Float?
   supplier         String?
+  sku              String?
+  expirationDate   DateTime?
+  lastRestocked    DateTime?
+  reorderQty       Int      @default(6)
   approvalStatus   String   @default("pending")
   isLowStock       Boolean  @default(false)
   notes            String?
