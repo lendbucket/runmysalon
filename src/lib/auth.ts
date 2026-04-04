@@ -2,10 +2,14 @@ import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import EmailProvider from "next-auth/providers/email";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { prisma } from "@/lib/prisma";
 
 import type { UserRole } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   secret:
     process.env.NEXTAUTH_SECRET ??
     process.env.AUTH_SECRET ??
@@ -15,6 +19,45 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST || "smtp.resend.com",
+        port: Number(process.env.EMAIL_SERVER_PORT) || 465,
+        auth: {
+          user: process.env.EMAIL_SERVER_USER || "resend",
+          pass: process.env.EMAIL_SERVER_PASSWORD || process.env.RESEND_API_KEY || "",
+        },
+      },
+      from: process.env.EMAIL_FROM || "Salon Envy Portal <noreply@salonenvyusa.com>",
+      async sendVerificationRequest({ identifier: email, url }) {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || "Salon Envy Portal <noreply@salonenvyusa.com>",
+          to: email,
+          subject: "Sign in to Salon Envy\u00ae Portal",
+          html: `
+            <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; background: #0f1d24; color: #ffffff; padding: 40px; border-radius: 12px;">
+              <div style="text-align: center; margin-bottom: 32px;">
+                <h1 style="color: #CDC9C0; font-size: 28px; margin: 0 0 8px; font-weight: 900; letter-spacing: 0.05em;">SALON</h1>
+                <h1 style="color: #CDC9C0; font-size: 36px; margin: 0; font-style: italic; font-family: Georgia, serif; font-weight: 400;">Envy</h1>
+              </div>
+              <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin: 0 0 8px;">Your sign-in link</h2>
+              <p style="color: #94A3B8; margin: 0 0 24px; font-size: 14px; line-height: 1.6;">
+                Click the button below to sign in to the Salon Envy\u00ae Management Portal. This link expires in 24 hours.
+              </p>
+              <a href="${url}" style="display: block; background: #CDC9C0; color: #0f1d24; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; margin-bottom: 24px;">
+                Sign In to Portal
+              </a>
+              <p style="color: #555; font-size: 12px; text-align: center; margin: 0;">
+                If you didn't request this, you can safely ignore this email.
+              </p>
+            </div>
+          `,
+        });
+      },
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -22,14 +65,12 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const { prisma } = await import("@/lib/prisma");
         const email = credentials?.email;
         const password = credentials?.password;
         if (!email || !password) return null;
 
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user?.passwordHash) return null;
-
         if (user.inviteStatus === "INVITED") return null;
 
         const valid = await compare(password, user.passwordHash);
@@ -48,10 +89,9 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: "/login" },
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider !== "google") return true;
+      if (account?.provider === "credentials") return true;
       const email = user?.email;
       if (!email) return false;
-      const { prisma } = await import("@/lib/prisma");
       const dbUser = await prisma.user.findUnique({ where: { email } });
       if (!dbUser) return false;
       if (dbUser.inviteStatus === "INVITED") return false;
@@ -60,7 +100,6 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       const email = (user?.email ?? token.email) as string | undefined;
       if (email) {
-        const { prisma } = await import("@/lib/prisma");
         const dbUser = await prisma.user.findUnique({ where: { email } });
         if (dbUser) {
           token.id = dbUser.id;

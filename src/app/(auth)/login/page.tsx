@@ -8,6 +8,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [magicEmail, setMagicEmail] = useState("")
+  const [magicLoading, setMagicLoading] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -300,6 +303,48 @@ export default function LoginPage() {
               </svg>
               Continue with Google
             </button>
+
+            {/* Magic Link Section */}
+            <div style={{ marginTop: "4px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "12px 0" }}>
+                <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
+                <span style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>or get a magic link</span>
+                <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
+              </div>
+
+              {!magicLinkSent ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <input
+                    type="email"
+                    value={magicEmail}
+                    onChange={(e) => setMagicEmail(e.target.value)}
+                    placeholder="Enter your email address"
+                    style={{ width: "100%", padding: "11px 14px", backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.15)", borderRadius: "7px", color: "#FFFFFF", fontSize: "13px", boxSizing: "border-box" as const, outline: "none" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setMagicLoading(true)
+                      await signIn("email", { email: magicEmail, redirect: false })
+                      setMagicLinkSent(true)
+                      setMagicLoading(false)
+                    }}
+                    disabled={magicLoading || !magicEmail}
+                    style={{ width: "100%", padding: "12px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.25)", borderRadius: "7px", color: "#CDC9C0", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer", opacity: (!magicEmail || magicLoading) ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>mail</span>
+                    {magicLoading ? "Sending..." : "Send Magic Link"}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ textAlign: "center" as const, padding: "16px", backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "8px" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "24px", color: "#10B981", display: "block", marginBottom: "8px" }}>mark_email_read</span>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#10B981", marginBottom: "4px" }}>Check your email!</div>
+                  <div style={{ fontSize: "12px", color: "#94A3B8" }}>We sent a sign-in link to {magicEmail}</div>
+                  <button onClick={() => { setMagicLinkSent(false); setMagicEmail("") }} style={{ marginTop: "12px", fontSize: "11px", color: "rgba(205,201,192,0.5)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Use a different email</button>
+                </div>
+              )}
+            </div>
 
             <p style={{ textAlign: "center" as const, fontSize: "11px", color: "#94A3B8", margin: "2px 0 0" }}>
               New to Salon Envy® Portal?{" "}
