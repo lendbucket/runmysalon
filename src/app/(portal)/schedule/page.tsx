@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
+import { useUserRole } from "@/hooks/useUserRole"
 
 interface StaffMember { id: string; fullName: string; position: string; locationId: string }
 interface ShiftData { start: string; end: string; isOff: boolean }
@@ -54,6 +55,7 @@ const STATUS_LABEL: Record<string, string> = { draft: "Draft", pending: "Pending
 export default function SchedulePage() {
   const { data: session } = useSession()
   const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
+  const { isOwner, locationName: userLocation } = useUserRole()
 
   const [locations, setLocations] = useState<Location[]>([])
   const [selLoc, setSelLoc] = useState<Location | null>(null)
@@ -142,7 +144,7 @@ export default function SchedulePage() {
 
   const canEdit = !schedule || schedule.status === "draft" || schedule.status === "rejected"
   const canSubmit = schedule && schedule.status === "draft"
-  const isOwner = userRole === "OWNER"
+  // isOwner comes from useUserRole hook
 
   const pill = (active: boolean) => ({ padding: "6px 14px", fontSize: "10px", fontWeight: 700 as const, letterSpacing: "0.08em", textTransform: "uppercase" as const, borderRadius: "6px", border: "none", cursor: "pointer" as const, backgroundColor: active ? "#CDC9C0" : "transparent", color: active ? "#0f1d24" : "rgba(205,201,192,0.5)", transition: "all 0.15s" })
 
@@ -165,7 +167,7 @@ export default function SchedulePage() {
       {/* Controls */}
       <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", gap: "2px", backgroundColor: "#1a2a32", padding: "3px", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)" }}>
-          {locations.map(loc => (
+          {(isOwner ? locations : locations.filter(l => l.name === userLocation)).map(loc => (
             <button key={loc.id} onClick={() => setSelLoc(loc)} style={pill(selLoc?.id === loc.id)}>
               {loc.name === "Corpus Christi" ? "CC" : "SA"}
             </button>

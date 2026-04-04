@@ -2,6 +2,7 @@
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
+import { useUserRole } from "@/hooks/useUserRole"
 
 interface StylistMetrics {
   teamMemberId: string
@@ -53,6 +54,7 @@ function Skeleton() {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
+  const { isOwner, isManager, locationName: userLocation } = useUserRole()
   const [activeLocation, setActiveLocation] = useState("Both")
   const [activePeriod, setActivePeriod] = useState("today")
   const [metricsData, setMetricsData] = useState<LocationMetrics[]>([])
@@ -175,7 +177,7 @@ export default function DashboardPage() {
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
           }}>
-            {greeting}, {userName} <span aria-hidden>&#x1F44B;</span>
+            {greeting}, {userName}{isManager && userLocation ? ` \u2014 ${userLocation}` : ""} <span aria-hidden>&#x1F44B;</span>
           </h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -261,7 +263,7 @@ export default function DashboardPage() {
           borderRadius: "8px",
           border: "1px solid rgba(205,201,192,0.08)",
         }}>
-        {["Both", "Corpus Christi", "San Antonio"].map((loc) => (
+        {(isOwner ? ["Both", "Corpus Christi", "San Antonio"] : [userLocation || "Both"]).map((loc) => (
           <button
             key={loc}
             onClick={() => setActiveLocation(loc)}

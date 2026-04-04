@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import { useUserRole } from "@/hooks/useUserRole"
 
 interface StylistMetric {
   teamMemberId: string
@@ -70,6 +71,7 @@ function ChangeIndicator({ change }: { change: number | null }) {
 }
 
 export default function MetricsPage() {
+  const { isOwner, locationName: userLocation } = useUserRole()
   const [period, setPeriod] = useState("today")
   const [location, setLocation] = useState("Both")
   const [data, setData] = useState<ComparisonData | null>(null)
@@ -184,7 +186,7 @@ export default function MetricsPage() {
           ))}
         </div>
         <div style={{ display: "inline-flex", gap: "2px", backgroundColor: "#1a2a32", padding: "3px", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)" }}>
-          {["Both", "Corpus Christi", "San Antonio"].map(loc => (
+          {(isOwner ? ["Both", "Corpus Christi", "San Antonio"] : [userLocation || "Both"]).map(loc => (
             <button key={loc} onClick={() => setLocation(loc)} style={pill(location === loc)}>
               {loc === "Corpus Christi" ? "CC" : loc === "San Antonio" ? "SA" : loc}
             </button>

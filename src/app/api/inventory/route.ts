@@ -16,11 +16,15 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const { response } = await requireSession();
+  const { response, session } = await requireSession();
   if (response) return response;
+
+  const role = (session?.user as Record<string, unknown>)?.role as string
+  const userLocationId = (session?.user as Record<string, unknown>)?.locationId as string | undefined
 
   const { prisma } = await import("@/lib/prisma");
   const items = await prisma.inventoryItem.findMany({
+    where: role === "MANAGER" && userLocationId ? { locationId: userLocationId } : {},
     include: { location: true },
     orderBy: [{ isLowStock: "desc" }, { brand: "asc" }, { productName: "asc" }],
   });

@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { getMetricsByPeriod } from "@/lib/square-metrics"
 
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
   const period = req.nextUrl.searchParams.get("period") || "7days"
-  const loc = req.nextUrl.searchParams.get("location") as "Corpus Christi" | "San Antonio" | undefined
+  const role = (session.user as any).role as string
+  const sessionLocationName = (session.user as any).locationName as string | undefined
+
+  // MANAGER: forced to their own location
+  let loc: "Corpus Christi" | "San Antonio" | undefined
+  if (role === "MANAGER" && sessionLocationName) {
+    loc = sessionLocationName as "Corpus Christi" | "San Antonio"
+  } else {
+    const reqLoc = req.nextUrl.searchParams.get("location")
+    loc = reqLoc ? (reqLoc as "Corpus Christi" | "San Antonio") : undefined
+  }
 
   try {
     const metrics = await getMetricsByPeriod(period, loc || undefined)

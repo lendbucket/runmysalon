@@ -100,10 +100,15 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       const email = (user?.email ?? token.email) as string | undefined;
       if (email) {
-        const dbUser = await prisma.user.findUnique({ where: { email } });
+        const dbUser = await prisma.user.findUnique({
+          where: { email },
+          include: { location: true },
+        });
         if (dbUser) {
           token.id = dbUser.id;
           token.role = dbUser.role;
+          token.locationId = dbUser.locationId;
+          token.locationName = dbUser.location?.name;
         }
       }
       return token;
@@ -112,6 +117,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
+        (session.user as any).locationId = token.locationId;
+        (session.user as any).locationName = token.locationName;
       }
       return session;
     },

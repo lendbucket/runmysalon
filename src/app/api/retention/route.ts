@@ -9,7 +9,16 @@ export async function GET(req: NextRequest) {
   const { response } = await requireSession()
   if (response) return response
 
-  const location = req.nextUrl.searchParams.get("location")
+  const { session } = await requireSession() as { session: { user: Record<string, unknown> } | null; response: null }
+  const role = session?.user?.role as string
+  const sessionLocName = session?.user?.locationName as string | undefined
+
+  let location: string | null
+  if (role === "MANAGER" && sessionLocName) {
+    location = sessionLocName
+  } else {
+    location = req.nextUrl.searchParams.get("location")
+  }
   const debug = req.nextUrl.searchParams.get("debug") === "true"
 
   try {

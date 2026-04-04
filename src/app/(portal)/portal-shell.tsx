@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useUserRole } from "@/hooks/useUserRole"
 
 type NavItem = { href: string; icon: string; label: string; badge?: boolean; highlight?: boolean }
 type NavSection = { label: string; roles: string[]; items: NavItem[] }
@@ -87,6 +88,7 @@ export function PortalShell({
 }) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { isManager, locationName } = useUserRole()
   const initials = userName?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U"
 
   const pageTitle = useMemo(() => {
@@ -148,6 +150,18 @@ export function PortalShell({
           }}>
             Management Portal
           </div>
+          {isManager && locationName && (
+            <div style={{
+              marginTop: "4px",
+              fontSize: "9px",
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              color: "rgba(205,201,192,0.55)",
+              textTransform: "uppercase" as const,
+            }}>
+              {locationName}
+            </div>
+          )}
         </div>
         <div style={{ height: "1px", backgroundColor: "rgba(205,201,192,0.2)" }} />
 

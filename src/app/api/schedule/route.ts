@@ -7,7 +7,11 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const locationId = req.nextUrl.searchParams.get("locationId")
+  const role = (session.user as Record<string, unknown>).role as string
+  const userLocationId = (session.user as Record<string, unknown>).locationId as string | undefined
+
+  let locationId = req.nextUrl.searchParams.get("locationId")
+  if (role === "MANAGER" && userLocationId) locationId = userLocationId
   const weekStart = req.nextUrl.searchParams.get("weekStart")
 
   const schedules = await prisma.schedule.findMany({

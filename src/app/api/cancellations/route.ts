@@ -5,11 +5,20 @@ import { getCancellations } from "@/lib/square-cancellations"
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const { response } = await requireSession()
+  const { session, response } = await requireSession()
   if (response) return response
 
   const period = req.nextUrl.searchParams.get("period") || "30days"
-  const location = req.nextUrl.searchParams.get("location") || "Both"
+  const role = (session!.user as any).role as string
+  const sessionLocationName = (session!.user as any).locationName as string | undefined
+
+  // MANAGER: forced to their own location
+  let location: string
+  if (role === "MANAGER" && sessionLocationName) {
+    location = sessionLocationName
+  } else {
+    location = req.nextUrl.searchParams.get("location") || "Both"
+  }
 
   try {
     const data = await getCancellations(period, location)
