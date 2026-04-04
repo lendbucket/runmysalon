@@ -1,9 +1,14 @@
 "use client"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
+  const urlError = searchParams.get("error")
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -11,7 +16,14 @@ export default function LoginPage() {
   const [magicEmail, setMagicEmail] = useState("")
   const [magicLoading, setMagicLoading] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const router = useRouter()
+
+  const errorMessages: Record<string, string> = {
+    PendingApproval: "Your account is pending approval. Please contact your manager.",
+    NotFound: "No account found with that email. Request access first.",
+    OAuthAccountNotLinked: "This email is already linked to another sign-in method.",
+  }
+
+  const displayError = error || (urlError ? errorMessages[urlError] || "An error occurred during sign-in." : "")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,113 +34,51 @@ export default function LoginPage() {
       setError("Invalid email or password")
       setLoading(false)
     } else {
-      router.push("/dashboard")
+      router.push(callbackUrl)
     }
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", backgroundColor: "#0f1d24" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" />
-
-      {/* LEFT — Brand panel */}
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#0f1d24",
+      padding: "24px",
+    }}>
       <div style={{
-        flex: "0 0 50%",
-        backgroundColor: "#060e14",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "60px 48px",
-        position: "relative",
-        overflow: "hidden",
-      }} className="hidden md:flex">
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "360px",
-          height: "360px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(205,201,192,0.05) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }} />
-
-        <img
-          src="/images/logo-white.png"
-          alt="Salon Envy"
-          style={{
-            width: "220px",
-            height: "auto",
-            objectFit: "contain",
-            display: "block",
-            marginBottom: "28px",
-            position: "relative",
-            zIndex: 1,
-          }}
-        />
-
-        <div style={{
-          fontSize: "12px",
-          fontWeight: 600,
-          color: "rgba(205,201,192,0.5)",
-          letterSpacing: "0.15em",
-          textTransform: "uppercase" as const,
-          textAlign: "center" as const,
-          position: "relative",
-          zIndex: 1,
-          lineHeight: 1.8,
-        }}>
-          Empowering Your Salon<br />
-          <span style={{ color: "#CDC9C0" }}>Elevating Your Team</span>
-        </div>
-
-        <div style={{
-          position: "absolute",
-          bottom: "28px",
-          fontSize: "9px",
-          fontWeight: 600,
-          color: "rgba(205,201,192,0.2)",
-          letterSpacing: "0.2em",
-          textTransform: "uppercase" as const,
-        }}>
-          Management Portal
-        </div>
-      </div>
-
-      {/* RIGHT — Login form */}
-      <div style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "40px 40px",
-        backgroundColor: "#142127",
+        width: "100%",
+        maxWidth: "420px",
       }}>
-        <div style={{
-          width: "100%",
-          maxWidth: "400px",
-          boxShadow: "inset 0 0 0 1px rgba(205,201,192,0.08)",
-          borderRadius: "10px",
-          padding: "36px",
-          backgroundColor: "#142127",
-        }}>
-          <div className="md:hidden" style={{ textAlign: "center" as const, marginBottom: "28px" }}>
-            <img
-              src="/images/logo-white.png"
-              alt="Salon Envy"
-              style={{
-                height: "56px",
-                width: "auto",
-                objectFit: "contain",
-                display: "block",
-                margin: "0 auto 28px",
-              }}
-            />
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          <img
+            src="/images/logo-white.png"
+            alt="Salon Envy"
+            style={{ height: "72px", width: "auto", objectFit: "contain", display: "inline-block" }}
+          />
+          <div style={{
+            fontSize: "10px",
+            fontWeight: 700,
+            color: "rgba(205,201,192,0.5)",
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            marginTop: "10px",
+          }}>
+            Management Portal
           </div>
+        </div>
 
+        {/* Card */}
+        <div style={{
+          backgroundColor: "#1a2a32",
+          borderRadius: "16px",
+          padding: "32px",
+          border: "1px solid rgba(205,201,192,0.12)",
+        }}>
           <h2 style={{
-            fontSize: "26px",
+            fontSize: "24px",
             fontWeight: 800,
             color: "#FFFFFF",
             margin: "0 0 6px",
@@ -139,11 +89,26 @@ export default function LoginPage() {
           <p style={{
             fontSize: "13px",
             color: "#94A3B8",
-            margin: "0 0 32px",
+            margin: "0 0 28px",
             fontWeight: 500,
           }}>
-            Sign in to your Salon Envy® portal
+            Sign in to your Salon Envy\u00ae portal
           </p>
+
+          {displayError && (
+            <div style={{
+              padding: "10px 14px",
+              backgroundColor: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              borderRadius: "10px",
+              color: "#FCA5A5",
+              fontSize: "12px",
+              fontWeight: 500,
+              marginBottom: "16px",
+            }}>
+              {displayError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div>
@@ -153,7 +118,7 @@ export default function LoginPage() {
                 fontWeight: 700,
                 color: "#CDC9C0",
                 letterSpacing: "0.12em",
-                textTransform: "uppercase" as const,
+                textTransform: "uppercase",
                 marginBottom: "7px",
               }}>Email Address</label>
               <input
@@ -166,15 +131,14 @@ export default function LoginPage() {
                 style={{
                   width: "100%",
                   padding: "11px 14px",
-                  backgroundColor: "#1a2a32",
+                  backgroundColor: "#0f1d24",
                   border: "1px solid rgba(205,201,192,0.15)",
-                  borderRadius: "7px",
+                  borderRadius: "10px",
                   color: "#FFFFFF",
-                  fontSize: "13px",
+                  fontSize: "16px",
                   fontWeight: 500,
-                  boxSizing: "border-box" as const,
+                  boxSizing: "border-box",
                   outline: "none",
-                  transition: "border-color 0.15s",
                 }}
               />
             </div>
@@ -185,7 +149,7 @@ export default function LoginPage() {
                 fontWeight: 700,
                 color: "#CDC9C0",
                 letterSpacing: "0.12em",
-                textTransform: "uppercase" as const,
+                textTransform: "uppercase",
                 marginBottom: "7px",
               }}>Password</label>
               <input
@@ -198,32 +162,17 @@ export default function LoginPage() {
                 style={{
                   width: "100%",
                   padding: "11px 14px",
-                  backgroundColor: "#1a2a32",
+                  backgroundColor: "#0f1d24",
                   border: "1px solid rgba(205,201,192,0.15)",
-                  borderRadius: "7px",
+                  borderRadius: "10px",
                   color: "#FFFFFF",
-                  fontSize: "13px",
+                  fontSize: "16px",
                   fontWeight: 500,
-                  boxSizing: "border-box" as const,
+                  boxSizing: "border-box",
                   outline: "none",
-                  transition: "border-color 0.15s",
                 }}
               />
             </div>
-
-            {error && (
-              <div style={{
-                padding: "10px 14px",
-                backgroundColor: "rgba(239,68,68,0.08)",
-                border: "1px solid rgba(239,68,68,0.25)",
-                borderRadius: "7px",
-                color: "#FCA5A5",
-                fontSize: "12px",
-                fontWeight: 500,
-              }}>
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"
@@ -236,48 +185,33 @@ export default function LoginPage() {
                 fontSize: "11px",
                 fontWeight: 800,
                 letterSpacing: "0.12em",
-                textTransform: "uppercase" as const,
-                borderRadius: "7px",
+                textTransform: "uppercase",
+                borderRadius: "10px",
                 border: "none",
                 cursor: loading ? "not-allowed" : "pointer",
                 marginTop: "4px",
-                boxShadow: "0 2px 12px rgba(205,201,192,0.15)",
               }}
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
 
-            <div style={{ textAlign: "center" as const, marginTop: "6px" }}>
-              <a href="#" style={{
-                fontSize: "11px",
-                color: "rgba(205,201,192,0.5)",
-                textDecoration: "none",
-                fontWeight: 600,
-              }}>
-                Forgot your password?
-              </a>
-            </div>
-
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-              margin: "6px 0",
-            }}>
+            {/* Divider */}
+            <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "4px 0" }}>
               <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
-              <span style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>or</span>
+              <span style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>or</span>
               <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
             </div>
 
+            {/* Google */}
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+              onClick={() => signIn("google", { callbackUrl })}
               style={{
                 width: "100%",
                 padding: "12px 16px",
                 backgroundColor: "transparent",
                 border: "1px solid rgba(205,201,192,0.25)",
-                borderRadius: "7px",
+                borderRadius: "10px",
                 color: "#CBD5E1",
                 fontSize: "13px",
                 fontWeight: 600,
@@ -286,16 +220,9 @@ export default function LoginPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "10px",
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#CDC9C0"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(205,201,192,0.25)"
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -304,11 +231,11 @@ export default function LoginPage() {
               Continue with Google
             </button>
 
-            {/* Magic Link Section */}
+            {/* Magic Link */}
             <div style={{ marginTop: "4px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "12px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "8px 0" }}>
                 <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
-                <span style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>or get a magic link</span>
+                <span style={{ fontSize: "10px", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>or get a magic link</span>
                 <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(205,201,192,0.1)" }} />
               </div>
 
@@ -319,7 +246,17 @@ export default function LoginPage() {
                     value={magicEmail}
                     onChange={(e) => setMagicEmail(e.target.value)}
                     placeholder="Enter your email address"
-                    style={{ width: "100%", padding: "11px 14px", backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.15)", borderRadius: "7px", color: "#FFFFFF", fontSize: "13px", boxSizing: "border-box" as const, outline: "none" }}
+                    style={{
+                      width: "100%",
+                      padding: "11px 14px",
+                      backgroundColor: "#0f1d24",
+                      border: "1px solid rgba(205,201,192,0.15)",
+                      borderRadius: "10px",
+                      color: "#FFFFFF",
+                      fontSize: "16px",
+                      boxSizing: "border-box",
+                      outline: "none",
+                    }}
                   />
                   <button
                     type="button"
@@ -330,24 +267,51 @@ export default function LoginPage() {
                       setMagicLoading(false)
                     }}
                     disabled={magicLoading || !magicEmail}
-                    style={{ width: "100%", padding: "12px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.25)", borderRadius: "7px", color: "#CDC9C0", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, cursor: "pointer", opacity: (!magicEmail || magicLoading) ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      backgroundColor: "transparent",
+                      border: "1px solid rgba(205,201,192,0.25)",
+                      borderRadius: "10px",
+                      color: "#CDC9C0",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
+                      opacity: (!magicEmail || magicLoading) ? 0.5 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>mail</span>
                     {magicLoading ? "Sending..." : "Send Magic Link"}
                   </button>
                 </div>
               ) : (
-                <div style={{ textAlign: "center" as const, padding: "16px", backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "8px" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: "24px", color: "#10B981", display: "block", marginBottom: "8px" }}>mark_email_read</span>
+                <div style={{
+                  textAlign: "center",
+                  padding: "16px",
+                  backgroundColor: "rgba(16,185,129,0.08)",
+                  border: "1px solid rgba(16,185,129,0.2)",
+                  borderRadius: "10px",
+                }}>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: "#10B981", marginBottom: "4px" }}>Check your email!</div>
                   <div style={{ fontSize: "12px", color: "#94A3B8" }}>We sent a sign-in link to {magicEmail}</div>
-                  <button onClick={() => { setMagicLinkSent(false); setMagicEmail("") }} style={{ marginTop: "12px", fontSize: "11px", color: "rgba(205,201,192,0.5)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Use a different email</button>
+                  <button
+                    type="button"
+                    onClick={() => { setMagicLinkSent(false); setMagicEmail("") }}
+                    style={{ marginTop: "12px", fontSize: "11px", color: "rgba(205,201,192,0.5)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    Use a different email
+                  </button>
                 </div>
               )}
             </div>
 
-            <p style={{ textAlign: "center" as const, fontSize: "11px", color: "#94A3B8", margin: "2px 0 0" }}>
-              New to Salon Envy® Portal?{" "}
+            <p style={{ textAlign: "center", fontSize: "11px", color: "#94A3B8", margin: "2px 0 0" }}>
+              New to Salon Envy\u00ae Portal?{" "}
               <a href="/onboarding" style={{ color: "#CDC9C0", fontWeight: 700, textDecoration: "none" }}>
                 Request Access
               </a>
@@ -356,5 +320,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", backgroundColor: "#0f1d24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#CDC9C0", fontSize: "14px" }}>Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

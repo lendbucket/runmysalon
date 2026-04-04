@@ -38,21 +38,22 @@ export const authOptions: NextAuthOptions = {
           to: email,
           subject: "Sign in to Salon Envy\u00ae Portal",
           html: `
-            <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; background: #0f1d24; color: #ffffff; padding: 40px; border-radius: 12px;">
-              <div style="text-align: center; margin-bottom: 32px;">
-                <h1 style="color: #CDC9C0; font-size: 28px; margin: 0 0 8px; font-weight: 900; letter-spacing: 0.05em;">SALON</h1>
-                <h1 style="color: #CDC9C0; font-size: 36px; margin: 0; font-style: italic; font-family: Georgia, serif; font-weight: 400;">Envy</h1>
+            <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; background-color: #0f1d24; color: #ffffff; padding: 40px;">
+              <div style="background-color:#1a2a32;border-radius:16px;padding:32px;border:1px solid rgba(205,201,192,0.12);">
+                <div style="text-align: center; margin-bottom: 28px;">
+                  <img src="https://portal.salonenvyusa.com/images/logo-white.png" alt="Salon Envy" width="160" style="display:inline-block;" />
+                </div>
+                <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin: 0 0 8px;">Your sign-in link</h2>
+                <p style="color: #94A3B8; margin: 0 0 24px; font-size: 14px; line-height: 1.6;">
+                  Click the button below to sign in to the Salon Envy\u00ae Management Portal. This link expires in 24 hours.
+                </p>
+                <a href="${url}" style="display:block;background-color:#CDC9C0;color:#0f1d24;padding:14px 24px;border-radius:10px;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:0.1em;text-transform:uppercase;text-align:center;margin-bottom:24px;">
+                  Sign In to Portal
+                </a>
+                <p style="color: #555; font-size: 12px; text-align: center; margin: 0;">
+                  If you didn't request this, you can safely ignore this email.
+                </p>
               </div>
-              <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin: 0 0 8px;">Your sign-in link</h2>
-              <p style="color: #94A3B8; margin: 0 0 24px; font-size: 14px; line-height: 1.6;">
-                Click the button below to sign in to the Salon Envy\u00ae Management Portal. This link expires in 24 hours.
-              </p>
-              <a href="${url}" style="display: block; background: #CDC9C0; color: #0f1d24; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; margin-bottom: 24px;">
-                Sign In to Portal
-              </a>
-              <p style="color: #555; font-size: 12px; text-align: center; margin: 0;">
-                If you didn't request this, you can safely ignore this email.
-              </p>
             </div>
           `,
         });
@@ -90,12 +91,38 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "credentials") return true;
+
       const email = user?.email;
       if (!email) return false;
-      const dbUser = await prisma.user.findUnique({ where: { email } });
-      if (!dbUser) return false;
-      if (dbUser.inviteStatus === "INVITED") return false;
-      return true;
+
+      if (account?.provider === "google") {
+        let dbUser = await prisma.user.findUnique({ where: { email } });
+        if (!dbUser) {
+          const role = email === "ceo@36west.org" ? "OWNER" : "STYLIST";
+          const inviteStatus = email === "ceo@36west.org" ? "ACCEPTED" : "INVITED";
+          dbUser = await prisma.user.create({
+            data: {
+              email,
+              name: user.name ?? undefined,
+              role,
+              inviteStatus,
+            },
+          });
+        }
+        if (dbUser.inviteStatus === "INVITED") {
+          return "/login?error=PendingApproval";
+        }
+        return true;
+      }
+
+      if (account?.provider === "email") {
+        const dbUser = await prisma.user.findUnique({ where: { email } });
+        if (!dbUser) return "/login?error=NotFound";
+        if (dbUser.inviteStatus === "INVITED") return "/login?error=PendingApproval";
+        return true;
+      }
+
+      return false;
     },
     async jwt({ token, user }) {
       const email = (user?.email ?? token.email) as string | undefined;
