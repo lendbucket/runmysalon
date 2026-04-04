@@ -1,13 +1,15 @@
 import { compare } from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { NextResponse } from "next/server";
 
 import type { UserRole } from "@prisma/client";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  secret:
+    process.env.AUTH_SECRET ??
+    process.env.NEXTAUTH_SECRET ??
+    "fallback-secret-for-dev",
   providers: [
     Credentials({
       credentials: {
@@ -51,16 +53,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as UserRole;
       }
       return session;
-    },
-    authorized({ request, auth: session }) {
-      const path = request.nextUrl.pathname;
-      if (path.startsWith("/login")) {
-        if (session?.user) {
-          return NextResponse.redirect(new URL("/dashboard", request.nextUrl));
-        }
-        return true;
-      }
-      return !!session?.user;
     },
   },
 });
