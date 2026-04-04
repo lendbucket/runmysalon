@@ -90,7 +90,7 @@ export function PortalShell({
   const visibleSections = NAV_SECTIONS.filter(s => s.roles.includes(userRole))
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#2a3a42", display: "flex" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#1e2d35", display: "flex" }}>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
@@ -100,7 +100,7 @@ export function PortalShell({
       <aside style={{
         width: "280px",
         minWidth: "280px",
-        backgroundColor: "#0f1d24",
+        backgroundColor: "#0a1520",
         display: "flex",
         flexDirection: "column",
         height: "100vh",
@@ -112,33 +112,37 @@ export function PortalShell({
 
         {/* Logo section */}
         <div style={{
-          padding: "28px 24px 24px",
-          borderBottom: "1px solid rgba(205,201,192,0.1)",
-          backgroundColor: "#0a151b",
+          padding: "20px 24px",
+          minHeight: "80px",
+          backgroundColor: "#060e14",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}>
           <img
             src="/images/logo-white.png"
             alt="Salon Envy"
             onError={(e) => { e.currentTarget.src = '/images/logo-text.svg' }}
             style={{
-              width: "160px",
+              width: "180px",
               height: "auto",
               objectFit: "contain",
               display: "block",
             }}
           />
           <div style={{
-            marginTop: "8px",
+            marginTop: "10px",
             fontSize: "9px",
             fontWeight: 700,
             letterSpacing: "0.2em",
-            color: "#CDC9C0",
-            opacity: 0.6,
+            color: "rgba(205,201,192,0.4)",
             textTransform: "uppercase" as const,
           }}>
             Management Portal
           </div>
         </div>
+        {/* Gold accent line */}
+        <div style={{ height: "1px", backgroundColor: "rgba(205,201,192,0.25)" }} />
 
         {/* Nav sections */}
         <nav style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
@@ -205,7 +209,7 @@ export function PortalShell({
         <div style={{
           padding: "16px 24px",
           borderTop: "1px solid rgba(205,201,192,0.1)",
-          backgroundColor: "#0a151b",
+          backgroundColor: "#060e14",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
             <div style={{
@@ -365,7 +369,7 @@ export function PortalShell({
         {/* PAGE CONTENT */}
         <main style={{
           flex: 1,
-          backgroundColor: "#2a3a42",
+          backgroundColor: "#1e2d35",
           overflowY: "auto",
           paddingBottom: "80px",
         }}>
