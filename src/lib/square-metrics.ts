@@ -54,17 +54,33 @@ export interface LocationMetrics {
   periodEnd: string
 }
 
-function getDateRange(periodType: "week" | "month" | "year") {
+function getDateRange(periodType: string) {
   const now = new Date()
   let startDate: Date
-  if (periodType === "week") {
-    startDate = new Date(now)
-    startDate.setDate(now.getDate() - now.getDay())
-    startDate.setHours(0, 0, 0, 0)
-  } else if (periodType === "month") {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else {
-    startDate = new Date(now.getFullYear(), 0, 1)
+
+  switch (periodType) {
+    case "7days":
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      break
+    case "30days":
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      break
+    case "90days":
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+      break
+    case "week":
+      startDate = new Date(now)
+      startDate.setDate(now.getDate() - now.getDay())
+      startDate.setHours(0, 0, 0, 0)
+      break
+    case "month":
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      break
+    case "year":
+      startDate = new Date(now.getFullYear(), 0, 1)
+      break
+    default:
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   }
   return { startAt: startDate.toISOString(), endAt: now.toISOString() }
 }
@@ -82,7 +98,7 @@ interface OrderEntry {
 }
 
 export async function getMetricsByPeriod(
-  periodType: "week" | "month" | "year",
+  periodType: string,
   location?: "Corpus Christi" | "San Antonio"
 ): Promise<LocationMetrics[]> {
   const square = getSquare()

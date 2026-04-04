@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getMetricsByPeriod } from "@/lib/square-metrics"
 
 export async function GET(req: NextRequest) {
-  const period = (req.nextUrl.searchParams.get("period") || "week") as "week" | "month" | "year"
+  const period = req.nextUrl.searchParams.get("period") || "7days"
   const loc = req.nextUrl.searchParams.get("location") as "Corpus Christi" | "San Antonio" | undefined
 
   try {

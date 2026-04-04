@@ -20,10 +20,10 @@ interface LocationMetrics {
   periodEnd: string
 }
 
-type Period = "week" | "month" | "year"
+type Period = "7days" | "30days" | "90days" | "week" | "month" | "year"
 type Location = "both" | "Corpus Christi" | "San Antonio"
 
-const PERIOD_LABELS: Record<Period, string> = { week: "This Week", month: "This Month", year: "This Year" }
+const PERIOD_LABELS: Record<Period, string> = { "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
 const LOC_LABELS: Record<Location, string> = { both: "Both", "Corpus Christi": "CC", "San Antonio": "SA" }
 
 function fmt(n: number) {
@@ -31,7 +31,7 @@ function fmt(n: number) {
 }
 
 export default function MetricsPage() {
-  const [period, setPeriod] = useState<Period>("week")
+  const [period, setPeriod] = useState<Period>("30days")
   const [location, setLocation] = useState<Location>("both")
   const [data, setData] = useState<LocationMetrics[]>([])
   const [loading, setLoading] = useState(true)
@@ -87,6 +87,9 @@ export default function MetricsPage() {
           <p style={{ fontSize: "11px", color: "#94A3B8", margin: 0, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
             Live data from Square
           </p>
+          <p style={{ fontSize: "11px", color: "rgba(148,163,184,0.6)", margin: "6px 0 0", lineHeight: 1.5, maxWidth: "600px" }}>
+            Revenue is estimated using time-proximity matching between Square bookings and orders. Walk-ins not booked through Square Appointments may not be attributed to individual stylists.
+          </p>
         </div>
         <button
           onClick={fetchMetrics}
@@ -108,7 +111,7 @@ export default function MetricsPage() {
       {/* Controls */}
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", gap: "2px", backgroundColor: "#1a2a32", padding: "3px", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.08)" }}>
-          {(["week", "month", "year"] as Period[]).map(p => (
+          {(["7days", "30days", "90days", "week", "month", "year"] as Period[]).map(p => (
             <button key={p} onClick={() => setPeriod(p)} style={pillStyle(period === p)}>{PERIOD_LABELS[p]}</button>
           ))}
         </div>

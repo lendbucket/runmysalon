@@ -37,6 +37,7 @@ function Skeleton() {
 export default function DashboardPage() {
   const { data: session } = useSession()
   const [activeLocation, setActiveLocation] = useState("Both")
+  const [activePeriod, setActivePeriod] = useState("7days")
   const [metricsData, setMetricsData] = useState<LocationMetrics[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -53,7 +54,7 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ period: "week" })
+      const params = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") params.set("location", activeLocation)
 
       const [metricsRes, approvalsRes] = await Promise.all([
@@ -71,7 +72,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeLocation])
+  }, [activeLocation, activePeriod])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -86,9 +87,12 @@ export default function DashboardPage() {
   const totalServices = metricsData.reduce((s, d) => s + d.serviceCount, 0)
   const totalAvg = totalServices > 0 ? totalRevenue / totalServices : 0
 
+  const periodLabel: Record<string, string> = { "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
+  const pLabel = periodLabel[activePeriod] || activePeriod
+
   const metrics = [
-    { label: "Revenue This Week", value: loading ? null : fmt(totalRevenue), icon: "payments", sub: activeLocation === "Both" ? "Both locations" : activeLocation },
-    { label: "Services This Week", value: loading ? null : String(totalServices), icon: "content_cut", sub: "Across all stylists" },
+    { label: `Revenue · ${pLabel}`, value: loading ? null : fmt(totalRevenue), icon: "payments", sub: activeLocation === "Both" ? "Both locations" : activeLocation },
+    { label: `Services · ${pLabel}`, value: loading ? null : String(totalServices), icon: "content_cut", sub: "Across all stylists" },
     { label: "Avg Ticket", value: loading ? null : fmt(totalAvg), icon: "receipt_long", sub: "Per service" },
     { label: "Pending Approvals", value: loading ? null : String(pendingCount), icon: "rule", sub: "Needs attention", alert: pendingCount > 0 },
   ]
@@ -153,16 +157,53 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* LOCATION TABS */}
-      <div style={{
-        display: "inline-flex",
-        gap: "2px",
-        backgroundColor: "#1a2a32",
-        padding: "3px",
-        borderRadius: "8px",
-        marginBottom: "24px",
-        border: "1px solid rgba(205,201,192,0.08)",
-      }}>
+      {/* PERIOD + LOCATION TABS */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" as const }}>
+        <div style={{
+          display: "inline-flex",
+          gap: "2px",
+          backgroundColor: "#1a2a32",
+          padding: "3px",
+          borderRadius: "8px",
+          border: "1px solid rgba(205,201,192,0.08)",
+        }}>
+          {[
+            { key: "7days", label: "7D" },
+            { key: "30days", label: "30D" },
+            { key: "90days", label: "90D" },
+            { key: "week", label: "Week" },
+            { key: "month", label: "Month" },
+            { key: "year", label: "Year" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActivePeriod(key)}
+              style={{
+                padding: "7px 14px",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase" as const,
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                backgroundColor: activePeriod === key ? "#CDC9C0" : "transparent",
+                color: activePeriod === key ? "#0f1d24" : "rgba(205,201,192,0.45)",
+                transition: "all 0.15s",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{
+          display: "inline-flex",
+          gap: "2px",
+          backgroundColor: "#1a2a32",
+          padding: "3px",
+          borderRadius: "8px",
+          border: "1px solid rgba(205,201,192,0.08)",
+        }}>
         {["Both", "Corpus Christi", "San Antonio"].map((loc) => (
           <button
             key={loc}
@@ -184,6 +225,7 @@ export default function DashboardPage() {
             {loc === "Corpus Christi" ? "CC" : loc === "San Antonio" ? "SA" : loc}
           </button>
         ))}
+        </div>
       </div>
 
       {/* METRIC CARDS */}
