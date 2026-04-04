@@ -7,6 +7,8 @@ function getSquare() {
   })
 }
 
+export const LOCATION_IDS = ["LTJSA6QR1HGW6", "LXJYXDXWR0XZF"] as const
+
 export const TEAM_MEMBER_LOCATIONS: Record<string, "Corpus Christi" | "San Antonio"> = {
   "TMbc13IBzS8Z43AO": "Corpus Christi",
   "TMaExUyYaWYlvSqh": "Corpus Christi",
@@ -54,7 +56,19 @@ export interface LocationMetrics {
   periodEnd: string
 }
 
-function getDateRange(periodType: string) {
+interface BookingEntry {
+  teamMemberId: string
+  startAt: Date
+  locationId: string
+}
+
+interface OrderEntry {
+  total: number
+  createdAt: Date
+  locationId: string
+}
+
+export function getDateRange(periodType: string) {
   const now = new Date()
   let startDate: Date
 
@@ -85,24 +99,20 @@ function getDateRange(periodType: string) {
   return { startAt: startDate.toISOString(), endAt: now.toISOString() }
 }
 
-interface BookingEntry {
-  teamMemberId: string
-  startAt: Date
-  locationId: string
-}
-
-interface OrderEntry {
-  total: number
-  createdAt: Date
-  locationId: string
-}
-
 export async function getMetricsByPeriod(
   periodType: string,
   location?: "Corpus Christi" | "San Antonio"
 ): Promise<LocationMetrics[]> {
-  const square = getSquare()
   const { startAt, endAt } = getDateRange(periodType)
+  return getMetricsByPeriodWithDates(startAt, endAt, location)
+}
+
+export async function getMetricsByPeriodWithDates(
+  startAt: string,
+  endAt: string,
+  location?: "Corpus Christi" | "San Antonio"
+): Promise<LocationMetrics[]> {
+  const square = getSquare()
 
   const stylistMetrics: Record<string, StylistMetrics> = {}
   for (const [id, loc] of Object.entries(TEAM_MEMBER_LOCATIONS)) {
@@ -117,7 +127,7 @@ export async function getMetricsByPeriod(
   }
 
   try {
-    // Step 1: Get ALL bookings in period with their times and team members
+    // Step 1: Get ALL bookings in period
     const bookings: BookingEntry[] = []
 
     let bookingsPage = await square.bookings.list({
@@ -129,11 +139,7 @@ export async function getMetricsByPeriod(
     for (const b of bookingsPage.data) {
       const tmId = b.appointmentSegments?.[0]?.teamMemberId
       if (tmId && TEAM_MEMBER_LOCATIONS[tmId] && b.startAt) {
-        bookings.push({
-          teamMemberId: tmId,
-          startAt: new Date(b.startAt),
-          locationId: b.locationId || "",
-        })
+        bookings.push({ teamMemberId: tmId, startAt: new Date(b.startAt), locationId: b.locationId || "" })
         stylistMetrics[tmId].serviceCount += 1
       }
     }
@@ -143,11 +149,7 @@ export async function getMetricsByPeriod(
       for (const b of bookingsPage.data) {
         const tmId = b.appointmentSegments?.[0]?.teamMemberId
         if (tmId && TEAM_MEMBER_LOCATIONS[tmId] && b.startAt) {
-          bookings.push({
-            teamMemberId: tmId,
-            startAt: new Date(b.startAt),
-            locationId: b.locationId || "",
-          })
+          bookings.push({ teamMemberId: tmId, startAt: new Date(b.startAt), locationId: b.locationId || "" })
           stylistMetrics[tmId].serviceCount += 1
         }
       }
@@ -157,7 +159,7 @@ export async function getMetricsByPeriod(
     const orders: OrderEntry[] = []
 
     const ordersRes = await square.orders.search({
-      locationIds: ["LTJSA6QR1HGW6", "LXJYXDXWR0XZF"],
+      locationIds: [...LOCATION_IDS],
       query: {
         filter: {
           dateTimeFilter: { createdAt: { startAt, endAt } },
@@ -170,44 +172,27 @@ export async function getMetricsByPeriod(
     for (const o of (ordersRes.orders || [])) {
       const amount = Number(o.totalMoney?.amount || 0) / 100
       if (amount > 0 && o.createdAt) {
-        orders.push({
-          total: amount,
-          createdAt: new Date(o.createdAt),
-          locationId: o.locationId || "",
-        })
+        orders.push({ total: amount, createdAt: new Date(o.createdAt), locationId: o.locationId || "" })
       }
     }
 
     // Step 3: Match orders to bookings by time proximity
-    // For each order, find the booking closest in time
-    // Checkout usually happens 30min to 4 hours after booking start
     const usedBookings = new Set<number>()
-
     for (const order of orders) {
       let bestMatch: { index: number; diff: number } | null = null
-
       for (let i = 0; i < bookings.length; i++) {
         if (usedBookings.has(i)) continue
-
-        const booking = bookings[i]
-        const bookingStart = booking.startAt.getTime()
-        const orderTime = order.createdAt.getTime()
-
-        // Order should be created -30min to +5 hours from booking start
-        const diffMs = orderTime - bookingStart
+        const diffMs = order.createdAt.getTime() - bookings[i].startAt.getTime()
         const diffHours = diffMs / (1000 * 60 * 60)
-
         if (diffHours >= -0.5 && diffHours <= 5) {
           if (!bestMatch || Math.abs(diffMs) < Math.abs(bestMatch.diff)) {
             bestMatch = { index: i, diff: diffMs }
           }
         }
       }
-
       if (bestMatch) {
-        const booking = bookings[bestMatch.index]
         usedBookings.add(bestMatch.index)
-        stylistMetrics[booking.teamMemberId].revenue += order.total
+        stylistMetrics[bookings[bestMatch.index].teamMemberId].revenue += order.total
       }
     }
 
@@ -249,4 +234,59 @@ export async function getMetricsByPeriod(
     console.error("Square metrics error:", error)
     return []
   }
+}
+
+export async function getComparisonMetrics(
+  periodType: string,
+  location?: "Corpus Christi" | "San Antonio"
+) {
+  const now = new Date()
+  const current = getDateRange(periodType)
+
+  let prevStartAt: string
+  let prevEndAt: string
+
+  switch (periodType) {
+    case "7days":
+      prevStartAt = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      prevEndAt = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      break
+    case "30days":
+      prevStartAt = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString()
+      prevEndAt = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      break
+    case "90days":
+      prevStartAt = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString()
+      prevEndAt = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      break
+    case "week": {
+      const ws = new Date(now)
+      ws.setDate(now.getDate() - now.getDay() - 7)
+      ws.setHours(0, 0, 0, 0)
+      const we = new Date(now)
+      we.setDate(now.getDate() - now.getDay())
+      we.setHours(0, 0, 0, 0)
+      prevStartAt = ws.toISOString()
+      prevEndAt = we.toISOString()
+      break
+    }
+    case "month":
+      prevStartAt = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+      prevEndAt = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      break
+    case "year":
+      prevStartAt = new Date(now.getFullYear() - 1, 0, 1).toISOString()
+      prevEndAt = new Date(now.getFullYear(), 0, 1).toISOString()
+      break
+    default:
+      prevStartAt = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      prevEndAt = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  }
+
+  const [currentMetrics, previousMetrics] = await Promise.all([
+    getMetricsByPeriodWithDates(current.startAt, current.endAt, location),
+    getMetricsByPeriodWithDates(prevStartAt, prevEndAt, location),
+  ])
+
+  return { currentMetrics, previousMetrics, prevStartAt, prevEndAt }
 }
