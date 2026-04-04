@@ -54,6 +54,7 @@ export default function LoginPage() {
         <img
           src="/images/logo-white.png"
           alt="Salon Envy"
+          onError={(e) => { e.currentTarget.src = '/images/logo-text.svg' }}
           style={{
             width: "240px",
             height: "auto",
@@ -103,7 +104,7 @@ export default function LoginPage() {
       }}>
         <div style={{ width: "100%", maxWidth: "420px" }}>
           <div className="md:hidden" style={{ textAlign: "center" as const, marginBottom: "32px" }}>
-            <img src="/images/logo-white.png" alt="Salon Envy" style={{ height: "60px", width: "auto" }} />
+            <img src="/images/logo-white.png" alt="Salon Envy" onError={(e) => { e.currentTarget.src = '/images/logo-text.svg' }} style={{ height: "60px", width: "auto" }} />
           </div>
 
           <h2 style={{

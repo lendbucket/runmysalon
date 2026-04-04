@@ -119,6 +119,7 @@ export function PortalShell({
           <img
             src="/images/logo-white.png"
             alt="Salon Envy"
+            onError={(e) => { e.currentTarget.src = '/images/logo-text.svg' }}
             style={{
               width: "160px",
               height: "auto",
@@ -302,7 +303,7 @@ export function PortalShell({
           flexShrink: 0,
         }}>
           <div className="md:hidden">
-            <img src="/images/logo-white.png" alt="Salon Envy" style={{ height: "32px", width: "auto" }} />
+            <img src="/images/logo-white.png" alt="Salon Envy" onError={(e) => { e.currentTarget.src = '/images/logo-text.svg' }} style={{ height: "32px", width: "auto" }} />
           </div>
           <div className="hidden md:block" style={{ color: "#FFFFFF", fontSize: "16px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" as const }}>
             Salon Envy® Portal
