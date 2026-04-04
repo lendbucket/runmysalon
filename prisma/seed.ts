@@ -38,13 +38,16 @@ async function main() {
   const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
   await prisma.user.upsert({
     where: { email: "ceo@36west.org" },
-    update: {},
+    update: {
+      inviteStatus: "ACCEPTED",
+    },
     create: {
       email: "ceo@36west.org",
       name: "Robert Reyna",
       role: "OWNER",
       passwordHash,
       locationId: null,
+      inviteStatus: "ACCEPTED",
     },
   });
 
