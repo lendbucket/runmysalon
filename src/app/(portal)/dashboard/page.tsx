@@ -3,11 +3,28 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
+interface StylistMetrics {
+  teamMemberId: string
+  name: string
+  homeLocation: string
+  revenue: number
+  serviceCount: number
+  avgTicket: number
+}
+
 interface LocationMetrics {
   location: string
   revenue: number
   serviceCount: number
   avgTicket: number
+  stylistBreakdown: StylistMetrics[]
+}
+
+interface CancellationStats {
+  totalCancellations: number
+  cancelledByCustomer: number
+  cancelledBySeller: number
+  noShows: number
 }
 
 function fmt(n: number) {
@@ -40,6 +57,7 @@ export default function DashboardPage() {
   const [activePeriod, setActivePeriod] = useState("today")
   const [metricsData, setMetricsData] = useState<LocationMetrics[]>([])
   const [pendingCount, setPendingCount] = useState(0)
+  const [cancellations, setCancellations] = useState<CancellationStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [now, setNow] = useState(Date.now()) // for re-rendering timeAgo
@@ -57,15 +75,18 @@ export default function DashboardPage() {
       const params = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") params.set("location", activeLocation)
 
-      const [metricsRes, approvalsRes] = await Promise.all([
+      const [metricsRes, approvalsRes, cancellationsRes] = await Promise.all([
         fetch(`/api/metrics/live?${params}`),
         fetch("/api/approvals/pending"),
+        fetch("/api/cancellations?period=7days"),
       ])
       const metricsJson = await metricsRes.json()
       const approvalsJson = await approvalsRes.json()
+      const cancellationsJson = await cancellationsRes.json()
 
       setMetricsData(metricsJson.metrics || [])
       setPendingCount(approvalsJson.users?.length || 0)
+      setCancellations(cancellationsJson.stats || null)
       setUpdatedAt(new Date())
     } catch {
       // silent fail — show zeros
@@ -104,10 +125,30 @@ export default function DashboardPage() {
     { label: "Pending Approvals", value: loading ? null : String(pendingCount), icon: "rule", sub: "Needs attention", alert: pendingCount > 0 },
   ]
 
+  // Compute all stylists from metrics for reuse
+  const allStylists: StylistMetrics[] = metricsData.flatMap((m) => m.stylistBreakdown || [])
+  const topStylist = allStylists.length > 0 ? [...allStylists].sort((a, b) => b.revenue - a.revenue)[0] : null
+
   const statusCards = [
-    { label: "Low Stock Items", sub: "Reorder suggested", icon: "inventory_2", count: 0 },
-    { label: "Pending Schedules", sub: "Awaiting approval", icon: "event_note", count: 0 },
-    { label: "Open Issues", sub: "Needs resolution", icon: "report_problem", count: 0 },
+    {
+      label: "Cancellations",
+      sub: cancellations ? `${cancellations.noShows} no-shows \u00b7 ${cancellations.cancelledByCustomer} client cancelled` : "Loading...",
+      icon: "event_busy",
+      count: cancellations?.totalCancellations ?? 0,
+    },
+    {
+      label: "Top Stylist",
+      sub: topStylist ? `${topStylist.homeLocation === "Corpus Christi" ? "CC" : "SA"} \u00b7 ${topStylist.serviceCount} services` : "No data yet",
+      icon: "star",
+      count: topStylist ? topStylist.name.split(" ")[0] : "\u2014",
+    },
+    {
+      label: "Retention",
+      sub: "Full analysis available",
+      icon: "favorite",
+      count: "Run",
+      href: "/retention",
+    },
   ]
 
   const quickActions = [
@@ -164,6 +205,13 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* QUICK STATS BAR */}
+      {!loading && (
+        <div style={{ marginBottom: "16px", fontSize: "12px", color: "rgba(205,201,192,0.45)", fontWeight: 500 }}>
+          This week: {fmt(totalRevenue)} revenue &middot; {totalServices} services{cancellations ? ` \u00b7 ${cancellations.totalCancellations} cancellations` : ""} &middot; Avg ticket {fmt(totalAvg)}
+        </div>
+      )}
 
       {/* PERIOD + LOCATION TABS */}
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" as const }}>
@@ -303,63 +351,71 @@ export default function DashboardPage() {
         gap: "14px",
         marginBottom: "20px",
       }}>
-        {statusCards.map((s) => (
-          <div key={s.label} style={{
-            backgroundColor: "#1a2a32",
-            border: "1px solid rgba(205,201,192,0.1)",
-            borderRadius: "10px",
-            padding: "16px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            cursor: "pointer",
-            transition: "background-color 0.15s",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        {statusCards.map((s) => {
+          const inner = (
+            <div style={{
+              backgroundColor: "#1a2a32",
+              border: "1px solid rgba(205,201,192,0.1)",
+              borderRadius: "10px",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              transition: "background-color 0.15s",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  backgroundColor: "rgba(205,201,192,0.06)",
+                  border: "1px solid rgba(205,201,192,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "18px", color: "#CDC9C0" }}>
+                    {s.icon}
+                  </span>
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "#CDC9C0",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase" as const,
+                    marginBottom: "2px",
+                  }}>
+                    {s.label}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#94A3B8" }}>{s.sub}</div>
+                </div>
+              </div>
               <div style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "8px",
+                fontSize: typeof s.count === "string" ? "14px" : "24px",
+                fontWeight: 800,
+                color: "#FFFFFF",
                 backgroundColor: "rgba(205,201,192,0.06)",
-                border: "1px solid rgba(205,201,192,0.12)",
+                minWidth: "44px",
+                height: "44px",
+                borderRadius: "8px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                padding: "0 10px",
               }}>
-                <span className="material-symbols-outlined" style={{ fontSize: "18px", color: "#CDC9C0" }}>
-                  {s.icon}
-                </span>
-              </div>
-              <div>
-                <div style={{
-                  fontSize: "9px",
-                  fontWeight: 700,
-                  color: "#CDC9C0",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase" as const,
-                  marginBottom: "2px",
-                }}>
-                  {s.label}
-                </div>
-                <div style={{ fontSize: "11px", color: "#94A3B8" }}>{s.sub}</div>
+                {s.count}
               </div>
             </div>
-            <div style={{
-              fontSize: "24px",
-              fontWeight: 800,
-              color: "#FFFFFF",
-              backgroundColor: "rgba(205,201,192,0.06)",
-              width: "44px",
-              height: "44px",
-              borderRadius: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}>
-              {s.count}
-            </div>
-          </div>
-        ))}
+          )
+          return s.href ? (
+            <Link key={s.label} href={s.href} style={{ textDecoration: "none" }}>{inner}</Link>
+          ) : (
+            <div key={s.label}>{inner}</div>
+          )
+        })}
       </div>
 
       {/* QUICK ACTIONS */}
@@ -431,7 +487,7 @@ export default function DashboardPage() {
         gridTemplateColumns: "1fr",
         gap: "20px",
       }} className="lg:!grid-cols-[1fr_380px]">
-        {/* Recent Activity */}
+        {/* Recent Activity / Stylist Leaderboard */}
         <div style={{
           backgroundColor: "#1a2a32",
           border: "1px solid rgba(205,201,192,0.1)",
@@ -443,26 +499,83 @@ export default function DashboardPage() {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h3 style={{ fontSize: "12px", fontWeight: 800, color: "#FFFFFF", textTransform: "uppercase" as const, letterSpacing: "0.08em", margin: 0 }}>
-              Recent Activity
+              {allStylists.length > 0 ? "Stylist Leaderboard" : "Recent Activity"}
             </h3>
-            <span className="material-symbols-outlined" style={{ color: "rgba(205,201,192,0.25)", fontSize: "18px" }}>history</span>
+            <span className="material-symbols-outlined" style={{ color: "rgba(205,201,192,0.25)", fontSize: "18px" }}>
+              {allStylists.length > 0 ? "leaderboard" : "history"}
+            </span>
           </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", opacity: 0.35 }}>
-            <div style={{
-              width: "48px",
-              height: "48px",
-              borderRadius: "50%",
-              border: "1.5px dashed rgba(205,201,192,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: "14px",
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: "24px", color: "#CDC9C0" }}>sync</span>
+          {allStylists.length > 0 ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[...allStylists].sort((a, b) => b.serviceCount - a.serviceCount).slice(0, 5).map((s, i) => (
+                <div key={s.teamMemberId} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: i === 0 ? "rgba(205,201,192,0.06)" : "transparent",
+                  border: i === 0 ? "1px solid rgba(205,201,192,0.12)" : "1px solid transparent",
+                }}>
+                  <div style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    backgroundColor: i === 0 ? "rgba(234,179,8,0.15)" : "rgba(205,201,192,0.06)",
+                    color: i === 0 ? "#EAB308" : "rgba(205,201,192,0.5)",
+                    border: i === 0 ? "1px solid rgba(234,179,8,0.3)" : "1px solid rgba(205,201,192,0.1)",
+                  }}>
+                    {i + 1}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ color: i === 0 ? "#FFFFFF" : "rgba(205,201,192,0.8)", fontSize: "13px", fontWeight: 600 }}>{s.name}</span>
+                      <span style={{
+                        fontSize: "9px",
+                        fontWeight: 700,
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        backgroundColor: s.homeLocation === "Corpus Christi" ? "rgba(99,102,241,0.12)" : "rgba(16,185,129,0.12)",
+                        color: s.homeLocation === "Corpus Christi" ? "#818CF8" : "#10B981",
+                      }}>
+                        {s.homeLocation === "Corpus Christi" ? "CC" : "SA"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.4)", marginTop: "2px" }}>
+                      {s.serviceCount} services
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 800, color: i === 0 ? "#FFFFFF" : "rgba(205,201,192,0.7)" }}>
+                      {fmt(s.revenue)}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p style={{ fontSize: "13px", fontWeight: 700, color: "#FFFFFF", margin: "0 0 3px" }}>Awaiting Activity</p>
-            <p style={{ fontSize: "11px", color: "#94A3B8", margin: 0 }}>The portal is synchronized.</p>
-          </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", opacity: 0.35 }}>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                border: "1.5px dashed rgba(205,201,192,0.35)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "14px",
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "24px", color: "#CDC9C0" }}>sync</span>
+              </div>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "#FFFFFF", margin: "0 0 3px" }}>Awaiting Activity</p>
+              <p style={{ fontSize: "11px", color: "#94A3B8", margin: 0 }}>The portal is synchronized.</p>
+            </div>
+          )}
         </div>
 
         {/* Admin Alerts */}
@@ -470,12 +583,24 @@ export default function DashboardPage() {
           <h3 style={{ fontSize: "9px", fontWeight: 800, color: "#CDC9C0", letterSpacing: "0.2em", textTransform: "uppercase" as const, margin: "0 0 2px" }}>
             Admin Alerts
           </h3>
-          {[
-            { priority: "URGENT", color: "#EF4444", icon: "priority_high", text: "End of month reconciliation due in 48 hours." },
-            { priority: "HIGH", color: "#F59E0B", icon: "warning", text: "3 staff members have not confirmed their schedules." },
-            { priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: "Quarterly inventory audit scheduled for next Monday." },
-          ].map((alert) => (
-            <div key={alert.priority} style={{
+          {(() => {
+            const alerts: { priority: string; color: string; icon: string; text: string }[] = []
+            if (cancellations && cancellations.totalCancellations > 10) {
+              alerts.push({ priority: "URGENT", color: "#EF4444", icon: "priority_high", text: `High cancellation volume this week: ${cancellations.totalCancellations} total cancellations.` })
+            }
+            if (cancellations && cancellations.noShows > 3) {
+              alerts.push({ priority: "HIGH", color: "#F59E0B", icon: "warning", text: `${cancellations.noShows} no-shows this week. Consider implementing a deposit or confirmation policy.` })
+            }
+            const zeroServiceStylists = allStylists.filter((s) => s.serviceCount === 0)
+            if (zeroServiceStylists.length > 0) {
+              alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `${zeroServiceStylists.length} stylist(s) with 0 services: ${zeroServiceStylists.map((s) => s.name.split(" ")[0]).join(", ")}.` })
+            }
+            if (alerts.length === 0) {
+              alerts.push({ priority: "ALL GOOD", color: "#22c55e", icon: "check_circle", text: "No issues detected. All systems running smoothly." })
+            }
+            return alerts
+          })().map((alert, idx) => (
+            <div key={idx} style={{
               backgroundColor: "#1a2a32",
               border: "1px solid rgba(205,201,192,0.08)",
               borderLeft: `3px solid ${alert.color}`,

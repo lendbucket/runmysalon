@@ -1,5 +1,5 @@
 import { SquareClient, SquareEnvironment } from "square"
-import { TEAM_MEMBER_NAMES } from "./square-metrics"
+import { TEAM_MEMBER_NAMES, TEAM_MEMBER_LOCATIONS } from "./square-metrics"
 
 function getSquare() {
   return new SquareClient({
@@ -36,6 +36,17 @@ interface CustomerRetention {
   locationName: string
 }
 
+export interface StylistRetention {
+  teamMemberId: string
+  name: string
+  location: string
+  uniqueClients: number
+  repeatClients: number
+  retentionRate: number
+  avgTicket: number
+  totalRevenue: number
+}
+
 export interface RetentionStats {
   totalCustomers: number
   activeCustomers: number
@@ -50,6 +61,7 @@ export interface RetentionStats {
   retentionGrade: string
   allCustomers: CustomerRetention[]
   dataNote: string
+  stylistBreakdown: StylistRetention[]
 }
 
 function getLapsedSegment(daysSince: number): string {
@@ -242,6 +254,70 @@ export async function getAllRetentionData(
     })
   }
 
+  // Step 3b: Stylist-level retention breakdown
+  const stylistUniqueClients: Record<string, Set<string>> = {}
+  const stylistRepeatClients: Record<string, Set<string>> = {}
+  const stylistRevenue: Record<string, number> = {}
+  const stylistTickets: Record<string, number[]> = {}
+
+  for (const c of customers) {
+    // Find all stylists who served this customer from their bookings
+    const custBookings = customerBookings[c.customerId] || []
+    const stylistsServed = new Set<string>()
+    for (const b of custBookings) {
+      if (b.stylistId && b.stylistId !== "unknown") {
+        stylistsServed.add(b.stylistId)
+      }
+    }
+
+    for (const sid of stylistsServed) {
+      if (!stylistUniqueClients[sid]) stylistUniqueClients[sid] = new Set()
+      stylistUniqueClients[sid].add(c.customerId)
+
+      // A repeat client visited this stylist more than once OR visited the salon more than once
+      if (c.totalVisits > 1) {
+        if (!stylistRepeatClients[sid]) stylistRepeatClients[sid] = new Set()
+        stylistRepeatClients[sid].add(c.customerId)
+      }
+    }
+
+    // Attribute revenue to preferred stylist
+    const prefId = Object.entries(
+      custBookings.reduce((acc: Record<string, number>, b) => {
+        if (b.stylistId && b.stylistId !== "unknown") acc[b.stylistId] = (acc[b.stylistId] || 0) + 1
+        return acc
+      }, {})
+    ).sort((a, b) => b[1] - a[1])[0]?.[0]
+
+    if (prefId) {
+      const orders = customerOrders[c.customerId] || []
+      const totalSpend = orders.reduce((s, a) => s + a, 0)
+      stylistRevenue[prefId] = (stylistRevenue[prefId] || 0) + totalSpend
+      if (!stylistTickets[prefId]) stylistTickets[prefId] = []
+      stylistTickets[prefId].push(...orders)
+    }
+  }
+
+  const stylistBreakdown: StylistRetention[] = Object.entries(TEAM_MEMBER_NAMES)
+    .map(([id, name]) => {
+      const unique = stylistUniqueClients[id]?.size || 0
+      const repeat = stylistRepeatClients[id]?.size || 0
+      const tickets = stylistTickets[id] || []
+      const totalRev = stylistRevenue[id] || 0
+      const avgTk = tickets.length > 0 ? Math.round((totalRev / tickets.length) * 100) / 100 : 0
+      return {
+        teamMemberId: id,
+        name,
+        location: TEAM_MEMBER_LOCATIONS[id] || "Unknown",
+        uniqueClients: unique,
+        repeatClients: repeat,
+        retentionRate: unique > 0 ? Math.round((repeat / unique) * 1000) / 10 : 0,
+        avgTicket: avgTk,
+        totalRevenue: Math.round(totalRev * 100) / 100,
+      }
+    })
+    .sort((a, b) => b.retentionRate - a.retentionRate)
+
   // Step 4: Aggregate stats
   const totalCustomers = customers.length
   const activeCustomers = customers.filter((c) => c.lapsedSegment === "active").length
@@ -275,5 +351,6 @@ export async function getAllRetentionData(
     retentionGrade: getRetentionGrade(retentionScore),
     allCustomers: customers,
     dataNote: "Data covers last 3 years from Square bookings (parallel fetch)",
+    stylistBreakdown,
   }
 }

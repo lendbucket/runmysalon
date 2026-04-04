@@ -35,6 +35,17 @@ interface CustomerData {
   locationName: string
 }
 
+interface StylistBreakdown {
+  teamMemberId: string
+  name: string
+  location: string
+  uniqueClients: number
+  repeatClients: number
+  retentionRate: number
+  avgTicket: number
+  totalRevenue: number
+}
+
 interface RetentionData {
   totalCustomers: number
   activeCustomers: number
@@ -48,6 +59,7 @@ interface RetentionData {
   retentionScore: number
   retentionGrade: string
   allCustomers: CustomerData[]
+  stylistBreakdown: StylistBreakdown[]
 }
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -124,6 +136,7 @@ export default function RetentionPage() {
   const [sendingOutreach, setSendingOutreach] = useState(false)
   const [outreachResults, setOutreachResults] = useState<{ sent: number; failed: number; results: { customerName: string; status: string }[] } | null>(null)
   const [location, setLocation] = useState<string>("")
+  const [selectedClient, setSelectedClient] = useState<CustomerData | null>(null)
 
   async function runAnalysis() {
     setLoading(true)
@@ -412,6 +425,52 @@ export default function RetentionPage() {
                   <li>Create a VIP loyalty tier for clients with 10+ visits per year</li>
                 </ul>
               </div>
+
+              {/* Stylist Retention Breakdown */}
+              {data.stylistBreakdown && data.stylistBreakdown.length > 0 && (
+                <div style={{ marginTop: "24px" }}>
+                  <h3 style={{ color: "#FFFFFF", fontSize: "15px", fontWeight: 700, marginBottom: "16px" }}>Stylist Retention Breakdown</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                    {(["Corpus Christi", "San Antonio"] as const).map((loc) => {
+                      const locStylists = data.stylistBreakdown.filter((s) => s.location === loc)
+                      return (
+                        <div key={loc} style={card}>
+                          <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.12em", color: "#CDC9C0", textTransform: "uppercase" as const, marginBottom: "12px" }}>
+                            {loc === "Corpus Christi" ? "CC" : "SA"} Stylists
+                          </div>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                            <thead>
+                              <tr style={{ borderBottom: "1px solid rgba(205,201,192,0.12)" }}>
+                                {["Stylist", "Clients", "Repeat", "Retention %", "Avg Ticket"].map((h) => (
+                                  <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: "rgba(205,201,192,0.45)", fontWeight: 700, fontSize: "9px", letterSpacing: "0.1em", textTransform: "uppercase" as const, whiteSpace: "nowrap" }}>
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {locStylists.map((s) => (
+                                <tr key={s.teamMemberId} style={{ borderBottom: "1px solid rgba(205,201,192,0.06)" }}>
+                                  <td style={{ padding: "8px 6px", color: "#FFFFFF", fontWeight: 600 }}>{s.name.split(" ")[0]}</td>
+                                  <td style={{ padding: "8px 6px", color: "rgba(205,201,192,0.7)" }}>{s.uniqueClients}</td>
+                                  <td style={{ padding: "8px 6px", color: "rgba(205,201,192,0.7)" }}>{s.repeatClients}</td>
+                                  <td style={{ padding: "8px 6px", fontWeight: 700, color: s.retentionRate >= 70 ? "#22c55e" : s.retentionRate >= 50 ? "#eab308" : "#ef4444" }}>
+                                    {s.retentionRate}%
+                                  </td>
+                                  <td style={{ padding: "8px 6px", color: "rgba(205,201,192,0.7)" }}>${s.avgTicket.toFixed(0)}</td>
+                                </tr>
+                              ))}
+                              {locStylists.length === 0 && (
+                                <tr><td colSpan={5} style={{ padding: "12px 6px", color: "rgba(205,201,192,0.3)", textAlign: "center" }}>No data</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -536,7 +595,7 @@ export default function RetentionPage() {
                   </thead>
                   <tbody>
                     {data.top20Recurring.map((c, i) => (
-                      <tr key={c.customerId} style={{ borderBottom: "1px solid rgba(205,201,192,0.06)" }}>
+                      <tr key={c.customerId} onClick={() => setSelectedClient(c)} style={{ borderBottom: "1px solid rgba(205,201,192,0.06)", cursor: "pointer", transition: "background-color 0.15s" }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(205,201,192,0.06)")} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
                         <td style={{ padding: "8px", color: "rgba(205,201,192,0.4)", fontWeight: 700 }}>{i + 1}</td>
                         <td style={{ padding: "8px", color: "#FFFFFF", fontWeight: 600 }}>{c.customerName}</td>
                         <td style={{ padding: "8px", color: "#22c55e", fontWeight: 700 }}>{c.totalVisits}</td>
@@ -567,7 +626,7 @@ export default function RetentionPage() {
                   </thead>
                   <tbody>
                     {data.top5HighestTickets.map((c, i) => (
-                      <tr key={c.customerId} style={{ borderBottom: "1px solid rgba(205,201,192,0.06)" }}>
+                      <tr key={c.customerId} onClick={() => setSelectedClient(c)} style={{ borderBottom: "1px solid rgba(205,201,192,0.06)", cursor: "pointer", transition: "background-color 0.15s" }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(205,201,192,0.06)")} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
                         <td style={{ padding: "8px", color: "rgba(205,201,192,0.4)", fontWeight: 700 }}>{i + 1}</td>
                         <td style={{ padding: "8px", color: "#FFFFFF", fontWeight: 600 }}>{c.customerName}</td>
                         <td style={{ padding: "8px", color: "#CDC9C0", fontWeight: 700, fontSize: "14px" }}>${c.maxTicket.toFixed(2)}</td>
@@ -696,6 +755,135 @@ export default function RetentionPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Client Profile Modal */}
+      {selectedClient && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setSelectedClient(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1a2a32",
+              borderRadius: "12px",
+              border: "1px solid rgba(205,201,192,0.12)",
+              maxWidth: "520px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "20px", borderBottom: "1px solid rgba(205,201,192,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, color: "#FFFFFF", fontSize: "16px", fontWeight: 700 }}>Client Profile</h3>
+              <button onClick={() => setSelectedClient(null)} style={{ background: "none", border: "none", color: "rgba(205,201,192,0.5)", cursor: "pointer", fontSize: "20px", lineHeight: 1 }}>&times;</button>
+            </div>
+            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Contact Info */}
+              <div>
+                <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", color: "rgba(205,201,192,0.4)", marginBottom: "8px", textTransform: "uppercase" as const }}>Contact Info</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {[
+                    { label: "Name", value: selectedClient.customerName },
+                    { label: "Email", value: selectedClient.email || "N/A", link: selectedClient.email ? `mailto:${selectedClient.email}` : undefined },
+                    { label: "Phone", value: selectedClient.phone || "N/A", link: selectedClient.phone ? `sms:${selectedClient.phone}` : undefined },
+                  ].map((row) => (
+                    <div key={row.label} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>{row.label}</span>
+                      {row.link ? (
+                        <a href={row.link} style={{ color: "#CDC9C0", fontSize: "12px", fontWeight: 600, textDecoration: "underline" }}>{row.value}</a>
+                      ) : (
+                        <span style={{ color: "#FFFFFF", fontSize: "12px", fontWeight: 600 }}>{row.value}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Visit Stats */}
+              <div>
+                <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", color: "rgba(205,201,192,0.4)", marginBottom: "8px", textTransform: "uppercase" as const }}>Visit Stats</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                  {[
+                    { label: "Total Visits", value: String(selectedClient.totalVisits) },
+                    { label: "Tickets", value: String(selectedClient.ticketCount) },
+                    { label: "Total Spend", value: `$${selectedClient.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 0 })}` },
+                    { label: "Avg Ticket", value: `$${selectedClient.avgTicket.toFixed(0)}` },
+                    { label: "Min Ticket", value: selectedClient.minTicket > 0 ? `$${selectedClient.minTicket.toFixed(0)}` : "\u2014" },
+                    { label: "Max Ticket", value: selectedClient.maxTicket > 0 ? `$${selectedClient.maxTicket.toFixed(0)}` : "\u2014" },
+                  ].map((s) => (
+                    <div key={s.label} style={{ backgroundColor: "rgba(205,201,192,0.04)", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
+                      <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(205,201,192,0.4)", textTransform: "uppercase" as const, marginBottom: "4px" }}>{s.label}</div>
+                      <div style={{ fontSize: "16px", fontWeight: 800, color: "#FFFFFF" }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Date Stats */}
+              <div>
+                <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", color: "rgba(205,201,192,0.4)", marginBottom: "8px", textTransform: "uppercase" as const }}>Date Stats</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>First Visit</span>
+                    <span style={{ color: "#FFFFFF", fontSize: "12px" }}>{new Date(selectedClient.firstVisit).toLocaleDateString()}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Last Visit</span>
+                    <span style={{ color: "#FFFFFF", fontSize: "12px" }}>{new Date(selectedClient.lastVisit).toLocaleDateString()}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Days Since Last Visit</span>
+                    <span style={{ color: SEGMENT_COLORS[selectedClient.lapsedSegment] || "#CDC9C0", fontSize: "12px", fontWeight: 700 }}>{selectedClient.daysSinceLastVisit}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Stylist & Segment */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", color: "rgba(205,201,192,0.4)", textTransform: "uppercase" as const, marginBottom: "4px" }}>Preferred Stylist</div>
+                  <div style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 600 }}>{selectedClient.preferredStylist}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", color: "rgba(205,201,192,0.4)", textTransform: "uppercase" as const, marginBottom: "4px" }}>Segment</div>
+                  <span style={{
+                    padding: "4px 10px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    backgroundColor: `${SEGMENT_COLORS[selectedClient.lapsedSegment] || "#CDC9C0"}20`,
+                    color: SEGMENT_COLORS[selectedClient.lapsedSegment] || "#CDC9C0",
+                  }}>
+                    {SEGMENT_LABELS[selectedClient.lapsedSegment] || selectedClient.lapsedSegment}
+                  </span>
+                </div>
+              </div>
+              {/* Quick Actions */}
+              <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                {selectedClient.phone && (
+                  <a href={`sms:${selectedClient.phone}`} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "8px", backgroundColor: "rgba(205,201,192,0.08)", border: "1px solid rgba(205,201,192,0.12)", color: "#CDC9C0", textDecoration: "none", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>sms</span>
+                    Text
+                  </a>
+                )}
+                {selectedClient.email && (
+                  <a href={`mailto:${selectedClient.email}`} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "8px", backgroundColor: "rgba(205,201,192,0.08)", border: "1px solid rgba(205,201,192,0.12)", color: "#CDC9C0", textDecoration: "none", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>mail</span>
+                    Email
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
