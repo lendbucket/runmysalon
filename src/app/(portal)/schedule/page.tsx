@@ -17,9 +17,33 @@ interface Location { id: string; name: string }
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const HOURS = ["8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM"]
 
-function getMondayOfWeek(d: Date) {
-  const r = new Date(d); const day = r.getDay()
-  r.setDate(r.getDate() - day + (day === 0 ? -6 : 1)); r.setHours(0, 0, 0, 0); return r
+function getWeekStart(date: Date) {
+  const d = new Date(date)
+  d.setDate(d.getDate() - d.getDay())
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function parseTimeToHours(t: string): number {
+  const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!match) return 0
+  let h = parseInt(match[1], 10)
+  const m = parseInt(match[2], 10)
+  const ampm = match[3].toUpperCase()
+  if (ampm === "PM" && h !== 12) h += 12
+  if (ampm === "AM" && h === 12) h = 0
+  return h + m / 60
+}
+
+function calcTotalHours(staffShifts: Record<string, ShiftData> | undefined): number {
+  if (!staffShifts) return 0
+  let total = 0
+  for (const sh of Object.values(staffShifts)) {
+    if (sh.isOff || !sh.start || !sh.end) continue
+    const diff = parseTimeToHours(sh.end) - parseTimeToHours(sh.start)
+    if (diff > 0) total += diff
+  }
+  return total
 }
 function getWeekDates(ws: Date) { return Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(ws.getDate() + i); return d }) }
 function fmtDate(d: Date) { return d.toISOString().split("T")[0] }
@@ -34,8 +58,8 @@ export default function SchedulePage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [selLoc, setSelLoc] = useState<Location | null>(null)
   const [staff, setStaff] = useState<StaffMember[]>([])
-  const [weekStart, setWeekStart] = useState(getMondayOfWeek(new Date()))
-  const [weekDates, setWeekDates] = useState(getWeekDates(getMondayOfWeek(new Date())))
+  const [weekStart, setWeekStart] = useState(getWeekStart(new Date()))
+  const [weekDates, setWeekDates] = useState(getWeekDates(getWeekStart(new Date())))
   const [shifts, setShifts] = useState<Record<string, Record<string, ShiftData>>>({})
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -208,6 +232,7 @@ export default function SchedulePage() {
                         </th>
                       )
                     })}
+                    <th style={{ padding: "12px 8px", fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", textAlign: "center", borderBottom: "1px solid rgba(205,201,192,0.08)", borderLeft: "1px solid rgba(205,201,192,0.06)", width: "70px" }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -264,6 +289,11 @@ export default function SchedulePage() {
                           </td>
                         )
                       })}
+                      <td style={{ padding: "6px 8px", borderBottom: "1px solid rgba(205,201,192,0.06)", borderLeft: "1px solid rgba(205,201,192,0.06)", textAlign: "center", verticalAlign: "middle" }}>
+                        {(() => { const hrs = calcTotalHours(shifts[m.id]); return hrs > 0 ? (
+                          <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: "10px", backgroundColor: "rgba(205,201,192,0.1)", fontSize: "10px", fontWeight: 700, color: "#CDC9C0" }}>{hrs % 1 === 0 ? hrs : hrs.toFixed(1)} hrs</span>
+                        ) : <span style={{ fontSize: "10px", color: "rgba(205,201,192,0.2)" }}>{"\u2014"}</span> })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -22,7 +22,7 @@ export async function GET() {
   const { prisma } = await import("@/lib/prisma");
   const items = await prisma.inventoryItem.findMany({
     include: { location: true },
-    orderBy: [{ location: { name: "asc" } }, { brand: "asc" }, { productName: "asc" }],
+    orderBy: [{ isLowStock: "desc" }, { brand: "asc" }, { productName: "asc" }],
   });
 
   return NextResponse.json({ items });

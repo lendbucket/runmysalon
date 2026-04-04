@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Inter, Noto_Serif } from "next/font/google"
+import Script from "next/script"
 import "./globals.css"
 import { Providers } from "./providers"
 
@@ -15,9 +16,10 @@ const notoSerif = Noto_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "Salon Envy® Portal",
+  title: "Salon Envy\u00ae Portal",
   description: "Salon Envy Management Portal",
   manifest: "/manifest.json",
+  applicationName: "SE Portal",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -25,6 +27,9 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: "/images/logo-white.png",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
   },
 }
 
@@ -46,6 +51,11 @@ export default function RootLayout({
         <Providers>
           {children}
         </Providers>
+        <Script id="sw-register" strategy="afterInteractive">{`
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+          }
+        `}</Script>
       </body>
     </html>
   )

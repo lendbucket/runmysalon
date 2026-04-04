@@ -45,6 +45,8 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [locationTab, setLocationTab] = useState<"all" | "cc" | "sa">("all");
+  const [inviting, setInviting] = useState<string | null>(null);
+  const [invited, setInvited] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +67,22 @@ export default function StaffPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const sendInvite = async (member: StaffRow) => {
+    if (!member.email) return;
+    setInviting(member.id);
+    try {
+      const res = await fetch("/api/staff/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: member.email, name: member.fullName, location: member.location.name }),
+      });
+      if (res.ok) {
+        setInvited(prev => new Set(prev).add(member.id));
+      }
+    } catch { /* ignore */ }
+    setInviting(null);
+  };
 
   const filtered = useMemo(() => {
     return staff.filter((m) => {
@@ -142,11 +160,26 @@ export default function StaffPage() {
                   ) : null}
                   <p className="mt-2 text-xs text-neutral-600">{m.location.name}</p>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${badgeFor(m.inviteStatus)}`}
-                >
-                  {labelFor(m.inviteStatus)}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${badgeFor(m.inviteStatus)}`}
+                  >
+                    {labelFor(m.inviteStatus)}
+                  </span>
+                  {m.inviteStatus.toLowerCase() === "not_invited" && m.email && !invited.has(m.id) && (
+                    <button
+                      type="button"
+                      onClick={() => sendInvite(m)}
+                      disabled={inviting === m.id}
+                      className="rounded-full bg-[#CDC9C0] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0f1d24] transition hover:bg-[#b8b4a9] disabled:opacity-50"
+                    >
+                      {inviting === m.id ? "Sending..." : "Invite"}
+                    </button>
+                  )}
+                  {invited.has(m.id) && (
+                    <span className="text-[10px] font-semibold text-emerald-400">Sent!</span>
+                  )}
+                </div>
               </div>
             </li>
           ))}

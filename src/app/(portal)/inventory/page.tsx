@@ -1,237 +1,210 @@
-"use client";
+"use client"
+import { useState, useEffect, useCallback, useMemo } from "react"
 
-import Link from "next/link";
-import { Package, Plus, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-type Loc = { id: string; name: string; address: string; phone: string };
-
+type Loc = { id: string; name: string; address: string; phone: string }
 type Item = {
-  id: string;
-  brand: string;
-  productName: string;
-  category: string;
-  quantityOnHand: number;
-  reorderThreshold: number;
-  location: Loc;
-};
+  id: string
+  brand: string
+  productName: string
+  category: string
+  shadeOrVolume: string | null
+  quantityOnHand: number
+  reorderThreshold: number
+  isLowStock: boolean
+  location: Loc
+}
 
-const CATEGORIES = ["All", "Color", "Bleach", "Toner", "Shampoo", "Other"] as const;
+const CATEGORIES = ["All", "bleach", "color", "toner", "shampoo", "conditioner", "styling", "tools", "supplies", "other"] as const
 
-function statusFor(qty: number, threshold: number): { label: string; className: string } {
-  if (qty <= 0) return { label: "Critical", className: "bg-red-500/20 text-red-400 ring-red-500/40" };
-  if (qty <= threshold)
-    return { label: "Low", className: "bg-amber-500/20 text-amber-300 ring-amber-500/35" };
-  return { label: "OK", className: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" };
+function getStatus(qty: number, threshold: number): { label: string; color: string } {
+  if (qty <= 0) return { label: "Out", color: "#EF4444" }
+  if (qty <= threshold) return { label: "Low", color: "#F59E0B" }
+  return { label: "OK", color: "#10B981" }
 }
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [locationTab, setLocationTab] = useState<"all" | "cc" | "sa">("all");
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("All");
-  const [q, setQ] = useState("");
+  const [items, setItems] = useState<Item[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [category, setCategory] = useState<string>("All")
+  const [lowOnly, setLowOnly] = useState(false)
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setFetchError(null);
+    setLoading(true)
     try {
-      const res = await fetch("/api/inventory");
-      const data = (await res.json()) as { items?: Item[]; error?: unknown };
-      if (!res.ok) throw new Error("Could not load inventory");
-      setItems(data.items ?? []);
-    } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Failed to load");
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const res = await fetch("/api/inventory")
+      const data = await res.json()
+      setItems(data.items ?? [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }, [])
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load() }, [load])
 
   const filtered = useMemo(() => {
-    return items.filter((it) => {
-      if (locationTab === "cc" && it.location.name !== "Corpus Christi") return false;
-      if (locationTab === "sa" && it.location.name !== "San Antonio") return false;
-      if (category !== "All" && it.category !== category) return false;
-      if (q.trim()) {
-        const s = q.trim().toLowerCase();
-        const hay = `${it.brand} ${it.productName} ${it.category} ${it.location.name}`.toLowerCase();
-        if (!hay.includes(s)) return false;
+    return items.filter(it => {
+      if (category !== "All" && it.category.toLowerCase() !== category.toLowerCase()) return false
+      if (lowOnly && !it.isLowStock && it.quantityOnHand > 0) return false
+      if (search.trim()) {
+        const s = search.trim().toLowerCase()
+        const hay = `${it.brand} ${it.productName} ${it.category} ${it.shadeOrVolume || ""}`.toLowerCase()
+        if (!hay.includes(s)) return false
       }
-      return true;
-    });
-  }, [items, locationTab, category, q]);
+      return true
+    })
+  }, [items, category, lowOnly, search])
+
+  const adjustQty = async (item: Item, delta: number) => {
+    const newQty = Math.max(0, item.quantityOnHand + delta)
+    setUpdating(item.id)
+    try {
+      const res = await fetch(`/api/inventory/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantityOnHand: newQty }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, ...data.item } : i))
+      }
+    } catch { /* ignore */ }
+    setUpdating(null)
+  }
+
+  const pill = (active: boolean) => ({
+    padding: "6px 14px", fontSize: "10px", fontWeight: 700 as const,
+    letterSpacing: "0.08em", textTransform: "uppercase" as const,
+    borderRadius: "20px", border: "none", cursor: "pointer" as const,
+    backgroundColor: active ? "#CDC9C0" : "rgba(205,201,192,0.06)",
+    color: active ? "#0f1d24" : "rgba(205,201,192,0.5)", transition: "all 0.15s",
+  })
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-100">Inventory</h1>
-        <Link
-          href="/inventory/add"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-4 py-2.5 text-sm font-semibold text-[#0d0d0d] hover:bg-[#b89642]"
-        >
-          <Plus className="size-4" />
-          Add Item
-        </Link>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "28px" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" />
+
+      <div style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#FFFFFF", margin: "0 0 4px", letterSpacing: "-0.02em" }}>Inventory</h1>
+          <p style={{ fontSize: "12px", color: "#94A3B8", margin: 0 }}>Track and manage product stock levels</p>
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {(
-          [
-            { id: "all" as const, label: "All" },
-            { id: "cc" as const, label: "Corpus Christi" },
-            { id: "sa" as const, label: "San Antonio" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setLocationTab(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              locationTab === t.id
-                ? "bg-[#C9A84C] text-[#0d0d0d]"
-                : "bg-[#1f1f1f] text-neutral-400 hover:bg-[#2a2a2a]"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setCategory(c)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              category === c
-                ? "bg-[#2a2618] text-[#C9A84C] ring-1 ring-[#C9A84C]/40"
-                : "bg-[#1a1a1a] text-neutral-500 hover:bg-[#222]"
-            }`}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
-      <div className="relative mt-6">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-500" />
+      {/* Search */}
+      <div style={{ position: "relative", marginBottom: "16px" }}>
+        <span className="material-symbols-outlined" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "18px", color: "rgba(205,201,192,0.3)" }}>search</span>
         <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search brand, product, category…"
-          className="w-full rounded-xl border border-[#2a2a2a] bg-[#161616] py-2.5 pl-10 pr-4 text-sm text-neutral-100 outline-none ring-[#C9A84C]/25 placeholder:text-neutral-600 focus:ring-2"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search brand, product, shade..."
+          style={{
+            width: "100%", padding: "10px 14px 10px 38px", boxSizing: "border-box",
+            backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)",
+            borderRadius: "10px", color: "#FFFFFF", fontSize: "13px", outline: "none",
+          }}
         />
       </div>
 
-      {fetchError ? (
-        <p className="mt-4 text-sm text-red-400">{fetchError}</p>
-      ) : null}
+      {/* Category pills */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+        {CATEGORIES.map(c => (
+          <button key={c} onClick={() => setCategory(c)} style={pill(category === c)}>
+            {c}
+          </button>
+        ))}
+        <button
+          onClick={() => setLowOnly(!lowOnly)}
+          style={{
+            ...pill(lowOnly),
+            backgroundColor: lowOnly ? "#F59E0B" : "rgba(205,201,192,0.06)",
+            color: lowOnly ? "#0f1d24" : "rgba(245,158,11,0.6)",
+          }}
+        >
+          Low Stock
+        </button>
+      </div>
 
       {loading ? (
-        <p className="mt-8 text-sm text-neutral-500">Loading inventory…</p>
-      ) : items.length === 0 ? (
-        <div className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#2a2a2a] bg-[#161616] px-6 py-16 text-center">
-          <Package className="size-12 text-neutral-600" aria-hidden />
-          <p className="mt-4 text-lg font-medium text-neutral-300">No inventory items yet</p>
-          <p className="mt-1 max-w-sm text-sm text-neutral-500">
-            Add your first product to track stock by location.
-          </p>
-          <Link
-            href="/inventory/add"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#C9A84C] px-5 py-2.5 text-sm font-semibold text-[#0d0d0d] hover:bg-[#b89642]"
-          >
-            <Plus className="size-4" />
-            Add your first inventory item
-          </Link>
-        </div>
+        <p style={{ color: "#94A3B8", textAlign: "center", padding: "40px 0" }}>Loading inventory...</p>
       ) : filtered.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-neutral-500">
-          No items match your filters. Try adjusting search or tabs.
-        </p>
+        <div style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "12px", padding: "48px 24px", textAlign: "center" }}>
+          <span className="material-symbols-outlined" style={{ fontSize: "48px", color: "rgba(205,201,192,0.2)", display: "block", marginBottom: "16px" }}>inventory_2</span>
+          <p style={{ fontSize: "16px", fontWeight: 700, color: "#FFFFFF", margin: "0 0 8px" }}>No items found</p>
+          <p style={{ fontSize: "13px", color: "#94A3B8", margin: 0 }}>Try adjusting your search or filters.</p>
+        </div>
       ) : (
-        <>
-          <div className="mt-8 hidden overflow-hidden rounded-xl border border-[#2a2a2a] md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#1a1a1a] text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Brand</th>
-                  <th className="px-4 py-3 font-medium">Product</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium">Location</th>
-                  <th className="px-4 py-3 font-medium">Qty</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2a2a2a]">
-                {filtered.map((it) => {
-                  const st = statusFor(it.quantityOnHand, it.reorderThreshold);
-                  return (
-                    <tr key={it.id} className="bg-[#161616] hover:bg-[#1c1c1c]">
-                      <td className="px-4 py-3 text-neutral-200">{it.brand}</td>
-                      <td className="px-4 py-3 text-neutral-100">{it.productName}</td>
-                      <td className="px-4 py-3 text-neutral-400">{it.category}</td>
-                      <td className="px-4 py-3 text-neutral-400">{it.location.name}</td>
-                      <td className="px-4 py-3 tabular-nums text-neutral-200">{it.quantityOnHand}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${st.className}`}
-                        >
-                          {st.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <ul className="mt-6 space-y-3 md:hidden">
-            {filtered.map((it) => {
-              const st = statusFor(it.quantityOnHand, it.reorderThreshold);
-              return (
-                <li
-                  key={it.id}
-                  className="rounded-xl border border-[#2a2a2a] bg-[#161616] p-4"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-neutral-100">{it.productName}</p>
-                      <p className="text-sm text-neutral-500">{it.brand}</p>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${st.className}`}
-                    >
-                      {st.label}
-                    </span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "14px" }}>
+          {filtered.map(item => {
+            const st = getStatus(item.quantityOnHand, item.reorderThreshold)
+            const pct = item.reorderThreshold > 0
+              ? Math.min(100, (item.quantityOnHand / (item.reorderThreshold * 3)) * 100)
+              : item.quantityOnHand > 0 ? 100 : 0
+            return (
+              <div key={item.id} style={{
+                backgroundColor: "#1a2a32",
+                border: `1px solid ${st.label === "Out" ? "rgba(239,68,68,0.25)" : st.label === "Low" ? "rgba(245,158,11,0.2)" : "rgba(205,201,192,0.12)"}`,
+                borderRadius: "12px", padding: "16px 20px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "9px", fontWeight: 700, color: "rgba(205,201,192,0.4)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "2px" }}>{item.brand}</div>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF", marginBottom: "2px" }}>{item.productName}</div>
+                    {item.shadeOrVolume && (
+                      <div style={{ fontSize: "11px", color: "#94A3B8" }}>{item.shadeOrVolume}</div>
+                    )}
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-500">
-                    <div>
-                      <dt className="text-neutral-600">Category</dt>
-                      <dd className="text-neutral-300">{it.category}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-neutral-600">Location</dt>
-                      <dd className="text-neutral-300">{it.location.name}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-neutral-600">Qty</dt>
-                      <dd className="tabular-nums text-neutral-200">{it.quantityOnHand}</dd>
-                    </div>
-                  </dl>
-                </li>
-              );
-            })}
-          </ul>
-        </>
+                  <span style={{
+                    padding: "3px 10px", borderRadius: "10px", fontSize: "10px", fontWeight: 700,
+                    backgroundColor: `${st.color}15`, color: st.color, letterSpacing: "0.05em",
+                  }}>{st.label}</span>
+                </div>
+
+                {/* Progress bar */}
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ width: "100%", height: "4px", borderRadius: "2px", backgroundColor: "rgba(205,201,192,0.08)" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: "2px", backgroundColor: st.color, transition: "width 0.3s" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+                    <span style={{ fontSize: "10px", color: "rgba(205,201,192,0.4)" }}>Qty: {item.quantityOnHand}</span>
+                    <span style={{ fontSize: "10px", color: "rgba(205,201,192,0.3)" }}>Reorder: {item.reorderThreshold}</span>
+                  </div>
+                </div>
+
+                {/* +/- buttons */}
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <button
+                    onClick={() => adjustQty(item, -1)}
+                    disabled={updating === item.id || item.quantityOnHand <= 0}
+                    style={{
+                      width: "32px", height: "32px", borderRadius: "8px",
+                      backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                      color: "#EF4444", fontSize: "16px", fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      opacity: (updating === item.id || item.quantityOnHand <= 0) ? 0.4 : 1,
+                    }}
+                  >-</button>
+                  <span style={{ fontSize: "16px", fontWeight: 800, color: "#FFFFFF", minWidth: "32px", textAlign: "center" }}>
+                    {item.quantityOnHand}
+                  </span>
+                  <button
+                    onClick={() => adjustQty(item, 1)}
+                    disabled={updating === item.id}
+                    style={{
+                      width: "32px", height: "32px", borderRadius: "8px",
+                      backgroundColor: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)",
+                      color: "#10B981", fontSize: "16px", fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      opacity: updating === item.id ? 0.4 : 1,
+                    }}
+                  >+</button>
+                  <span style={{ marginLeft: "auto", fontSize: "10px", color: "rgba(205,201,192,0.3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.location.name}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
-  );
+  )
 }
