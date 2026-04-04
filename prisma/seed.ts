@@ -100,6 +100,16 @@ async function main() {
       position: "stylist",
       inviteStatus: "active",
     },
+  ];
+
+  const saStaff: typeof ccStaff = [
+    {
+      fullName: "Melissa Cruz",
+      email: "melissacruz2025@icloud.com",
+      squareTeamMemberId: "TMMJKxeQuMlMW1Dw",
+      position: "manager",
+      inviteStatus: "active",
+    },
     {
       fullName: "Madelynn Martinez",
       email: "madelynn@salonenvycc.com",
@@ -121,34 +131,10 @@ async function main() {
       position: "stylist",
       inviteStatus: "not_invited",
     },
-  ];
-
-  const saStaff: typeof ccStaff = [
-    {
-      fullName: "Melissa Cruz",
-      email: "melissacruz2025@icloud.com",
-      squareTeamMemberId: "TMMJKxeQuMlMW1Dw",
-      position: "manager",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Clarissa Reyna",
-      email: "clarissareyna625@gmail.com",
-      squareTeamMemberId: "TMltRlD4OaczAnJr",
-      position: "stylist",
-      inviteStatus: "active",
-    },
     {
       fullName: "Kiyara Smith",
       email: "kiyarals99@gmail.com",
       squareTeamMemberId: "TMk1YstlrnPrKw8p",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Lucia Chumney",
-      email: "luluchumney@gmail.com",
-      squareTeamMemberId: "TM9RlP1_Gjb5gruX",
       position: "stylist",
       inviteStatus: "active",
     },
