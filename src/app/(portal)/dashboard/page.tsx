@@ -255,8 +255,7 @@ export default function DashboardPage() {
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
           }}>
-            {greeting}, {userName}{isManager && userLocation ? ` \u2014 ${userLocation}` : ""} <span aria-hidden>&#x1F44B;</span>
-          </h1>
+            {greeting}, {userName}{isManager && userLocation ? ` \u2014 ${userLocation}` : ""}          </h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <p style={{

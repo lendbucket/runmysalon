@@ -10,14 +10,14 @@ interface Message {
 }
 
 const SUGGESTED_PROMPTS = [
-  { icon: "\uD83C\uDFA8", text: "Shades EQ formula for level 9 with yellow tones", category: "Color" },
-  { icon: "\u26A1", text: "How do I fix orange brassy hair after bleaching?", category: "Correction" },
-  { icon: "\u2728", text: "Best toner for platinum blonde \u2014 level 10", category: "Toner" },
-  { icon: "\uD83D\uDCCA", text: "What should I focus on to grow revenue this week?", category: "Business" },
-  { icon: "\uD83D\uDC65", text: "How do I handle a client unhappy with their color?", category: "Client" },
-  { icon: "\uD83D\uDCB0", text: "How can I increase my average ticket price?", category: "Revenue" },
-  { icon: "\uD83D\uDD2C", text: "Going from box dye to natural brown \u2014 what's the plan?", category: "Correction" },
-  { icon: "\uD83D\uDCC5", text: "Give me a daily briefing for today", category: "Operations" },
+  { icon: "palette", text: "Shades EQ formula for level 9 with yellow tones", category: "Color" },
+  { icon: "bolt", text: "How do I fix orange brassy hair after bleaching?", category: "Correction" },
+  { icon: "auto_fix_high", text: "Best toner for platinum blonde \u2014 level 10", category: "Toner" },
+  { icon: "trending_up", text: "What should I focus on to grow revenue this week?", category: "Business" },
+  { icon: "person", text: "How do I handle a client unhappy with their color?", category: "Client" },
+  { icon: "payments", text: "How can I increase my average ticket price?", category: "Revenue" },
+  { icon: "science", text: "Going from box dye to natural brown \u2014 what is the plan?", category: "Correction" },
+  { icon: "today", text: "Give me a daily briefing for today", category: "Operations" },
 ]
 
 export default function ReynaAIPage() {
@@ -153,7 +153,7 @@ export default function ReynaAIPage() {
             justifyContent: "center",
             boxShadow: "0 0 20px rgba(139,92,246,0.4)",
             fontSize: "16px",
-          }}>{"\u2726"}</div>
+          }}>R</div>
           <div>
             <div style={{ fontSize: "15px", fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.01em" }}>Reyna AI</div>
             <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -194,7 +194,7 @@ export default function ReynaAIPage() {
                 margin: "0 auto 20px",
                 boxShadow: "0 0 40px rgba(139,92,246,0.3)",
                 fontSize: "28px",
-              }}>{"\u2726"}</div>
+              }}>R</div>
               <h2 style={{ fontSize: "28px", fontWeight: 800, color: "#FFFFFF", margin: "0 0 10px", letterSpacing: "-0.03em" }}>
                 Hey {firstName}, I'm Reyna
               </h2>
@@ -220,7 +220,7 @@ export default function ReynaAIPage() {
                     transition: "all 0.2s",
                   }}
                 >
-                  <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{prompt.icon}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: "18px", color: "#a78bfa", flexShrink: 0, marginTop: "1px" }}>{prompt.icon}</span>
                   <div>
                     <div style={{ fontSize: "9px", fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>{prompt.category}</div>
                     <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>{prompt.text}</div>
@@ -244,7 +244,7 @@ export default function ReynaAIPage() {
                   fontWeight: 800, color: "rgba(255,255,255,0.8)",
                   boxShadow: message.role === "assistant" ? "0 0 12px rgba(139,92,246,0.3)" : "none",
                 }}>
-                  {message.role === "assistant" ? "\u2726" : initials}
+                  {message.role === "assistant" ? "R" : initials}
                 </div>
                 <div style={{ maxWidth: "85%", flex: 1 }}>
                   {message.image && (
@@ -274,7 +274,7 @@ export default function ReynaAIPage() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   flexShrink: 0, fontSize: "14px",
                   boxShadow: "0 0 12px rgba(139,92,246,0.3)",
-                }}>{"\u2726"}</div>
+                }}>R</div>
                 <div style={{
                   padding: "14px 18px",
                   borderRadius: "4px 16px 16px 16px",
@@ -325,7 +325,7 @@ export default function ReynaAIPage() {
                 <div style={{ fontSize: "12px", color: "#a78bfa", fontWeight: 600 }}>Photo attached</div>
                 <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{imageFile?.name}</div>
               </div>
-              <button onClick={() => { setUploadedImage(null); setImageFile(null) }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "16px", padding: "4px" }}>{"\u2715"}</button>
+              <button onClick={() => { setUploadedImage(null); setImageFile(null) }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "16px", padding: "4px" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>close</span></button>
             </div>
           )}
 
