@@ -37,7 +37,7 @@ function Skeleton() {
 export default function DashboardPage() {
   const { data: session } = useSession()
   const [activeLocation, setActiveLocation] = useState("Both")
-  const [activePeriod, setActivePeriod] = useState("7days")
+  const [activePeriod, setActivePeriod] = useState("today")
   const [metricsData, setMetricsData] = useState<LocationMetrics[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -87,7 +87,14 @@ export default function DashboardPage() {
   const totalServices = metricsData.reduce((s, d) => s + d.serviceCount, 0)
   const totalAvg = totalServices > 0 ? totalRevenue / totalServices : 0
 
-  const periodLabel: Record<string, string> = { "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
+  // Auto-refresh when viewing today
+  useEffect(() => {
+    if (activePeriod !== "today") return
+    const id = setInterval(() => { fetchData() }, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [activePeriod, fetchData])
+
+  const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
   const pLabel = periodLabel[activePeriod] || activePeriod
 
   const metrics = [
@@ -114,7 +121,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "28px" }}>
-      <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.8} }`}</style>
+      <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.8} } @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.5)} }`}</style>
 
       {/* HERO HEADER */}
       <div style={{ marginBottom: "28px" }}>
@@ -150,8 +157,9 @@ export default function DashboardPage() {
               alignItems: "center",
               gap: "4px",
             }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#10B981", display: "inline-block" }} />
-              Live · Updated {timeAgo(updatedAt)}
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#10B981", display: "inline-block", animation: activePeriod === "today" ? "pulse-dot 2s ease-in-out infinite" : "none" }} />
+              {activePeriod === "today" ? "Live" : "Updated"} · {timeAgo(updatedAt)}
+              {activePeriod === "today" && <span style={{ fontSize: "9px", color: "rgba(16,185,129,0.6)", marginLeft: "4px" }}>auto-refreshes</span>}
             </span>
           )}
         </div>
@@ -168,9 +176,10 @@ export default function DashboardPage() {
           border: "1px solid rgba(205,201,192,0.08)",
         }}>
           {[
+            { key: "today", label: "Today" },
+            { key: "yesterday", label: "Yest" },
             { key: "7days", label: "7D" },
             { key: "30days", label: "30D" },
-            { key: "90days", label: "90D" },
             { key: "week", label: "Week" },
             { key: "month", label: "Month" },
             { key: "year", label: "Year" },

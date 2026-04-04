@@ -26,6 +26,8 @@ interface ComparisonData {
 }
 
 const PERIODS = [
+  { value: "today", label: "Today", compareLabel: "vs yesterday" },
+  { value: "yesterday", label: "Yesterday", compareLabel: "vs day before" },
   { value: "7days", label: "7 Days", compareLabel: "vs prev 7 days" },
   { value: "30days", label: "30 Days", compareLabel: "vs prev 30 days" },
   { value: "90days", label: "90 Days", compareLabel: "vs prev 90 days" },
@@ -68,7 +70,7 @@ function ChangeIndicator({ change }: { change: number | null }) {
 }
 
 export default function MetricsPage() {
-  const [period, setPeriod] = useState("30days")
+  const [period, setPeriod] = useState("today")
   const [location, setLocation] = useState("Both")
   const [data, setData] = useState<ComparisonData | null>(null)
   const [loading, setLoading] = useState(true)

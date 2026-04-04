@@ -73,6 +73,18 @@ export function getDateRange(periodType: string) {
   let startDate: Date
 
   switch (periodType) {
+    case "today":
+      startDate = new Date(now)
+      startDate.setHours(0, 0, 0, 0)
+      break
+    case "yesterday": {
+      startDate = new Date(now)
+      startDate.setDate(now.getDate() - 1)
+      startDate.setHours(0, 0, 0, 0)
+      const yesterdayEnd = new Date(now)
+      yesterdayEnd.setHours(0, 0, 0, 0)
+      return { startAt: startDate.toISOString(), endAt: yesterdayEnd.toISOString() }
+    }
     case "7days":
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
       break
@@ -247,6 +259,27 @@ export async function getComparisonMetrics(
   let prevEndAt: string
 
   switch (periodType) {
+    case "today": {
+      const todayStart = new Date(now)
+      todayStart.setHours(0, 0, 0, 0)
+      const prevDay = new Date(now)
+      prevDay.setDate(now.getDate() - 1)
+      prevDay.setHours(0, 0, 0, 0)
+      prevStartAt = prevDay.toISOString()
+      prevEndAt = todayStart.toISOString()
+      break
+    }
+    case "yesterday": {
+      const yStart = new Date(now)
+      yStart.setDate(now.getDate() - 1)
+      yStart.setHours(0, 0, 0, 0)
+      const dayBefore = new Date(now)
+      dayBefore.setDate(now.getDate() - 2)
+      dayBefore.setHours(0, 0, 0, 0)
+      prevStartAt = dayBefore.toISOString()
+      prevEndAt = yStart.toISOString()
+      break
+    }
     case "7days":
       prevStartAt = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
       prevEndAt = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
