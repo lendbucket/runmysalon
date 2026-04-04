@@ -142,11 +142,6 @@ export async function getAllRetentionData(
             stylistId,
             locationId: b.locationId || "",
           })
-
-          // Use customer name from booking if available
-          if (b.customerNote) {
-            // customerNote may not have name; we track ID
-          }
         }
       }
 
@@ -157,7 +152,8 @@ export async function getAllRetentionData(
         processBookings(page.data)
       }
     } catch (err) {
-      console.error("Booking chunk error:", err)
+      console.warn("Skipping booking chunk due to error:", chunk.startAt, err instanceof Error ? err.message : err)
+      continue
     }
   }
 
@@ -187,15 +183,16 @@ export async function getAllRetentionData(
         }
       }
     } catch (err) {
-      console.error("Orders chunk error:", err)
+      console.warn("Skipping orders chunk due to error:", chunk.startAt, err instanceof Error ? err.message : err)
+      continue
     }
   }
 
-  // Step 3: Fetch customer details for top customers
+  // Step 3: Fetch customer details for top 200 customers by visit count
   const allCustomerIds = Object.keys(customerBookings)
   const topCustomerIds = allCustomerIds
     .sort((a, b) => (customerBookings[b]?.length || 0) - (customerBookings[a]?.length || 0))
-    .slice(0, 100)
+    .slice(0, 200)
 
   for (const custId of topCustomerIds) {
     try {
@@ -208,7 +205,7 @@ export async function getAllRetentionData(
         if (c.phoneNumber) customerPhones[custId] = c.phoneNumber
       }
     } catch {
-      // Customer may have been deleted
+      // Customer may have been deleted — skip silently
     }
   }
 
@@ -246,8 +243,8 @@ export async function getAllRetentionData(
     const totalSpend = orders.reduce((sum, a) => sum + a, 0)
     const ticketCount = orders.length
     const avgTicket = ticketCount > 0 ? Math.round((totalSpend / ticketCount) * 100) / 100 : 0
-    const minTicket = ticketCount > 0 ? Math.round(Math.min(...orders) * 100) / 100 : 0
-    const maxTicket = ticketCount > 0 ? Math.round(Math.max(...orders) * 100) / 100 : 0
+    const minTicket = ticketCount > 0 ? Math.round(orders.reduce((min, a) => a < min ? a : min, orders[0]) * 100) / 100 : 0
+    const maxTicket = ticketCount > 0 ? Math.round(orders.reduce((max, a) => a > max ? a : max, orders[0]) * 100) / 100 : 0
     const totalVisits = bookings.length
 
     customers.push({

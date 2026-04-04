@@ -132,8 +132,10 @@ export default function RetentionPage() {
     try {
       const params = location ? `?location=${encodeURIComponent(location)}` : ""
       const res = await fetch(`/api/retention${params}`)
-      if (!res.ok) throw new Error("Failed to fetch retention data")
       const json = await res.json()
+      if (json.error) {
+        throw new Error(json.error + (json.details ? ": " + json.details : ""))
+      }
       setData(json)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
@@ -259,8 +261,12 @@ export default function RetentionPage() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {error && (
-        <div style={{ ...card, borderColor: "#ef4444", marginBottom: "16px", color: "#ef4444", fontSize: "13px" }}>
-          Error: {error}
+        <div style={{ ...card, borderColor: "rgba(239,68,68,0.3)", backgroundColor: "rgba(239,68,68,0.06)", marginBottom: "16px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "#EF4444", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: "6px" }}>Error Running Analysis</div>
+          <div style={{ fontSize: "13px", color: "#FCA5A5", lineHeight: 1.5, marginBottom: "12px" }}>{error}</div>
+          <button onClick={runAnalysis} style={{ padding: "8px 16px", backgroundColor: "transparent", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "6px", color: "#FCA5A5", fontSize: "11px", fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+            Try Again
+          </button>
         </div>
       )}
 

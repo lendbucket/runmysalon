@@ -14,12 +14,19 @@ export async function GET(req: NextRequest) {
     | null
 
   try {
+    console.log("Starting retention analysis for location:", location || "Both")
     const data = await getAllRetentionData(location || undefined)
+    console.log("Retention analysis complete:", {
+      totalCustomers: data.totalCustomers,
+      retentionScore: data.retentionScore,
+    })
     return NextResponse.json(data)
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Retention API error:", error)
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined
     return NextResponse.json(
-      { error: "Failed to fetch retention data" },
+      { error: msg, details: String(error), stack },
       { status: 500 }
     )
   }
