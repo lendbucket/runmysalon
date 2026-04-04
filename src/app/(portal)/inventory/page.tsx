@@ -107,7 +107,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Category pills */}
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" as const, overflowX: "auto", marginBottom: "12px" }}>
         {CATEGORIES.map(c => (
           <button key={c} onClick={() => setCategory(c)} style={pill(category === c)}>
             {c}
@@ -134,7 +134,7 @@ export default function InventoryPage() {
           <p style={{ fontSize: "13px", color: "#94A3B8", margin: 0 }}>Try adjusting your search or filters.</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "14px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
           {filtered.map(item => {
             const st = getStatus(item.quantityOnHand, item.reorderThreshold)
             const pct = item.reorderThreshold > 0
@@ -177,7 +177,7 @@ export default function InventoryPage() {
                     onClick={() => adjustQty(item, -1)}
                     disabled={updating === item.id || item.quantityOnHand <= 0}
                     style={{
-                      width: "32px", height: "32px", borderRadius: "8px",
+                      width: "36px", height: "36px", borderRadius: "8px",
                       backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
                       color: "#EF4444", fontSize: "16px", fontWeight: 700, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center",
@@ -191,7 +191,7 @@ export default function InventoryPage() {
                     onClick={() => adjustQty(item, 1)}
                     disabled={updating === item.id}
                     style={{
-                      width: "32px", height: "32px", borderRadius: "8px",
+                      width: "36px", height: "36px", borderRadius: "8px",
                       backgroundColor: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)",
                       color: "#10B981", fontSize: "16px", fontWeight: 700, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center",

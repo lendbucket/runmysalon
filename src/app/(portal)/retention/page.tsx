@@ -371,7 +371,7 @@ export default function RetentionPage() {
           </div>
 
           {/* Tabs */}
-          <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid rgba(205,201,192,0.08)", paddingBottom: "0" }}>
+          <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid rgba(205,201,192,0.08)", paddingBottom: "0", overflowX: "auto" }}>
             {tabs.map((t) => (
               <button
                 key={t.key}
@@ -430,7 +430,7 @@ export default function RetentionPage() {
               {data.stylistBreakdown && data.stylistBreakdown.length > 0 && (
                 <div style={{ marginTop: "24px" }}>
                   <h3 style={{ color: "#FFFFFF", fontSize: "15px", fontWeight: 700, marginBottom: "16px" }}>Stylist Retention Breakdown</h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
                     {(["Corpus Christi", "San Antonio"] as const).map((loc) => {
                       const locStylists = data.stylistBreakdown.filter((s) => s.location === loc)
                       return (

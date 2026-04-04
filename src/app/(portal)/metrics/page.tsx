@@ -179,7 +179,7 @@ export default function MetricsPage() {
       </div>
 
       {/* Selectors */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "nowrap" as const, overflowX: "auto" }}>
         <div style={{ display: "inline-flex", gap: "2px", backgroundColor: "#1a2a32", padding: "3px", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)" }}>
           {PERIODS.map(p => (
             <button key={p.value} onClick={() => setPeriod(p.value)} style={pill(period === p.value)}>{p.label}</button>
@@ -203,7 +203,7 @@ export default function MetricsPage() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px", marginBottom: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "14px", marginBottom: "24px" }}>
             {[
               { label: "Total Revenue", current: fmt(currentTotal.revenue), change: revenueChange, prev: fmt(prevTotal.revenue), icon: "payments" },
               { label: "Total Services", current: String(currentTotal.serviceCount), change: servicesChange, prev: String(prevTotal.serviceCount), icon: "content_cut" },
@@ -246,7 +246,7 @@ export default function MetricsPage() {
 
           {/* Location Comparison */}
           {location === "Both" && data && data.currentMetrics.length >= 2 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "24px" }}>
               {data.currentMetrics.map(loc => {
                 const prevLoc = data.previousMetrics.find(p => p.location === loc.location)
                 const revChange = prevLoc ? getChange(loc.revenue, prevLoc.revenue) : null

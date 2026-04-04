@@ -70,6 +70,14 @@ export default function SchedulePage() {
   const [view, setView] = useState<"builder" | "list">("builder")
   const [rejectModal, setRejectModal] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState("")
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener("resize", check)
+    return () => window.removeEventListener("resize", check)
+  }, [])
 
   useEffect(() => {
     fetch("/api/locations").then(r => r.json()).then(d => {
@@ -220,6 +228,7 @@ export default function SchedulePage() {
           ) : loading ? (
             <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>Loading schedule...</div>
           ) : (
+            !isMobile ? (
             <div style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "10px", overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
                 <thead>
@@ -301,6 +310,72 @@ export default function SchedulePage() {
                 </tbody>
               </table>
             </div>
+            ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {staff.map(m => {
+                const hrs = calcTotalHours(shifts[m.id])
+                return (
+                  <div key={m.id} style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "10px", padding: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "rgba(205,201,192,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", fontWeight: 800, color: "#CDC9C0", flexShrink: 0 }}>
+                          {m.fullName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#FFFFFF" }}>{m.fullName}</div>
+                          <div style={{ fontSize: "9px", color: "rgba(205,201,192,0.4)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{m.position}</div>
+                        </div>
+                      </div>
+                      {hrs > 0 && <span style={{ padding: "3px 8px", borderRadius: "10px", backgroundColor: "rgba(205,201,192,0.1)", fontSize: "10px", fontWeight: 700, color: "#CDC9C0" }}>{hrs % 1 === 0 ? hrs : hrs.toFixed(1)} hrs</span>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {weekDates.map(date => {
+                        const dk = fmtDate(date)
+                        const sh = shifts[m.id]?.[dk]
+                        const isToday = date.toDateString() === new Date().toDateString()
+                        return (
+                          <div key={dk} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 0", borderBottom: "1px solid rgba(205,201,192,0.06)" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 700, color: isToday ? "#CDC9C0" : "rgba(205,201,192,0.5)", width: "36px", flexShrink: 0 }}>{DAYS[date.getDay()]}</span>
+                            {canEdit ? (
+                              sh?.isOff ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+                                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#EF4444" }}>OFF</span>
+                                  <button onClick={() => updateShift(m.id, dk, "isOff", false)} style={{ fontSize: "9px", color: "rgba(205,201,192,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>clear</button>
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1 }}>
+                                  <select value={sh?.start || ""} onChange={e => updateShift(m.id, dk, "start", e.target.value)} style={{ flex: 1, padding: "4px 6px", backgroundColor: sh?.start ? "#142127" : "rgba(205,201,192,0.04)", border: `1px solid ${sh?.start ? "rgba(205,201,192,0.3)" : "rgba(205,201,192,0.1)"}`, borderRadius: "4px", color: sh?.start ? "#FFFFFF" : "rgba(205,201,192,0.3)", fontSize: "11px", cursor: "pointer" }}>
+                                    <option value="">Start</option>
+                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                                  </select>
+                                  <span style={{ color: "rgba(205,201,192,0.3)", fontSize: "10px" }}>to</span>
+                                  <select value={sh?.end || ""} onChange={e => updateShift(m.id, dk, "end", e.target.value)} style={{ flex: 1, padding: "4px 6px", backgroundColor: sh?.end ? "#142127" : "rgba(205,201,192,0.04)", border: `1px solid ${sh?.end ? "rgba(205,201,192,0.3)" : "rgba(205,201,192,0.1)"}`, borderRadius: "4px", color: sh?.end ? "#FFFFFF" : "rgba(205,201,192,0.3)", fontSize: "11px", cursor: "pointer" }}>
+                                    <option value="">End</option>
+                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                                  </select>
+                                  <button onClick={() => updateShift(m.id, dk, "isOff", true)} style={{ fontSize: "9px", color: "rgba(239,68,68,0.5)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>off</button>
+                                </div>
+                              )
+                            ) : (
+                              <div style={{ flex: 1, fontSize: "11px" }}>
+                                {sh?.isOff ? (
+                                  <span style={{ fontWeight: 700, color: "#EF4444" }}>OFF</span>
+                                ) : sh?.start ? (
+                                  <span style={{ color: "#CDC9C0", fontWeight: 600 }}>{sh.start} - {sh.end}</span>
+                                ) : (
+                                  <span style={{ color: "rgba(205,201,192,0.2)" }}>{"\u2014"}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            )
           )}
         </>
       )}

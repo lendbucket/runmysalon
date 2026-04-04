@@ -517,7 +517,7 @@ export default function CancellationsPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
               gap: "12px",
               marginBottom: "20px",
             }}
@@ -555,7 +555,7 @@ export default function CancellationsPage() {
           </div>
 
           {/* Pattern Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px", marginBottom: "20px" }}>
             <div style={cardStyle}>
               <div
                 style={{
@@ -627,8 +627,49 @@ export default function CancellationsPage() {
             />
           </div>
 
-          {/* Cancellation Table */}
+          {/* Mobile Cancellation Cards */}
+          <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+            {filteredCancellations.length === 0 && (
+              <div style={{ ...cardStyle, textAlign: "center", color: "rgba(205,201,192,0.3)", padding: "40px" }}>No cancellations found.</div>
+            )}
+            {filteredCancellations.map((c) => (
+              <div key={c.bookingId} onClick={() => setSelectedEntry(c)} style={{ ...cardStyle, cursor: "pointer" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                  <span style={{
+                    display: "inline-block", padding: "3px 8px", borderRadius: "4px", fontSize: "9px", fontWeight: 700,
+                    letterSpacing: "0.06em", backgroundColor: `${STATUS_COLORS[c.status]}20`, color: STATUS_COLORS[c.status],
+                  }}>{STATUS_LABELS[c.status]}</span>
+                  {c.isRepeatClient && (
+                    <span style={{ padding: "2px 6px", borderRadius: "3px", fontSize: "8px", fontWeight: 700, backgroundColor: "rgba(16,185,129,0.15)", color: "#10B981" }}>REPEAT</span>
+                  )}
+                </div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF", marginBottom: "6px" }}>{c.customerName}</div>
+                {c.customerPhone && (
+                  <a href={`tel:${c.customerPhone}`} onClick={e => e.stopPropagation()} style={{ fontSize: "12px", color: "#CDC9C0", textDecoration: "none", display: "block", marginBottom: "4px" }}>{c.customerPhone}</a>
+                )}
+                <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.6)", marginBottom: "4px" }}>{formatDateTime(c.scheduledAt)}</div>
+                <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.5)", marginBottom: "10px" }}>Stylist: {c.stylistName}</div>
+                <div style={{ display: "flex", gap: "6px" }} onClick={e => e.stopPropagation()}>
+                  {c.customerPhone && (
+                    <a href={`sms:${c.customerPhone}`} style={{
+                      flex: 1, padding: "8px", borderRadius: "6px", backgroundColor: "rgba(205,201,192,0.08)", border: "1px solid rgba(205,201,192,0.12)",
+                      color: "#CDC9C0", textDecoration: "none", textAlign: "center", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                    }}>SMS</a>
+                  )}
+                  {c.customerEmail && (
+                    <a href={`mailto:${c.customerEmail}`} style={{
+                      flex: 1, padding: "8px", borderRadius: "6px", backgroundColor: "rgba(205,201,192,0.08)", border: "1px solid rgba(205,201,192,0.12)",
+                      color: "#CDC9C0", textDecoration: "none", textAlign: "center", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                    }}>Email</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Cancellation Table (Desktop) */}
           <div
+            className="desktop-only"
             style={{
               ...cardStyle,
               borderRadius: "0 0 10px 10px",

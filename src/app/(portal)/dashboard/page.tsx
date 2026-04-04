@@ -290,7 +290,7 @@ export default function DashboardPage() {
       {/* METRIC CARDS */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
         gap: "14px",
         marginBottom: "20px",
       }}>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
       {/* STATUS CARDS */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
         gap: "14px",
         marginBottom: "20px",
       }}>
@@ -427,7 +427,8 @@ export default function DashboardPage() {
         borderRadius: "10px",
         padding: "16px 20px",
         display: "flex",
-        flexWrap: "wrap" as const,
+        flexWrap: "nowrap" as const,
+        overflowX: "auto",
         gap: "10px",
         alignItems: "center",
         marginBottom: "20px",
@@ -439,6 +440,7 @@ export default function DashboardPage() {
           letterSpacing: "0.15em",
           textTransform: "uppercase" as const,
           marginRight: "6px",
+          flexShrink: 0,
         }}>
           Quick Actions
         </span>
@@ -486,9 +488,9 @@ export default function DashboardPage() {
       {/* BENTO: ACTIVITY + ALERTS */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "1fr",
+        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
         gap: "20px",
-      }} className="lg:!grid-cols-[1fr_380px]">
+      }}>
         {/* Recent Activity / Stylist Leaderboard */}
         <div style={{
           backgroundColor: "#1a2a32",
