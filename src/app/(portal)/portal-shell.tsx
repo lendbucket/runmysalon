@@ -3,7 +3,6 @@ import { useState } from "react"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { SalonEnvyLogo } from "@/components/SalonEnvyLogo"
 
 type NavItem = { href: string; icon: string; label: string; badge?: boolean; highlight?: boolean }
 type NavSection = { label: string; roles: string[]; items: NavItem[] }
@@ -119,7 +118,17 @@ export function PortalShell({
           flexDirection: "column",
           justifyContent: "center",
         }}>
-          <SalonEnvyLogo width={140} />
+          <img
+            src="/images/logo-white.png"
+            alt="Salon Envy"
+            style={{
+              width: "150px",
+              height: "auto",
+              objectFit: "contain",
+              display: "block",
+              filter: "brightness(1)",
+            }}
+          />
           <div style={{
             marginTop: "8px",
             fontSize: "8px",
@@ -294,7 +303,16 @@ export function PortalShell({
           flexShrink: 0,
         }}>
           <div className="md:hidden">
-            <SalonEnvyLogo width={100} />
+            <img
+              src="/images/logo-white.png"
+              alt="Salon Envy"
+              style={{
+                height: "36px",
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
           </div>
           <div className="hidden md:block" style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
             Salon Envy® Portal

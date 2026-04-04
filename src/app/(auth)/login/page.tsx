@@ -2,7 +2,6 @@
 import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { SalonEnvyLogo } from "@/components/SalonEnvyLogo"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -31,7 +30,7 @@ export default function LoginPage() {
       {/* LEFT — Brand panel */}
       <div style={{
         flex: "0 0 50%",
-        backgroundColor: "#0a151b",
+        backgroundColor: "#060e14",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -52,9 +51,19 @@ export default function LoginPage() {
           pointerEvents: "none",
         }} />
 
-        <div style={{ marginBottom: "28px", position: "relative", zIndex: 1 }}>
-          <SalonEnvyLogo width={200} />
-        </div>
+        <img
+          src="/images/logo-white.png"
+          alt="Salon Envy"
+          style={{
+            width: "220px",
+            height: "auto",
+            objectFit: "contain",
+            display: "block",
+            marginBottom: "28px",
+            position: "relative",
+            zIndex: 1,
+          }}
+        />
 
         <div style={{
           fontSize: "12px",
@@ -102,7 +111,17 @@ export default function LoginPage() {
           backgroundColor: "#142127",
         }}>
           <div className="md:hidden" style={{ textAlign: "center" as const, marginBottom: "28px" }}>
-            <SalonEnvyLogo width={140} />
+            <img
+              src="/images/logo-white.png"
+              alt="Salon Envy"
+              style={{
+                height: "56px",
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+                margin: "0 auto 28px",
+              }}
+            />
           </div>
 
           <h2 style={{
