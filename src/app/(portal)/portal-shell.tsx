@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -87,6 +87,13 @@ export function PortalShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const initials = userName?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U"
 
+  const pageTitle = useMemo(() => {
+    if (pathname === "/dashboard" || pathname === "/") return "Dashboard"
+    const seg = pathname.split("/").filter(Boolean)[0]
+    if (!seg) return "Portal"
+    return seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " ")
+  }, [pathname])
+
   const visibleSections = NAV_SECTIONS.filter(s => s.roles.includes(userRole))
 
   return (
@@ -122,7 +129,7 @@ export function PortalShell({
             src="/images/logo-white.png"
             alt="Salon Envy"
             style={{
-              width: "150px",
+              width: "120px",
               height: "auto",
               objectFit: "contain",
               display: "block",
@@ -302,23 +309,33 @@ export function PortalShell({
           zIndex: 40,
           flexShrink: 0,
         }}>
-          <div className="md:hidden">
-            <img
-              src="/images/logo-white.png"
-              alt="Salon Envy"
+          <div className="flex min-w-0 flex-1 items-center">
+            <div className="md:hidden">
+              <img
+                src="/images/logo-white.png"
+                alt="Salon Envy"
+                style={{
+                  height: "36px",
+                  width: "auto",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+            <div
+              className="hidden md:block truncate"
               style={{
-                height: "36px",
-                width: "auto",
-                objectFit: "contain",
-                display: "block",
+                color: "#FFFFFF",
+                fontSize: "15px",
+                fontWeight: 600,
+                letterSpacing: "0.02em",
               }}
-            />
-          </div>
-          <div className="hidden md:block" style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
-            Salon Envy® Portal
+            >
+              {pageTitle}
+            </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
             <button style={{
               width: "32px",
               height: "32px",
