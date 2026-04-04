@@ -45,12 +45,14 @@ const mobileTabs: { href: string; label: string; icon: typeof Home }[] = [
 ];
 
 function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("") || "?";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  );
 }
 
 function titleForPath(pathname: string) {
@@ -87,40 +89,56 @@ export function PortalShell({
       (p) => pathname === p || pathname.startsWith(`${p}/`),
     ) || pathname === "/more";
 
+  const navLinkClass = (href: string, isReyna?: boolean) => {
+    const active = isActive(href);
+    return [
+      "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors duration-200",
+      active
+        ? "border-l-[3px] border-[#C9A84C] bg-[#1f1f1f] pl-[9px] font-medium text-[#C9A84C]"
+        : "border-l-[3px] border-transparent text-neutral-400 hover:bg-[#1a1a1a]",
+      isReyna && !active ? "text-[#C9A84C]/90" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
+
   return (
     <div className="min-h-dvh bg-[#0d0d0d] pb-16 md:pb-0">
       {/* Top bar */}
       <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-[#2a2a2a] bg-[#161616]/95 px-3 backdrop-blur md:left-[260px] md:px-6">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
-            className="rounded-lg p-2 text-neutral-300 md:hidden"
+            className="shrink-0 rounded-lg p-2 text-neutral-300 md:hidden"
             aria-label="Menu"
             onClick={() => setNavOpen(true)}
           >
             <Menu className="size-6" />
           </button>
-          <span className="hidden font-medium text-neutral-100 md:inline">{pageTitle}</span>
-          <span className="font-medium text-neutral-100 md:hidden">{pageTitle}</span>
+          <span className="truncate text-lg font-semibold tracking-tight text-neutral-100">
+            {pageTitle}
+          </span>
         </div>
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <button
             type="button"
-            className="relative rounded-lg p-2 text-neutral-400 hover:bg-[#1f1f1f] hover:text-neutral-200"
+            className="relative rounded-lg p-2 text-neutral-400 transition hover:bg-[#1f1f1f] hover:text-neutral-200"
             aria-label="Notifications"
           >
             <Bell className="size-5" />
-            <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
+            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              3
+            </span>
           </button>
           <Link
             href="/reyna-ai"
-            className="hidden items-center gap-1.5 rounded-full bg-[#C9A84C]/15 px-3 py-1.5 text-sm font-medium text-[#C9A84C] md:inline-flex"
+            className="inline-flex items-center gap-1 rounded-full bg-[#C9A84C]/12 px-2.5 py-1.5 text-xs font-semibold text-[#C9A84C] ring-1 ring-[#C9A84C]/35 transition hover:bg-[#C9A84C]/20 sm:px-3 sm:text-sm"
           >
-            <Sparkles className="size-4" />
+            <span aria-hidden>✨</span>
             Reyna AI
           </Link>
           <div
-            className="flex size-9 items-center justify-center rounded-full bg-[#2a2a2a] text-xs font-semibold text-[#C9A84C]"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#C9A84C]/15 text-xs font-semibold text-[#C9A84C] ring-1 ring-[#C9A84C]/35"
             title={userName}
           >
             {initials(userName)}
@@ -130,33 +148,25 @@ export function PortalShell({
 
       {/* Sidebar desktop */}
       <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-[260px] flex-col border-r border-[#2a2a2a] bg-[#161616] md:flex">
-        <div className="border-b border-[#2a2a2a] px-4 py-5">
-          <p className="text-lg font-bold text-[#C9A84C]">
-            Salon Envy<sup className="text-xs">®</sup>
+        <div className="border-b border-[#2a2a2a] px-5 py-6">
+          <p className="text-xl font-bold tracking-tight text-[#C9A84C]">
+            Salon Envy<sup className="text-sm font-normal">®</sup>
           </p>
-          <p className="text-xs text-neutral-500">Management Portal</p>
+          <p className="mt-1 text-xs text-[#888]">Management Portal</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-4">
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C9A84C]/80">
             Main
           </p>
           <div className="space-y-0.5">
             {mainNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition ${
-                  isActive(item.href)
-                    ? "border-l-[3px] border-[#C9A84C] bg-[#1f1f1f] pl-[9px] font-medium text-[#C9A84C]"
-                    : "border-l-[3px] border-transparent text-neutral-400 hover:bg-[#1a1a1a]"
-                }`}
-              >
+              <Link key={item.href} href={item.href} className={navLinkClass(item.href)}>
                 <item.icon className="size-4 shrink-0 opacity-90" />
                 {item.label}
               </Link>
             ))}
           </div>
-          <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+          <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C9A84C]/80">
             Tools
           </p>
           <div className="space-y-0.5">
@@ -164,15 +174,7 @@ export function PortalShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition ${
-                  item.href === "/reyna-ai"
-                    ? "text-[#C9A84C]"
-                    : "text-neutral-400"
-                } ${
-                  isActive(item.href)
-                    ? "border-l-[3px] border-[#C9A84C] bg-[#1f1f1f] pl-[9px] font-medium text-[#C9A84C]"
-                    : "border-l-[3px] border-transparent hover:bg-[#1a1a1a]"
-                }`}
+                className={navLinkClass(item.href, item.href === "/reyna-ai")}
               >
                 <item.icon className="size-4 shrink-0" />
                 {item.label}
@@ -180,27 +182,27 @@ export function PortalShell({
             ))}
           </div>
         </nav>
-        <div className="border-t border-[#2a2a2a] p-3">
+        <div className="border-t border-[#2a2a2a] p-4">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-sm font-semibold text-[#C9A84C]">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#C9A84C]/12 text-sm font-semibold text-[#C9A84C] ring-2 ring-[#C9A84C]/40">
               {initials(userName)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-neutral-200">{userName || "User"}</p>
-              <p className="truncate text-xs capitalize text-neutral-500">{userRole.toLowerCase()}</p>
+              <p className="truncate text-sm font-medium text-neutral-100">{userName || "User"}</p>
+              <p className="truncate text-xs capitalize text-[#888]">{userRole.toLowerCase()}</p>
             </div>
           </div>
-          <div className="mt-3 flex justify-center gap-2">
+          <div className="mt-4 flex justify-center gap-3">
             <button
               type="button"
-              className="rounded-lg p-2 text-neutral-500 hover:bg-[#1f1f1f] hover:text-neutral-300"
+              className="rounded-lg p-2.5 text-neutral-500 transition hover:bg-[#1a1a1a] hover:text-[#C9A84C]"
               aria-label="Settings"
             >
               <Settings className="size-4" />
             </button>
             <button
               type="button"
-              className="rounded-lg p-2 text-neutral-500 hover:bg-[#1f1f1f] hover:text-neutral-300"
+              className="rounded-lg p-2.5 text-neutral-500 transition hover:bg-[#1a1a1a] hover:text-[#C9A84C]"
               aria-label="Sign out"
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
@@ -232,8 +234,8 @@ export function PortalShell({
                   key={item.href}
                   href={item.href}
                   onClick={() => setNavOpen(false)}
-                  className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
-                    isActive(item.href) ? "bg-[#1f1f1f] text-[#C9A84C]" : "text-neutral-300"
+                  className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition ${
+                    isActive(item.href) ? "bg-[#1f1f1f] text-[#C9A84C]" : "text-neutral-300 hover:bg-[#1a1a1a]"
                   }`}
                 >
                   <item.icon className="size-4" />

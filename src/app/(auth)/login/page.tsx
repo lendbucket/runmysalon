@@ -32,35 +32,39 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-[#0d0d0d] md:flex-row">
       {/* Left: brand */}
-      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-12 md:py-0">
+      <div className="relative order-1 flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-14 md:order-none md:py-0">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
+          className="pointer-events-none absolute inset-0 opacity-50"
           style={{
             background:
-              "radial-gradient(ellipse 60% 50% at 50% 45%, rgba(201,168,76,0.35) 0%, transparent 65%)",
+              "radial-gradient(ellipse 70% 55% at 50% 42%, rgba(201,168,76,0.22) 0%, transparent 62%)",
           }}
         />
         <div className="relative z-10 max-w-md text-center">
-          <div className="mb-6 flex justify-center text-[#C9A84C]" aria-hidden>
-            <span className="text-5xl md:text-6xl">✂</span>
-            <span className="ml-2 text-4xl md:text-5xl">✦</span>
+          <p className="mb-5 text-3xl md:text-4xl" aria-hidden>
+            ✂️
+          </p>
+          <div
+            className="mx-auto inline-block rounded-2xl px-2 pb-1 pt-2"
+            style={{
+              boxShadow:
+                "0 0 0 1px rgba(201,168,76,0.12), 0 0 60px 28px rgba(201,168,76,0.18), 0 0 120px 48px rgba(201,168,76,0.08)",
+            }}
+          >
+            <h1 className="text-4xl font-bold tracking-tight text-[#C9A84C] md:text-5xl">
+              Salon Envy<sup className="text-2xl align-super">®</sup>
+            </h1>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-[#C9A84C] md:text-5xl">
-            Salon Envy<sup className="text-2xl">®</sup>
-          </h1>
-          <p className="mt-4 text-lg leading-relaxed text-neutral-400 md:text-xl">
+          <p className="mt-6 text-base leading-relaxed text-neutral-400 md:text-lg">
             Empowering Your Salon. Elevating Your Team.
           </p>
         </div>
       </div>
 
       {/* Right: form */}
-      <div className="flex w-full flex-1 items-center justify-center px-4 pb-12 pt-4 md:w-auto md:max-w-[min(100%,520px)] md:pb-0 md:pr-10 md:pt-0">
-        <div
-          className="w-full max-w-md rounded-2xl rounded-l-none border border-l-0 border-[#2a2a2a] bg-[#161616] p-8 shadow-2xl md:rounded-l-3xl md:border-l md:pl-10"
-          style={{ borderRadius: "1rem 0 0 1rem" }}
-        >
-          <h2 className="text-2xl font-semibold text-neutral-100">Welcome back</h2>
+      <div className="order-2 flex w-full flex-1 items-center justify-center px-4 pb-14 pt-2 md:w-auto md:max-w-[min(100%,520px)] md:pb-0 md:pr-10 md:pt-0">
+        <div className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#161616] p-8 shadow-2xl md:rounded-l-3xl md:rounded-r-2xl md:border-l-0 md:pl-10 md:shadow-[0_25px_80px_-20px_rgba(0,0,0,0.65)]">
+          <h2 className="text-2xl font-semibold text-white">Welcome back</h2>
           <p className="mt-1 text-sm text-neutral-500">Sign in to the management portal</p>
 
           <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
@@ -72,7 +76,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2.5 text-neutral-100 outline-none transition focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30"
+                className="w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2.5 text-neutral-100 outline-none transition focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/40"
               />
             </div>
             <div>
@@ -83,7 +87,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2.5 text-neutral-100 outline-none transition focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30"
+                className="w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2.5 text-neutral-100 outline-none transition focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/40"
               />
             </div>
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -97,7 +101,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center">
-            <Link href="#" className="text-sm text-[#C9A84C] hover:underline">
+            <Link href="#" className="text-sm font-medium text-[#C9A84C] hover:underline">
               Forgot password?
             </Link>
           </p>
