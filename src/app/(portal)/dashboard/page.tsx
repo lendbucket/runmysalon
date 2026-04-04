@@ -52,6 +52,84 @@ function Skeleton() {
   )
 }
 
+function generateAlerts(
+  metrics: LocationMetrics[],
+  cancellations: CancellationStats | null,
+  activePeriod: string
+) {
+  const periodLabel: Record<string, string> = {
+    today: "today", yesterday: "yesterday", "7days": "in the last 7 days",
+    "30days": "in the last 30 days", "90days": "in the last 90 days",
+    week: "this week", month: "this month", year: "this year",
+  }
+  const pLabel = periodLabel[activePeriod] || activePeriod
+  const alerts: { priority: string; color: string; icon: string; text: string }[] = []
+
+  // No-shows
+  if (cancellations && cancellations.noShows >= 5) {
+    alerts.push({ priority: "URGENT", color: "#EF4444", icon: "priority_high", text: `${cancellations.noShows} no-shows ${pLabel}. Immediate action required — consider deposits or confirmation calls.` })
+  } else if (cancellations && cancellations.noShows >= 2) {
+    alerts.push({ priority: "HIGH", color: "#F59E0B", icon: "warning", text: `${cancellations.noShows} no-shows ${pLabel}. Consider implementing a confirmation policy.` })
+  }
+
+  // Total cancellations
+  if (cancellations && cancellations.totalCancellations >= 15) {
+    alerts.push({ priority: "URGENT", color: "#EF4444", icon: "priority_high", text: `High cancellation volume ${pLabel}: ${cancellations.totalCancellations} total cancellations.` })
+  }
+
+  // Client cancellations
+  if (cancellations && cancellations.cancelledByCustomer >= 8) {
+    alerts.push({ priority: "HIGH", color: "#F59E0B", icon: "warning", text: `${cancellations.cancelledByCustomer} client-initiated cancellations ${pLabel}. Review booking flow.` })
+  }
+
+  // Zero-service stylists
+  const allStylists = metrics.flatMap((m) => m.stylistBreakdown || [])
+  const zeroServiceStylists = allStylists.filter((s) => s.serviceCount === 0)
+  if (zeroServiceStylists.length > 0) {
+    alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `${zeroServiceStylists.length} stylist(s) with 0 services ${pLabel}: ${zeroServiceStylists.map((s) => s.name.split(" ")[0]).join(", ")}.` })
+  }
+
+  // No revenue
+  const totalRevenue = metrics.reduce((s, d) => s + d.revenue, 0)
+  if (totalRevenue === 0 && metrics.length > 0) {
+    alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `No revenue recorded ${pLabel}. Data may still be syncing.` })
+  }
+
+  // Location performance gap
+  if (metrics.length >= 2) {
+    const sorted = [...metrics].sort((a, b) => b.revenue - a.revenue)
+    const gap = sorted[0].revenue - sorted[sorted.length - 1].revenue
+    if (gap > 1000) {
+      alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `Location performance gap of ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(gap)} ${pLabel} between ${sorted[0].location} and ${sorted[sorted.length - 1].location}.` })
+    }
+  }
+
+  // All good
+  if (alerts.length === 0) {
+    alerts.push({ priority: "ALL GOOD", color: "#22c55e", icon: "check_circle", text: "No issues detected. All systems running smoothly." })
+  }
+
+  return alerts.map((alert, idx) => (
+    <div key={idx} style={{
+      backgroundColor: "#1a2a32",
+      border: "1px solid rgba(205,201,192,0.08)",
+      borderLeft: `3px solid ${alert.color}`,
+      borderRadius: "0 8px 8px 0",
+      padding: "14px 16px",
+      display: "flex",
+      gap: "12px",
+    }}>
+      <span className="material-symbols-outlined" style={{ color: alert.color, fontSize: "18px", flexShrink: 0 }}>{alert.icon}</span>
+      <div>
+        <div style={{ fontSize: "9px", fontWeight: 800, color: alert.color, letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: "3px" }}>
+          {alert.priority}
+        </div>
+        <div style={{ fontSize: "12px", color: "#CBD5E1", lineHeight: 1.4 }}>{alert.text}</div>
+      </div>
+    </div>
+  ))
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession()
   const { isOwner, isManager, locationName: userLocation } = useUserRole()
@@ -587,41 +665,7 @@ export default function DashboardPage() {
           <h3 style={{ fontSize: "9px", fontWeight: 800, color: "#CDC9C0", letterSpacing: "0.2em", textTransform: "uppercase" as const, margin: "0 0 2px" }}>
             Admin Alerts
           </h3>
-          {(() => {
-            const alerts: { priority: string; color: string; icon: string; text: string }[] = []
-            if (cancellations && cancellations.totalCancellations > 10) {
-              alerts.push({ priority: "URGENT", color: "#EF4444", icon: "priority_high", text: `High cancellation volume this week: ${cancellations.totalCancellations} total cancellations.` })
-            }
-            if (cancellations && cancellations.noShows > 3) {
-              alerts.push({ priority: "HIGH", color: "#F59E0B", icon: "warning", text: `${cancellations.noShows} no-shows this week. Consider implementing a deposit or confirmation policy.` })
-            }
-            const zeroServiceStylists = allStylists.filter((s) => s.serviceCount === 0)
-            if (zeroServiceStylists.length > 0) {
-              alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `${zeroServiceStylists.length} stylist(s) with 0 services: ${zeroServiceStylists.map((s) => s.name.split(" ")[0]).join(", ")}.` })
-            }
-            if (alerts.length === 0) {
-              alerts.push({ priority: "ALL GOOD", color: "#22c55e", icon: "check_circle", text: "No issues detected. All systems running smoothly." })
-            }
-            return alerts
-          })().map((alert, idx) => (
-            <div key={idx} style={{
-              backgroundColor: "#1a2a32",
-              border: "1px solid rgba(205,201,192,0.08)",
-              borderLeft: `3px solid ${alert.color}`,
-              borderRadius: "0 8px 8px 0",
-              padding: "14px 16px",
-              display: "flex",
-              gap: "12px",
-            }}>
-              <span className="material-symbols-outlined" style={{ color: alert.color, fontSize: "18px", flexShrink: 0 }}>{alert.icon}</span>
-              <div>
-                <div style={{ fontSize: "9px", fontWeight: 800, color: alert.color, letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: "3px" }}>
-                  {alert.priority}
-                </div>
-                <div style={{ fontSize: "12px", color: "#CBD5E1", lineHeight: 1.4 }}>{alert.text}</div>
-              </div>
-            </div>
-          ))}
+          {generateAlerts(metricsData, cancellations, activePeriod)}
           <div style={{
             backgroundColor: "#0a151b",
             border: "1px solid rgba(205,201,192,0.08)",
