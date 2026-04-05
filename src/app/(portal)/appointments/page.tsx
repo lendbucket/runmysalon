@@ -14,6 +14,25 @@ const TEAM_NAMES: Record<string, string> = {
   TM0JKR4Zq4jMNcbE: "Nayelie",
 }
 
+const CC_STYLISTS = [
+  { id: "TMbc13IBzS8Z43AO", name: "Clarissa" },
+  { id: "TMaExUyYaWYlvSqh", name: "Alexis" },
+  { id: "TMCzd3unwciKEVX7", name: "Kaylie" },
+  { id: "TMn7kInT8g7Vrgxi", name: "Ashlynn" },
+  { id: "TMMdDDwU8WXpCZ9m", name: "Jessy" },
+  { id: "TM_xI40vPph2_Cos", name: "Mia" },
+]
+const SA_STYLISTS = [
+  { id: "TMMJKxeQuMlMW1Dw", name: "Melissa" },
+  { id: "TM5CjcvcHRXZQ4hP", name: "Madelynn" },
+  { id: "TMcc0QbHuUZfgcIB", name: "Jaylee" },
+  { id: "TMfFCmgJ5RV-WCBq", name: "Aubree" },
+  { id: "TMk1YstlrnPrKw8p", name: "Kiyara" },
+]
+function getLocationStylists(loc: string) {
+  return loc === "San Antonio" ? SA_STYLISTS : CC_STYLISTS
+}
+
 const LOCATIONS = ["Corpus Christi", "San Antonio"]
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -62,6 +81,8 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [stylistFilter, setStylistFilter] = useState<string>("all")
+  const [viewMode, setViewMode] = useState<"list" | "day">("list")
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -89,13 +110,16 @@ export default function AppointmentsPage() {
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
 
-  // Sort by startTime
+  // Filter by stylist and sort by startTime
   const sorted = useMemo(() => {
-    return [...appointments].sort((a, b) => {
+    const filtered = stylistFilter === "all"
+      ? appointments
+      : appointments.filter(a => a.teamMemberId === stylistFilter)
+    return [...filtered].sort((a, b) => {
       if (!a.startTime || !b.startTime) return 0
       return new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     })
-  }, [appointments])
+  }, [appointments, stylistFilter])
 
   const navigateDate = (delta: number) => {
     const d = new Date(date + "T12:00:00")
@@ -228,9 +252,81 @@ export default function AppointmentsPage() {
             {displayDate}
           </span>
         </div>
+
+        {/* View toggle */}
+        <div style={{ display: "flex", gap: "4px", marginTop: "12px" }}>
+          {(["list", "day"] as const).map(v => (
+            <button
+              key={v}
+              onClick={() => setViewMode(v)}
+              style={{
+                padding: "7px 14px",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                backgroundColor: viewMode === v ? "#CDC9C0" : "rgba(205,201,192,0.06)",
+                color: viewMode === v ? "#0f1d24" : "rgba(205,201,192,0.45)",
+              }}
+            >
+              {v === "list" ? "List" : "Day"}
+            </button>
+          ))}
+        </div>
+
+        {/* Stylist filter pills */}
+        <div style={{
+          display: "flex",
+          gap: "6px",
+          marginTop: "12px",
+          overflowX: "auto",
+          paddingBottom: "4px",
+          WebkitOverflowScrolling: "touch",
+        }}>
+          <button
+            onClick={() => setStylistFilter("all")}
+            style={{
+              padding: "6px 12px",
+              fontSize: "10px",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              borderRadius: "20px",
+              border: "none",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              backgroundColor: stylistFilter === "all" ? "#CDC9C0" : "rgba(205,201,192,0.06)",
+              color: stylistFilter === "all" ? "#0f1d24" : "rgba(205,201,192,0.45)",
+            }}
+          >
+            All Stylists
+          </button>
+          {getLocationStylists(location).map(s => (
+            <button
+              key={s.id}
+              onClick={() => setStylistFilter(s.id)}
+              style={{
+                padding: "6px 12px",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                borderRadius: "20px",
+                border: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                backgroundColor: stylistFilter === s.id ? "#CDC9C0" : "rgba(205,201,192,0.06)",
+                color: stylistFilter === s.id ? "#0f1d24" : "rgba(205,201,192,0.45)",
+              }}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Appointment list */}
+      {/* Appointment list / day view */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(205,201,192,0.35)", fontSize: "13px" }}>
           <span className="material-symbols-outlined" style={{ fontSize: "32px", display: "block", marginBottom: "8px", opacity: 0.4 }}>hourglass_empty</span>
@@ -250,7 +346,93 @@ export default function AppointmentsPage() {
             {isToday ? "All clear! No bookings scheduled." : "Try selecting a different date."}
           </div>
         </div>
+      ) : viewMode === "day" ? (
+        /* ── Day View (24-hour timeline) ── */
+        <div style={{ display: "flex", flexDirection: "column", gap: "0px", marginTop: "8px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "8px" }}>
+            {sorted.length} Appointment{sorted.length !== 1 ? "s" : ""} &middot; Day View
+          </div>
+          {Array.from({ length: 24 }, (_, hour) => {
+            const isBusinessHour = hour >= 9 && hour <= 20
+            const hourAppts = sorted.filter(a => {
+              try { return new Date(a.startTime).getHours() === hour } catch { return false }
+            })
+            return (
+              <div key={hour} style={{
+                display: "flex",
+                minHeight: hourAppts.length > 0 ? "auto" : "36px",
+                borderBottom: "1px solid rgba(205,201,192,0.06)",
+                backgroundColor: isBusinessHour ? "rgba(205,201,192,0.02)" : "transparent",
+              }}>
+                {/* Hour label */}
+                <div style={{
+                  width: "60px",
+                  flexShrink: 0,
+                  padding: "8px 8px 8px 0",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: isBusinessHour ? "rgba(205,201,192,0.5)" : "rgba(205,201,192,0.2)",
+                  textAlign: "right",
+                  borderRight: "1px solid rgba(205,201,192,0.08)",
+                }}>
+                  {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
+                </div>
+                {/* Appointments in this hour */}
+                <div style={{ flex: 1, padding: hourAppts.length > 0 ? "6px 10px" : "0 10px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {hourAppts.map(appt => {
+                    const statusStyle = getStatusStyle(appt.status)
+                    return (
+                      <div key={appt.id} style={{
+                        padding: "8px 12px",
+                        backgroundColor: "#1a2a32",
+                        border: "1px solid rgba(205,201,192,0.08)",
+                        borderLeft: `3px solid ${statusStyle.border}`,
+                        borderRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "3px",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 700 }}>
+                            {appt.customerName}
+                          </span>
+                          <span style={{
+                            fontSize: "8px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px",
+                            backgroundColor: statusStyle.bg, color: statusStyle.text,
+                            textTransform: "uppercase", letterSpacing: "0.06em",
+                          }}>
+                            {appt.status.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "rgba(205,201,192,0.55)", fontWeight: 500 }}>
+                          <span>{fmtTime(appt.startTime)}{appt.endTime ? ` - ${fmtTime(appt.endTime)}` : ""}</span>
+                          {appt.teamMemberId && (
+                            <span>{TEAM_NAMES[appt.teamMemberId] || appt.teamMemberId.slice(0, 8)}</span>
+                          )}
+                        </div>
+                        {appt.services && appt.services.length > 0 && (
+                          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                            {appt.services.map((s, i) => (
+                              <span key={i} style={{
+                                fontSize: "9px", fontWeight: 600, padding: "2px 6px",
+                                borderRadius: "3px", backgroundColor: "rgba(205,201,192,0.06)",
+                                color: "rgba(205,201,192,0.5)",
+                              }}>
+                                {s.serviceName}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        /* ── List View ── */
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "2px" }}>
             {sorted.length} Appointment{sorted.length !== 1 ? "s" : ""}

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Build order line items
-    const orderLineItems = lineItems.map((item: { name: string; price: number; catalogObjectId?: string }) => ({
+    const orderLineItems = lineItems.map((item: { name: string; price: number; catalogObjectId?: string; teamMemberId?: string }) => ({
       name: item.name,
       quantity: "1",
       basePriceMoney: {
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         currency: "USD",
       },
       ...(item.catalogObjectId ? { catalogObjectId: item.catalogObjectId } : {}),
+      ...(item.teamMemberId ? { note: `Stylist: ${item.teamMemberId}` } : {}),
     }))
 
     // Build taxes array if taxAmount provided
@@ -101,6 +102,16 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const paymentRes = await square.payments.create(paymentCreateParams as any)
 
+    // Calculate commission breakdown (40% per service)
+    const commissionBreakdown = lineItems
+      .filter((item: { teamMemberId?: string }) => item.teamMemberId)
+      .map((item: { name: string; price: number; teamMemberId?: string }) => ({
+        teamMemberId: item.teamMemberId,
+        serviceName: item.name,
+        servicePrice: item.price,
+        commission: Math.round(item.price * 0.4 * 100) / 100,
+      }))
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
@@ -108,6 +119,7 @@ export async function POST(req: NextRequest) {
       totalCharged: (totalAmount + tipAmt) / 100,
       receipt: paymentRes.payment?.receiptUrl,
       paymentMethod: isCash ? "cash" : "card",
+      commissionBreakdown,
     })
   } catch (error: unknown) {
     console.error("Checkout error:", error)

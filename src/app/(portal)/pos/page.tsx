@@ -14,6 +14,26 @@ const TEAM_NAMES: Record<string, string> = {
   TM0JKR4Zq4jMNcbE: "Nayelie",
 }
 
+/* ── Stylist arrays per location ── */
+const CC_STYLISTS = [
+  { id: "TMbc13IBzS8Z43AO", name: "Clarissa Reyna" },
+  { id: "TMaExUyYaWYlvSqh", name: "Alexis Rodriguez" },
+  { id: "TMCzd3unwciKEVX7", name: "Kaylie Espinoza" },
+  { id: "TMn7kInT8g7Vrgxi", name: "Ashlynn Ochoa" },
+  { id: "TMMdDDwU8WXpCZ9m", name: "Jessy Blamey" },
+  { id: "TM_xI40vPph2_Cos", name: "Mia Gonzales" },
+]
+const SA_STYLISTS = [
+  { id: "TMMJKxeQuMlMW1Dw", name: "Melissa Cruz" },
+  { id: "TM5CjcvcHRXZQ4hP", name: "Madelynn Martinez" },
+  { id: "TMcc0QbHuUZfgcIB", name: "Jaylee Jaeger" },
+  { id: "TMfFCmgJ5RV-WCBq", name: "Aubree Saldana" },
+  { id: "TMk1YstlrnPrKw8p", name: "Kiyara Smith" },
+]
+function getLocationStylists(loc: string) {
+  return loc === "San Antonio" ? SA_STYLISTS : CC_STYLISTS
+}
+
 interface AppointmentService {
   serviceName: string
   price: number
@@ -55,6 +75,8 @@ interface CartItem {
   variationName: string
   price: number
   qty: number
+  teamMemberId?: string
+  teamMemberName?: string
 }
 
 const LOCATIONS = ["Corpus Christi", "San Antonio"]
@@ -232,6 +254,8 @@ export default function POSPage() {
             variationName: "Regular",
             price: s.price,
             qty: 1,
+            teamMemberId: appt.teamMemberId || undefined,
+            teamMemberName: appt.teamMemberId ? (TEAM_NAMES[appt.teamMemberId] || undefined) : undefined,
           }))
         setCart(newCart)
       }
@@ -270,6 +294,18 @@ export default function POSPage() {
         .filter((c) => c.qty > 0)
     )
   }
+
+  const updateCartStylist = (variationId: string, teamMemberId: string) => {
+    const stylists = getLocationStylists(location)
+    const stylist = stylists.find(s => s.id === teamMemberId)
+    setCart(prev => prev.map(c =>
+      c.variationId === variationId
+        ? { ...c, teamMemberId: teamMemberId || undefined, teamMemberName: stylist?.name || undefined }
+        : c
+    ))
+  }
+
+  const allServicesHaveStylist = cart.every(item => !!item.teamMemberId)
 
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0)
   const taxAmount = subtotal * TAX_RATE
@@ -333,6 +369,7 @@ export default function POSPage() {
             name: `${item.serviceName}${item.variationName && item.variationName !== "Regular" ? ` (${item.variationName})` : ""}`,
             price: item.price,
             catalogObjectId: item.variationId,
+            teamMemberId: item.teamMemberId || undefined,
           })),
           tipAmount,
           taxAmount,
@@ -716,6 +753,28 @@ export default function POSPage() {
                   >
                     {item.variationName} &middot; {fmtCurrency(item.price)}
                   </div>
+                  <select
+                    value={item.teamMemberId || ""}
+                    onChange={(e) => updateCartStylist(item.variationId, e.target.value)}
+                    style={{
+                      marginTop: "4px",
+                      padding: "3px 6px",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      backgroundColor: item.teamMemberId ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                      border: `1px solid ${item.teamMemberId ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                      borderRadius: "4px",
+                      color: item.teamMemberId ? "#10B981" : "#fca5a5",
+                      outline: "none",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  >
+                    <option value="">-- Assign Stylist --</option>
+                    {getLocationStylists(location).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div
                   style={{
@@ -1021,6 +1080,14 @@ export default function POSPage() {
               </div>
             )}
 
+            {/* Stylist assignment warning */}
+            {cart.length > 0 && !allServicesHaveStylist && (
+              <div style={{ marginTop: "8px", padding: "10px 12px", backgroundColor: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "8px", fontSize: "11px", color: "#FBBF24", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>warning</span>
+                All services must have a stylist assigned before checkout.
+              </div>
+            )}
+
             {/* Charge error */}
             {chargeError && (
               <div style={{ marginTop: "8px", padding: "10px 12px", backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", fontSize: "12px", color: "#fca5a5" }}>
@@ -1031,11 +1098,11 @@ export default function POSPage() {
             {/* Charge button */}
             <button
               onClick={handleCharge}
-              disabled={charging || cart.length === 0 || (paymentMethod === "cash" && cashReceivedNum < total)}
+              disabled={charging || cart.length === 0 || !allServicesHaveStylist || (paymentMethod === "cash" && cashReceivedNum < total)}
               style={{
                 marginTop: "10px",
                 padding: "16px",
-                backgroundColor: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? "rgba(205,201,192,0.5)" : "#CDC9C0",
+                backgroundColor: (charging || !allServicesHaveStylist || (paymentMethod === "cash" && cashReceivedNum < total)) ? "rgba(205,201,192,0.5)" : "#CDC9C0",
                 border: "none",
                 borderRadius: "10px",
                 color: "#0f1d24",
@@ -1043,12 +1110,12 @@ export default function POSPage() {
                 fontWeight: 800,
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
-                cursor: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? "not-allowed" : "pointer",
+                cursor: (charging || !allServicesHaveStylist || (paymentMethod === "cash" && cashReceivedNum < total)) ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
-                opacity: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? 0.7 : 1,
+                opacity: (charging || !allServicesHaveStylist || (paymentMethod === "cash" && cashReceivedNum < total)) ? 0.7 : 1,
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>

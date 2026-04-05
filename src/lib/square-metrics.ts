@@ -68,22 +68,29 @@ interface OrderEntry {
   locationId: string
 }
 
+function getCSTMidnight(date: Date): { start: string; end: string } {
+  const cst = date.toLocaleDateString("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" })
+  const [m, d, y] = cst.split("/")
+  return {
+    start: new Date(`${y}-${m}-${d}T00:00:00-06:00`).toISOString(),
+    end: new Date(`${y}-${m}-${d}T23:59:59-06:00`).toISOString(),
+  }
+}
+
 export function getDateRange(periodType: string) {
   const now = new Date()
   let startDate: Date
 
   switch (periodType) {
-    case "today":
-      startDate = new Date(now)
-      startDate.setHours(0, 0, 0, 0)
-      break
+    case "today": {
+      const { start, end } = getCSTMidnight(now)
+      return { startAt: start, endAt: end }
+    }
     case "yesterday": {
-      startDate = new Date(now)
-      startDate.setDate(now.getDate() - 1)
-      startDate.setHours(0, 0, 0, 0)
-      const yesterdayEnd = new Date(now)
-      yesterdayEnd.setHours(0, 0, 0, 0)
-      return { startAt: startDate.toISOString(), endAt: yesterdayEnd.toISOString() }
+      const yesterday = new Date(now)
+      yesterday.setDate(now.getDate() - 1)
+      const { start, end } = getCSTMidnight(yesterday)
+      return { startAt: start, endAt: end }
     }
     case "7days":
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
