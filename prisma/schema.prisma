@@ -37,11 +37,12 @@ model Location {
   squareLocationId String @unique
   address          String
   phone            String
-  staffMembers     StaffMember[]
-  inventoryItems   InventoryItem[]
-  users            User[]
-  schedules        Schedule[]
-  purchaseOrders   PurchaseOrder[]
+  staffMembers           StaffMember[]
+  inventoryItems         InventoryItem[]
+  users                  User[]
+  schedules              Schedule[]
+  purchaseOrders         PurchaseOrder[]
+  onboardingEnrollments  OnboardingEnrollment[]
   @@map("locations")
 }
 
@@ -235,4 +236,76 @@ model ConductRecord {
   updatedAt       DateTime @default(now()) @updatedAt
   staffMember     StaffMember @relation(fields: [staffMemberId], references: [id])
   @@map("conduct_records")
+}
+
+model OnboardingEnrollment {
+  id                    String    @id @default(cuid())
+  inviteToken           String    @unique @default(cuid())
+  email                 String
+  firstName             String
+  lastName              String
+  locationId            String
+  role                  UserRole  @default(STYLIST)
+  status                String    @default("pending")
+
+  // Personal Info
+  phone                 String?
+  dateOfBirth           String?
+  address               String?
+  city                  String?
+  state                 String?
+  zip                   String?
+
+  // W-9 Info
+  w9LegalName           String?
+  w9BusinessName        String?
+  w9TaxClassification   String?
+  w9Ssn                 String?
+  w9Ein                 String?
+  w9Address             String?
+  w9CertifiedAt         DateTime?
+
+  // Direct Deposit
+  ddBankName            String?
+  ddRoutingNumber       String?
+  ddAccountNumber       String?
+  ddAccountType         String?
+  ddNameOnAccount       String?
+
+  // License Info
+  licenseNumber         String?
+  licenseState          String?
+  licenseExpiration     String?
+  licenseType           String?
+
+  // Emergency Contact
+  emergencyName         String?
+  emergencyRelationship String?
+  emergencyPhone        String?
+
+  // Agreement / Signature
+  signatureData         String?   @db.Text
+  signedLegalName       String?
+  signedSsnLast4        String?
+  signedDate            String?
+  agreementSignedAt     DateTime?
+
+  // Compliance Acknowledgments
+  ackPolicies           Boolean   @default(false)
+  ackConfidentiality    Boolean   @default(false)
+  ackAtWill             Boolean   @default(false)
+  ackSafetyProtocol     Boolean   @default(false)
+  ackTechPolicy         Boolean   @default(false)
+
+  // Verification
+  verificationCode      String?
+  squareTeamMemberId    String?
+
+  completedAt           DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  location              Location  @relation(fields: [locationId], references: [id])
+  @@map("onboarding_enrollments")
 }

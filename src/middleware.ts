@@ -17,6 +17,7 @@ export const config = {
     "/reviews/:path*",
     "/purchase-orders/:path*",
     "/conduct/:path*",
+    "/onboarding",
     "/submit-complaint/:path*",
     "/orders/:path*",
     "/alerts/:path*",

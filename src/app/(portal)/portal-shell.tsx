@@ -23,6 +23,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
   { href: "/complaints", icon: "report", label: "Complaints" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
+  { href: "/onboarding", icon: "person_add", label: "Onboarding" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
 ]
 
