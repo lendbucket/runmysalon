@@ -1179,8 +1179,8 @@ export default function POSPage() {
           {selectedAppt ? ` for ${selectedAppt.customerName}` : ""}
         </div>
 
-        {/* Commission breakdown */}
-        {checkoutResult?.commissionBreakdown && checkoutResult.commissionBreakdown.length > 0 && (
+        {/* Commission breakdown — owner only */}
+        {isOwner && checkoutResult?.commissionBreakdown && checkoutResult.commissionBreakdown.length > 0 && (
           <div style={{ backgroundColor: "rgba(205,201,192,0.06)", borderRadius: "10px", padding: "16px 20px", width: "100%", maxWidth: "360px", textAlign: "left", marginTop: "8px" }}>
             <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.5)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>
               Commission (40%)

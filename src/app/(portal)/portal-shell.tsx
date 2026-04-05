@@ -22,6 +22,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/pos", icon: "point_of_sale", label: "POS Terminal" },
   { href: "/reviews", icon: "star", label: "Reviews" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
+  { href: "/payroll", icon: "account_balance_wallet", label: "Payroll" },
   { href: "/complaints", icon: "report", label: "Complaints" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/onboarding", icon: "person_add", label: "Onboarding" },
