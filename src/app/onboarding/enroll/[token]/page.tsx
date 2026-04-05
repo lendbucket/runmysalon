@@ -743,12 +743,34 @@ export default function EnrollmentPage({
           {step === 6 && (
             <div>
               <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", margin: "0 0 8px" }}>Employment Agreement</h2>
-              <p style={{ fontSize: "13px", color: "#94A3B8", margin: "0 0 20px" }}>Please review and acknowledge the following terms.</p>
+              <p style={{ fontSize: "13px", color: "#94A3B8", margin: "0 0 20px" }}>Please fill in your details and review the agreement below.</p>
+
+              {/* Agreement date and contractor name ABOVE the scrollable text */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                <div>
+                  <label style={labelStyle}>Contractor / Employee Name</label>
+                  <input
+                    value={agreement.signedLegalName}
+                    onChange={(e) => setAgreement({ ...agreement, signedLegalName: e.target.value })}
+                    placeholder="Full legal name"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Agreement Date</label>
+                  <input
+                    type="date"
+                    value={agreement.signedDate}
+                    onChange={(e) => setAgreement({ ...agreement, signedDate: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
 
               {/* Scrollable contract text */}
               <div style={{ maxHeight: "200px", overflowY: "auto", backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.1)", borderRadius: "8px", padding: "16px", marginBottom: "20px", fontSize: "12px", color: "#94A3B8", lineHeight: 1.7 }}>
                 <p style={{ margin: "0 0 12px", fontWeight: 700, color: "#CDC9C0" }}>SALON ENVY INDEPENDENT CONTRACTOR / EMPLOYMENT AGREEMENT</p>
-                <p style={{ margin: "0 0 8px" }}>This Agreement is entered into between Salon Envy LLC (&ldquo;Company&rdquo;) and the undersigned individual (&ldquo;Contractor/Employee&rdquo;).</p>
+                <p style={{ margin: "0 0 8px" }}>This Agreement is entered into on <strong style={{ color: "#CDC9C0" }}>{agreement.signedDate || "___________"}</strong> between Salon Envy LLC (&ldquo;Company&rdquo;) and <strong style={{ color: "#CDC9C0" }}>{agreement.signedLegalName || "___________"}</strong> (&ldquo;Contractor/Employee&rdquo;).</p>
                 <p style={{ margin: "0 0 8px" }}><strong style={{ color: "#CDC9C0" }}>1. Employment At-Will.</strong> Employment with Salon Envy is at-will, meaning either party may terminate the relationship at any time, with or without cause or notice, subject to applicable law.</p>
                 <p style={{ margin: "0 0 8px" }}><strong style={{ color: "#CDC9C0" }}>2. Confidentiality.</strong> You agree to maintain the confidentiality of all proprietary information, client lists, pricing, formulas, and business practices of Salon Envy. This obligation survives termination.</p>
                 <p style={{ margin: "0 0 8px" }}><strong style={{ color: "#CDC9C0" }}>3. Workplace Policies.</strong> You agree to comply with all Salon Envy workplace policies, including but not limited to: dress code, attendance, client interaction standards, health and safety protocols, and anti-harassment policies.</p>

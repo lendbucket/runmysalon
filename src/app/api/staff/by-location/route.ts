@@ -13,13 +13,37 @@ export async function GET(req: NextRequest) {
   let locationId = req.nextUrl.searchParams.get("locationId")
   if (role === "MANAGER" && userLocationId) locationId = userLocationId
 
+  const showAll = req.nextUrl.searchParams.get("all") === "true"
+
   const staff = await prisma.staffMember.findMany({
     where: {
-      isActive: true,
+      ...(!showAll ? { isActive: true } : {}),
       ...(locationId ? { locationId } : {}),
+    },
+    include: {
+      location: true,
+      user: { select: { email: true } },
     },
     orderBy: [{ position: "asc" }, { fullName: "asc" }],
   })
 
-  return NextResponse.json({ staff })
+  const result = staff.map((s) => ({
+    id: s.id,
+    fullName: s.fullName,
+    email: s.email || s.user?.email || null,
+    phone: s.phone,
+    position: s.position,
+    isActive: s.isActive,
+    inviteStatus: s.inviteStatus,
+    squareTeamMemberId: s.squareTeamMemberId,
+    createdAt: s.createdAt,
+    location: { id: s.location.id, name: s.location.name },
+    tdlrLicenseNumber: s.tdlrLicenseNumber,
+    tdlrStatus: s.tdlrStatus,
+    tdlrExpirationDate: s.tdlrExpirationDate,
+    tdlrVerifiedAt: s.tdlrVerifiedAt,
+    tdlrHolderName: s.tdlrHolderName,
+  }))
+
+  return NextResponse.json({ staff: result })
 }

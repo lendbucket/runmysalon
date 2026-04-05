@@ -176,43 +176,68 @@ export async function PATCH(
         updateData.completedAt = new Date();
         updateData.verificationCode = code;
 
-        // Create user in prisma
+        // Create user + staff member in prisma
         const fullEnrollment = await prisma.onboardingEnrollment.findUnique({
           where: { inviteToken: token },
           include: { location: true },
         });
 
         if (fullEnrollment) {
-          // Check if user already exists
-          const existingUser = await prisma.user.findUnique({
+          const fullName = `${fullEnrollment.firstName} ${fullEnrollment.lastName}`;
+          const position = fullEnrollment.role === "MANAGER" ? "manager" : "stylist";
+
+          // Upsert user
+          const user = await prisma.user.upsert({
             where: { email: fullEnrollment.email },
+            update: {
+              name: fullName,
+              role: fullEnrollment.role,
+              locationId: fullEnrollment.locationId,
+              inviteStatus: "ACCEPTED",
+            },
+            create: {
+              email: fullEnrollment.email,
+              name: fullName,
+              role: fullEnrollment.role,
+              locationId: fullEnrollment.locationId,
+              inviteStatus: "ACCEPTED",
+            },
           });
 
-          if (!existingUser) {
-            const user = await prisma.user.create({
+          // Upsert staff member
+          const existingStaff = await prisma.staffMember.findUnique({
+            where: { userId: user.id },
+          });
+
+          if (existingStaff) {
+            await prisma.staffMember.update({
+              where: { id: existingStaff.id },
               data: {
+                fullName,
                 email: fullEnrollment.email,
-                name: `${fullEnrollment.firstName} ${fullEnrollment.lastName}`,
-                role: fullEnrollment.role,
+                phone: fullEnrollment.phone || existingStaff.phone,
+                position,
                 locationId: fullEnrollment.locationId,
-                inviteStatus: "ACCEPTED",
+                inviteStatus: "accepted",
+                tdlrLicenseNumber: fullEnrollment.licenseNumber || existingStaff.tdlrLicenseNumber,
               },
             });
-
+          } else {
             await prisma.staffMember.create({
               data: {
                 userId: user.id,
                 locationId: fullEnrollment.locationId,
-                fullName: `${fullEnrollment.firstName} ${fullEnrollment.lastName}`,
+                fullName,
                 email: fullEnrollment.email,
                 phone: fullEnrollment.phone || null,
-                position: fullEnrollment.role === "MANAGER" ? "manager" : "stylist",
+                position,
                 inviteStatus: "accepted",
+                tdlrLicenseNumber: fullEnrollment.licenseNumber || null,
               },
             });
           }
 
-          // Send notification email to owner
+          // Send notification email to owner with banking info section
           try {
             const { Resend } = await import("resend");
             const resend = new Resend(process.env.RESEND_API_KEY);
@@ -222,19 +247,57 @@ export async function PATCH(
             await resend.emails.send({
               from: process.env.EMAIL_FROM || "Salon Envy Portal <noreply@salonenvyusa.com>",
               to: ownerEmail,
-              subject: `Onboarding Complete: ${fullEnrollment.firstName} ${fullEnrollment.lastName}`,
+              subject: `Onboarding Complete: ${fullName}`,
               html: `
-                <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; background: #0f1d24; color: #ffffff; padding: 40px; border-radius: 12px;">
+                <div style="font-family: -apple-system, sans-serif; max-width: 520px; margin: 0 auto; background: #0f1d24; color: #ffffff; padding: 40px; border-radius: 12px;">
                   <h2 style="color: #CDC9C0; margin: 0 0 16px;">Onboarding Complete</h2>
                   <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">
-                    <strong style="color: #fff;">${fullEnrollment.firstName} ${fullEnrollment.lastName}</strong> has completed their enrollment for
+                    <strong style="color: #fff;">${fullName}</strong> has completed their enrollment for
                     <strong style="color: #fff;">${fullEnrollment.location.name}</strong>.
                   </p>
-                  <p style="color: #94A3B8; font-size: 14px;">
-                    Role: ${fullEnrollment.role}<br/>
-                    Email: ${fullEnrollment.email}<br/>
-                    Verification Code: <strong style="color: #CDC9C0;">${code}</strong>
-                  </p>
+                  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                    <tr>
+                      <td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Role</td>
+                      <td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.role}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Email</td>
+                      <td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.email}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Phone</td>
+                      <td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.phone || "N/A"}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">License #</td>
+                      <td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.licenseNumber || "N/A"}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Verification Code</td>
+                      <td style="color: #CDC9C0; font-size: 13px; font-weight: 700; padding: 6px 0; text-align: right;">${code}</td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top: 20px; padding: 16px; background: rgba(205,201,192,0.06); border: 1px solid rgba(205,201,192,0.12); border-radius: 8px;">
+                    <h3 style="color: #CDC9C0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 12px;">Direct Deposit Information</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Bank Name</td>
+                        <td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddBankName || "N/A"}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Account Holder</td>
+                        <td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddNameOnAccount || "N/A"}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Account Type</td>
+                        <td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddAccountType ? fullEnrollment.ddAccountType.charAt(0).toUpperCase() + fullEnrollment.ddAccountType.slice(1) : "N/A"}</td>
+                      </tr>
+                    </table>
+                    <p style="color: #64748B; font-size: 11px; margin: 10px 0 0; font-style: italic;">
+                      Routing and account numbers are stored encrypted and not included in this notification for security purposes.
+                    </p>
+                  </div>
                 </div>
               `,
             });
