@@ -14,14 +14,27 @@ const TEAM_NAMES: Record<string, string> = {
   TM0JKR4Zq4jMNcbE: "Nayelie",
 }
 
+interface AppointmentService {
+  serviceName: string
+  price: number
+  durationMinutes: number
+  serviceVariationId?: string
+}
+
 interface Appointment {
   id: string
   customerId?: string
   customerName: string
   customerPhone: string
+  customerEmail?: string
   startTime: string
+  endTime?: string | null
   teamMemberId: string | null
   status: string
+  services?: AppointmentService[]
+  totalPrice?: number
+  totalDurationMinutes?: number
+  note?: string | null
 }
 
 interface ServiceVariation {
@@ -45,6 +58,7 @@ interface CartItem {
 }
 
 const LOCATIONS = ["Corpus Christi", "San Antonio"]
+const TAX_RATE = 0.0825
 
 export default function POSPage() {
   const { isOwner, isStylist, locationName } = useUserRole()
@@ -68,6 +82,10 @@ export default function POSPage() {
   const [squareReady, setSquareReady] = useState(false)
   const [charging, setCharging] = useState(false)
   const [chargeError, setChargeError] = useState<string | null>(null)
+
+  // Payment method state
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card")
+  const [cashReceived, setCashReceived] = useState("")
 
   // Responsive
   useEffect(() => {
@@ -154,6 +172,28 @@ export default function POSPage() {
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
   useEffect(() => { fetchCatalog() }, [fetchCatalog])
 
+  // Auto-populate cart when appointment is selected with services
+  const selectAppointment = useCallback((appt: Appointment) => {
+    setSelectedAppt(appt)
+    // Auto-populate cart if appointment has services with prices
+    if (appt.services && appt.services.length > 0) {
+      const hasServicePrices = appt.services.some(s => s.price > 0)
+      if (hasServicePrices) {
+        const newCart: CartItem[] = appt.services
+          .filter(s => s.price > 0)
+          .map(s => ({
+            variationId: s.serviceVariationId || `appt-svc-${Math.random().toString(36).slice(2)}`,
+            serviceName: s.serviceName,
+            variationName: "Regular",
+            price: s.price,
+            qty: 1,
+          }))
+        setCart(newCart)
+      }
+    }
+    if (isMobile) setMobileTab("checkout")
+  }, [isMobile])
+
   // Cart helpers
   const addToCart = (service: CatalogService, variation: ServiceVariation) => {
     setCart((prev) => {
@@ -187,9 +227,14 @@ export default function POSPage() {
   }
 
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0)
+  const taxAmount = subtotal * TAX_RATE
   const tipAmount =
     tipPercent !== null ? subtotal * (tipPercent / 100) : Number(customTip) || 0
-  const total = subtotal + tipAmount
+  const total = subtotal + taxAmount + tipAmount
+
+  // Cash change calculation
+  const cashReceivedNum = Number(cashReceived) || 0
+  const changeDue = cashReceivedNum > total ? cashReceivedNum - total : 0
 
   const filteredCatalog = useMemo(() => {
     if (!searchQuery.trim()) return catalog
@@ -206,23 +251,26 @@ export default function POSPage() {
     setCharging(true)
     setChargeError(null)
 
+    const isCash = paymentMethod === "cash"
     let sourceId = "cnon:card-nonce-ok" // fallback test nonce
 
-    // Use Square Web Payments SDK if available
-    if (squareCard && squareReady) {
-      try {
-        const result = await (squareCard as { tokenize: () => Promise<{ status: string; token?: string; errors?: Array<{ message: string }> }> }).tokenize()
-        if (result.status === "OK" && result.token) {
-          sourceId = result.token
-        } else {
-          setChargeError(result.errors?.[0]?.message || "Card tokenization failed. Please try again.")
+    if (!isCash) {
+      // Use Square Web Payments SDK if available
+      if (squareCard && squareReady) {
+        try {
+          const result = await (squareCard as { tokenize: () => Promise<{ status: string; token?: string; errors?: Array<{ message: string }> }> }).tokenize()
+          if (result.status === "OK" && result.token) {
+            sourceId = result.token
+          } else {
+            setChargeError(result.errors?.[0]?.message || "Card tokenization failed. Please try again.")
+            setCharging(false)
+            return
+          }
+        } catch {
+          setChargeError("Card processing error. Please try again.")
           setCharging(false)
           return
         }
-      } catch (e) {
-        setChargeError("Card processing error. Please try again.")
-        setCharging(false)
-        return
       }
     }
 
@@ -240,9 +288,11 @@ export default function POSPage() {
             catalogObjectId: item.variationId,
           })),
           tipAmount: tipAmount,
-          sourceId,
+          taxAmount: taxAmount,
+          sourceId: isCash ? undefined : sourceId,
           bookingId: selectedAppt?.id,
           note: `Checkout for ${selectedAppt?.customerName || "Walk-in"}`,
+          paymentMethod: isCash ? "cash" : "card",
         }),
       })
       const data = await res.json()
@@ -264,6 +314,8 @@ export default function POSPage() {
     setCustomTip("")
     setShowSuccess(false)
     setSearchQuery("")
+    setPaymentMethod("card")
+    setCashReceived("")
     if (isMobile) setMobileTab("appointments")
   }
 
@@ -290,10 +342,7 @@ export default function POSPage() {
     const isSelected = selectedAppt?.id === appt.id
     return (
       <button
-        onClick={() => {
-          setSelectedAppt(appt)
-          if (isMobile) setMobileTab("checkout")
-        }}
+        onClick={() => selectAppointment(appt)}
         style={{
           width: "100%",
           textAlign: "left",
@@ -350,13 +399,34 @@ export default function POSPage() {
             fontWeight: 500,
           }}
         >
-          <span>{fmtTime(appt.startTime)}</span>
+          <span>{fmtTime(appt.startTime)}{appt.endTime ? ` - ${fmtTime(appt.endTime)}` : ""}</span>
           {appt.teamMemberId && (
             <span>
               {TEAM_NAMES[appt.teamMemberId] || appt.teamMemberId.slice(0, 6)}
             </span>
           )}
         </div>
+        {appt.services && appt.services.length > 0 && (
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "2px" }}>
+            {appt.services.map((s, i) => (
+              <span key={i} style={{
+                fontSize: "9px",
+                fontWeight: 600,
+                padding: "2px 6px",
+                borderRadius: "3px",
+                backgroundColor: "rgba(205,201,192,0.06)",
+                color: "rgba(205,201,192,0.5)",
+              }}>
+                {s.serviceName}
+              </span>
+            ))}
+          </div>
+        )}
+        {appt.totalPrice != null && appt.totalPrice > 0 && (
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#CDC9C0" }}>
+            {fmtCurrency(appt.totalPrice)}
+          </div>
+        )}
       </button>
     )
   }
@@ -774,6 +844,17 @@ export default function POSPage() {
                 color: "rgba(205,201,192,0.55)",
               }}
             >
+              <span>Tax (8.25%)</span>
+              <span>{fmtCurrency(taxAmount)}</span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "12px",
+                color: "rgba(205,201,192,0.55)",
+              }}
+            >
               <span>Tip</span>
               <span>{fmtCurrency(tipAmount)}</span>
             </div>
@@ -792,19 +873,101 @@ export default function POSPage() {
               <span>{fmtCurrency(total)}</span>
             </div>
 
-            {/* Square Web Payments card form */}
-            {squareReady && (
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>credit_card</span>
-                  Card Payment
-                </div>
-                <div id="sq-card-container" style={{ minHeight: "89px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)", overflow: "hidden" }} />
+            {/* Payment method toggle */}
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px" }}>
+                Payment Method
               </div>
+              <div style={{ display: "flex", gap: "4px", marginBottom: "12px" }}>
+                {(["card", "cash"] as const).map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => setPaymentMethod(method)}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      borderRadius: "7px",
+                      border: paymentMethod === method ? "1px solid #CDC9C0" : "1px solid rgba(205,201,192,0.15)",
+                      cursor: "pointer",
+                      backgroundColor: paymentMethod === method ? "rgba(205,201,192,0.12)" : "transparent",
+                      color: paymentMethod === method ? "#CDC9C0" : "rgba(205,201,192,0.5)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
+                      {method === "card" ? "credit_card" : "payments"}
+                    </span>
+                    {method === "card" ? "Card" : "Cash"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Card payment form */}
+            {paymentMethod === "card" && (
+              <>
+                {squareReady && (
+                  <div>
+                    <div id="sq-card-container" style={{ minHeight: "89px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)", overflow: "hidden" }} />
+                  </div>
+                )}
+                {!squareReady && (
+                  <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.4)", textAlign: "center", padding: "12px", backgroundColor: "rgba(255,255,255,0.02)", borderRadius: "8px" }}>
+                    Square card form loading... (Set NEXT_PUBLIC_SQUARE_APP_ID in env)
+                  </div>
+                )}
+              </>
             )}
-            {!squareReady && (
-              <div style={{ marginTop: "12px", fontSize: "11px", color: "rgba(205,201,192,0.4)", textAlign: "center", padding: "12px", backgroundColor: "rgba(255,255,255,0.02)", borderRadius: "8px" }}>
-                Square card form loading... (Set NEXT_PUBLIC_SQUARE_APP_ID in env)
+
+            {/* Cash payment form */}
+            {paymentMethod === "cash" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 600, color: "rgba(205,201,192,0.55)", whiteSpace: "nowrap" }}>Cash Received:</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 12px",
+                      borderRadius: "7px",
+                      border: "1px solid rgba(205,201,192,0.15)",
+                      backgroundColor: "rgba(255,255,255,0.03)",
+                      color: "#FFFFFF",
+                      fontSize: "16px",
+                      fontWeight: 700,
+                      outline: "none",
+                      textAlign: "right",
+                    }}
+                  />
+                </div>
+                {cashReceivedNum > 0 && (
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "10px 12px",
+                    backgroundColor: changeDue > 0 ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                    border: `1px solid ${changeDue > 0 ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: changeDue > 0 ? "#10B981" : cashReceivedNum >= total ? "#10B981" : "#fca5a5",
+                  }}>
+                    <span>Change Due</span>
+                    <span>{fmtCurrency(changeDue)}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -818,11 +981,11 @@ export default function POSPage() {
             {/* Charge button */}
             <button
               onClick={handleCharge}
-              disabled={charging || cart.length === 0}
+              disabled={charging || cart.length === 0 || (paymentMethod === "cash" && cashReceivedNum < total)}
               style={{
                 marginTop: "10px",
                 padding: "16px",
-                backgroundColor: charging ? "rgba(205,201,192,0.5)" : "#CDC9C0",
+                backgroundColor: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? "rgba(205,201,192,0.5)" : "#CDC9C0",
                 border: "none",
                 borderRadius: "10px",
                 color: "#0f1d24",
@@ -830,18 +993,18 @@ export default function POSPage() {
                 fontWeight: 800,
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
-                cursor: charging ? "not-allowed" : "pointer",
+                cursor: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
-                opacity: charging ? 0.7 : 1,
+                opacity: (charging || (paymentMethod === "cash" && cashReceivedNum < total)) ? 0.7 : 1,
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
-                {charging ? "sync" : "credit_card"}
+                {charging ? "sync" : paymentMethod === "cash" ? "payments" : "credit_card"}
               </span>
-              {charging ? "Processing..." : `Charge ${fmtCurrency(total)}`}
+              {charging ? "Processing..." : `${paymentMethod === "cash" ? "Complete Cash" : "Charge"} ${fmtCurrency(total)}`}
             </button>
           </div>
         )}

@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
   let teamMemberFilter: string | undefined;
 
   if (role === "STYLIST") {
-    // Find their StaffMember record
     const staff = await prisma.staffMember.findFirst({
       where: { userId },
       include: { location: true },
@@ -59,11 +58,22 @@ export async function GET(request: NextRequest) {
   // Default to CC if no location resolved
   if (!locationId) locationId = "LTJSA6QR1HGW6";
 
-  // Get today's date range
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
+  // Date param support — default to today
+  const dateParam = request.nextUrl.searchParams.get("date");
+  const allStatuses = request.nextUrl.searchParams.get("all") === "true";
+
+  let startOfDay: Date;
+  let endOfDay: Date;
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split("-").map(Number);
+    startOfDay = new Date(y, m - 1, d);
+    endOfDay = new Date(y, m - 1, d + 1);
+  } else {
+    const now = new Date();
+    startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+  }
 
   try {
     const listParams: Record<string, unknown> = {
@@ -79,11 +89,20 @@ export async function GET(request: NextRequest) {
     const bookingsPage = await square.bookings.list(listParams as Parameters<typeof square.bookings.list>[0]);
     const bookings = bookingsPage.data || [];
 
-    // Fetch customer details for first 20 bookings
+    // Filter by status unless ?all=true
+    const filtered = allStatuses
+      ? bookings
+      : bookings.filter((b) => b.status === "ACCEPTED" || b.status === "PENDING");
+
+    // Cache for catalog lookups to avoid duplicate fetches
+    const catalogCache = new Map<string, { serviceName: string; price: number; durationMinutes: number }>();
+
+    // Fetch customer details and service info
     const appointments = await Promise.all(
-      bookings.slice(0, 20).map(async (booking) => {
+      filtered.slice(0, 30).map(async (booking) => {
         let customerName = "Walk-in";
         let customerPhone = "";
+        let customerEmail = "";
 
         if (booking.customerId) {
           try {
@@ -92,19 +111,78 @@ export async function GET(request: NextRequest) {
               const c = custRes.customer;
               customerName = [c.givenName, c.familyName].filter(Boolean).join(" ") || "Client";
               customerPhone = c.phoneNumber || "";
+              customerEmail = c.emailAddress || "";
             }
           } catch {
-            // Customer lookup failed — use fallback
+            // Customer lookup failed
           }
         }
 
+        // Build services array from appointment segments
+        const segments = booking.appointmentSegments || [];
+        const services: { serviceName: string; price: number; durationMinutes: number; serviceVariationId?: string }[] = [];
+
+        for (const seg of segments) {
+          const varId = seg.serviceVariationId;
+          const dur = seg.durationMinutes ?? 0;
+
+          if (varId && catalogCache.has(varId)) {
+            const cached = catalogCache.get(varId)!;
+            services.push({ ...cached, serviceVariationId: varId });
+            continue;
+          }
+
+          let serviceName = "Service";
+          let price = 0;
+
+          if (varId) {
+            try {
+              const catRes = await square.catalog.object.get({ objectId: varId });
+              const obj = catRes.object as unknown as Record<string, unknown>;
+              if (obj) {
+                const varData = obj.itemVariationData as Record<string, unknown> | undefined;
+                if (varData) {
+                  serviceName = (varData.name as string) || "Service";
+                  const priceMoney = varData.priceMoney as { amount?: bigint | number } | undefined;
+                  if (priceMoney?.amount != null) {
+                    price = Number(priceMoney.amount) / 100;
+                  }
+                }
+              }
+            } catch {
+              // Catalog lookup failed — use defaults
+            }
+            catalogCache.set(varId, { serviceName, price, durationMinutes: dur });
+          }
+
+          services.push({ serviceName, price, durationMinutes: dur, serviceVariationId: varId || "" });
+        }
+
+        // Calculate endTime from startTime + total segment durations
+        const totalDurationMin = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+        let endTime: string | null = null;
+        if (booking.startAt && totalDurationMin > 0) {
+          const start = new Date(booking.startAt);
+          endTime = new Date(start.getTime() + totalDurationMin * 60000).toISOString();
+        }
+
+        // Calculate totalPrice from service prices
+        const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+
         return {
           id: booking.id,
+          customerId: booking.customerId || null,
           customerName,
           customerPhone,
+          customerEmail,
           startTime: booking.startAt,
-          teamMemberId: booking.appointmentSegments?.[0]?.teamMemberId || null,
+          endTime,
+          teamMemberId: segments[0]?.teamMemberId || null,
           status: booking.status,
+          services,
+          totalPrice,
+          totalDurationMinutes: totalDurationMin,
+          note: booking.customerNote || null,
         };
       })
     );

@@ -9,10 +9,15 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const { locationId, customerId, lineItems, tipAmount, sourceId, bookingId, note } = await req.json()
+    const { locationId, customerId, lineItems, tipAmount, sourceId, bookingId, note, paymentMethod, taxAmount } = await req.json()
 
-    if (!sourceId || !lineItems?.length) {
+    if (!lineItems?.length) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    // For card payments, sourceId is required
+    if (paymentMethod !== "cash" && !sourceId) {
+      return NextResponse.json({ error: "Missing sourceId for card payment" }, { status: 400 })
     }
 
     const square = new SquareClient({
@@ -20,20 +25,33 @@ export async function POST(req: NextRequest) {
       environment: SquareEnvironment.Production,
     })
 
+    // Build order line items
+    const orderLineItems = lineItems.map((item: { name: string; price: number; catalogObjectId?: string }) => ({
+      name: item.name,
+      quantity: "1",
+      basePriceMoney: {
+        amount: BigInt(Math.round(item.price * 100)),
+        currency: "USD",
+      },
+      ...(item.catalogObjectId ? { catalogObjectId: item.catalogObjectId } : {}),
+    }))
+
+    // Build taxes array if taxAmount provided
+    const taxes = taxAmount && taxAmount > 0
+      ? [{
+          name: "Sales Tax",
+          percentage: "8.25",
+          scope: "ORDER" as const,
+        }]
+      : undefined
+
     // Create order
     const orderRes = await square.orders.create({
       order: {
         locationId,
         customerId: customerId || undefined,
-        lineItems: lineItems.map((item: { name: string; price: number; catalogObjectId?: string }) => ({
-          name: item.name,
-          quantity: "1",
-          basePriceMoney: {
-            amount: BigInt(Math.round(item.price * 100)),
-            currency: "USD",
-          },
-          ...(item.catalogObjectId ? { catalogObjectId: item.catalogObjectId } : {}),
-        })),
+        lineItems: orderLineItems,
+        ...(taxes ? { taxes } : {}),
         ...(bookingId ? { referenceId: bookingId } : {}),
       },
       idempotencyKey: randomUUID(),
@@ -46,8 +64,10 @@ export async function POST(req: NextRequest) {
     const totalAmount = Number(order.totalMoney?.amount || 0)
     const tipAmt = Math.round((tipAmount || 0) * 100)
 
-    const paymentRes = await square.payments.create({
-      sourceId,
+    const isCash = paymentMethod === "cash"
+
+    const paymentCreateParams: Record<string, unknown> = {
+      sourceId: isCash ? "CASH" : sourceId,
       idempotencyKey: randomUUID(),
       amountMoney: {
         amount: BigInt(totalAmount + tipAmt),
@@ -58,7 +78,20 @@ export async function POST(req: NextRequest) {
       ...(customerId ? { customerId } : {}),
       ...(note ? { note } : {}),
       ...(tipAmt > 0 ? { tipMoney: { amount: BigInt(tipAmt), currency: "USD" } } : {}),
-    })
+    }
+
+    // Add cash details for cash payments
+    if (isCash) {
+      paymentCreateParams.cashDetails = {
+        buyerSuppliedMoney: {
+          amount: BigInt(totalAmount + tipAmt),
+          currency: "USD",
+        },
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const paymentRes = await square.payments.create(paymentCreateParams as any)
 
     return NextResponse.json({
       success: true,
@@ -66,6 +99,7 @@ export async function POST(req: NextRequest) {
       paymentId: paymentRes.payment?.id,
       totalCharged: (totalAmount + tipAmt) / 100,
       receipt: paymentRes.payment?.receiptUrl,
+      paymentMethod: isCash ? "cash" : "card",
     })
   } catch (error: unknown) {
     console.error("Checkout error:", error)

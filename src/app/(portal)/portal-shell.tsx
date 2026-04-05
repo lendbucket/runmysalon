@@ -11,6 +11,7 @@ type NavItem = { href: string; icon: string; label: string; badge?: boolean; hig
 /* ── Role-based full nav ── */
 const OWNER_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+  { href: "/appointments", icon: "event", label: "Appointments" },
   { href: "/approvals", icon: "verified", label: "Approvals", badge: true },
   { href: "/metrics", icon: "insights", label: "Metrics" },
   { href: "/retention", icon: "favorite", label: "Retention" },
@@ -29,6 +30,7 @@ const OWNER_NAV: NavItem[] = [
 
 const MANAGER_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+  { href: "/appointments", icon: "event", label: "Appointments" },
   { href: "/metrics", icon: "insights", label: "Metrics" },
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/staff", icon: "group", label: "Staff" },
@@ -43,6 +45,7 @@ const MANAGER_NAV: NavItem[] = [
 
 const STYLIST_NAV: NavItem[] = [
   { href: "/my-schedule", icon: "calendar_month", label: "My Schedule" },
+  { href: "/appointments", icon: "event", label: "My Appts" },
   { href: "/pos", icon: "point_of_sale", label: "POS Terminal" },
   { href: "/submit-complaint", icon: "report", label: "Report Issue" },
   { href: "/conduct", icon: "gavel", label: "My Record" },
@@ -65,7 +68,7 @@ const STYLIST_BOTTOM: NavItem[] = [
 ]
 
 /* ── Allowed pages per role for stylist redirect ── */
-const STYLIST_ALLOWED = ["/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos"]
+const STYLIST_ALLOWED = ["/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments"]
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
