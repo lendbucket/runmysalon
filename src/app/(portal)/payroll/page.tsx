@@ -14,48 +14,53 @@ interface PayrollEntry {
   periodEnd: string
 }
 
-type Preset = "this-week" | "last-week" | "2-weeks" | "this-month" | "custom"
+type Preset = "current" | "last" | "this-month" | "custom"
 type LocationFilter = "All" | "Corpus Christi" | "San Antonio"
 
 function fmtCurrency(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Pay period runs Wednesday 12:00 AM CST → Tuesday 11:59:59 PM CST
 function getPresetDates(preset: Preset): { start: string; end: string } {
   const now = new Date()
+  const cstNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }))
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  const day = cstNow.getDay() // 0=Sun..6=Sat
 
   switch (preset) {
-    case "this-week": {
-      const sun = new Date(now)
-      sun.setDate(now.getDate() - now.getDay())
-      return { start: fmt(sun), end: fmt(now) }
+    case "current": {
+      // Find most recent Wednesday
+      const daysBack = day >= 3 ? day - 3 : day + 4
+      const wed = new Date(cstNow)
+      wed.setDate(cstNow.getDate() - daysBack)
+      const tue = new Date(wed)
+      tue.setDate(wed.getDate() + 6)
+      return { start: fmt(wed), end: fmt(tue) }
     }
-    case "last-week": {
-      const sun = new Date(now)
-      sun.setDate(now.getDate() - now.getDay() - 7)
-      const sat = new Date(sun)
-      sat.setDate(sun.getDate() + 6)
-      return { start: fmt(sun), end: fmt(sat) }
-    }
-    case "2-weeks": {
-      const sun = new Date(now)
-      sun.setDate(now.getDate() - now.getDay() - 7)
-      return { start: fmt(sun), end: fmt(now) }
+    case "last": {
+      const daysBack = day >= 3 ? day - 3 : day + 4
+      const thisWed = new Date(cstNow)
+      thisWed.setDate(cstNow.getDate() - daysBack)
+      const prevTue = new Date(thisWed)
+      prevTue.setDate(thisWed.getDate() - 1)
+      const prevWed = new Date(prevTue)
+      prevWed.setDate(prevTue.getDate() - 6)
+      return { start: fmt(prevWed), end: fmt(prevTue) }
     }
     case "this-month": {
-      const first = new Date(now.getFullYear(), now.getMonth(), 1)
-      return { start: fmt(first), end: fmt(now) }
+      const first = new Date(cstNow.getFullYear(), cstNow.getMonth(), 1)
+      return { start: fmt(first), end: fmt(cstNow) }
     }
     default:
-      return { start: fmt(now), end: fmt(now) }
+      return { start: fmt(cstNow), end: fmt(cstNow) }
   }
 }
 
 export default function PayrollPage() {
   const { isOwner } = useUserRole()
 
-  const [preset, setPreset] = useState<Preset>("this-week")
+  const [preset, setPreset] = useState<Preset>("current")
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
   const [locationFilter, setLocationFilter] = useState<LocationFilter>("All")
@@ -239,17 +244,16 @@ export default function PayrollPage() {
       {/* Header */}
       <div style={{ marginBottom: "24px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>Payroll Summary</h1>
-        <p style={{ fontSize: "13px", color: "rgba(205,201,192,0.5)", margin: "4px 0 0" }}>
-          Commission breakdown by stylist &amp; location
+        <p style={{ fontSize: "12px", color: "#94A3B8", margin: "4px 0 0" }}>
+          Wed — Tue pay period · Pay date every Tuesday · 40% of service subtotal · CST
         </p>
       </div>
 
       {/* Controls */}
       <div style={{ ...cardStyle, marginBottom: "20px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-          {presetBtn("this-week", "This Week")}
-          {presetBtn("last-week", "Last Week")}
-          {presetBtn("2-weeks", "2 Weeks")}
+          {presetBtn("current", "This Period")}
+          {presetBtn("last", "Last Period")}
           {presetBtn("this-month", "This Month")}
           {presetBtn("custom", "Custom")}
         </div>
