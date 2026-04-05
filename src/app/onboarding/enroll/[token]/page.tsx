@@ -169,6 +169,40 @@ export default function EnrollmentPage({
     signedDate: new Date().toISOString().split("T")[0],
   });
 
+  // TDLR verification
+  const [tdlrResult, setTdlrResult] = useState<{
+    found: boolean;
+    holderName?: string;
+    licenseType?: string;
+    status?: string;
+    isActive?: boolean;
+    expirationDate?: string;
+    statusColor?: "green" | "red" | "yellow";
+  } | null>(null);
+  const [tdlrChecking, setTdlrChecking] = useState(false);
+
+  const verifyTdlr = async (licenseNum: string) => {
+    if (!licenseNum) return;
+    setTdlrChecking(true);
+    setTdlrResult(null);
+    try {
+      const res = await fetch(`/api/tdlr/verify?license=${encodeURIComponent(licenseNum)}`);
+      const data = await res.json();
+      setTdlrResult(data);
+      // Auto-fill expiration if found
+      if (data.found && data.expirationDate && !license.licenseExpiration) {
+        setLicense((prev) => ({
+          ...prev,
+          licenseExpiration: new Date(data.expirationDate).toISOString().split("T")[0],
+        }));
+      }
+    } catch {
+      setTdlrResult({ found: false });
+    } finally {
+      setTdlrChecking(false);
+    }
+  };
+
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
@@ -496,7 +530,20 @@ export default function EnrollmentPage({
                 </div>
                 <div>
                   <label style={labelStyle}>License Number</label>
-                  <input value={license.licenseNumber} onChange={(e) => setLicense({ ...license, licenseNumber: e.target.value })} placeholder="License number" style={inputStyle} />
+                  <input
+                    value={license.licenseNumber}
+                    onChange={(e) => setLicense({ ...license, licenseNumber: e.target.value })}
+                    onBlur={() => {
+                      if (license.licenseNumber && license.licenseState?.toUpperCase() === "TX") {
+                        verifyTdlr(license.licenseNumber);
+                      }
+                    }}
+                    placeholder="License number"
+                    style={inputStyle}
+                  />
+                  {license.licenseState?.toUpperCase() === "TX" && (
+                    <p style={{ fontSize: "10px", color: "#94A3B8", marginTop: "4px" }}>Texas licenses are auto-verified via TDLR when you tab out.</p>
+                  )}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <div>
@@ -508,6 +555,57 @@ export default function EnrollmentPage({
                     <input type="date" value={license.licenseExpiration} onChange={(e) => setLicense({ ...license, licenseExpiration: e.target.value })} style={inputStyle} />
                   </div>
                 </div>
+
+                {/* TDLR Verification Result */}
+                {tdlrChecking && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#1a2a32", borderRadius: "8px", padding: "12px 16px", border: "1px solid rgba(205,201,192,0.08)" }}>
+                    <svg style={{ width: "16px", height: "16px", animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="#CDC9C0" strokeWidth="2" opacity="0.3" />
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="#CDC9C0" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+                    <span style={{ fontSize: "12px", color: "#CDC9C0" }}>Verifying with TDLR...</span>
+                  </div>
+                )}
+                {tdlrResult && !tdlrChecking && (
+                  <div style={{
+                    backgroundColor: tdlrResult.statusColor === "green" ? "rgba(16,185,129,0.08)" : tdlrResult.statusColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(234,179,8,0.08)",
+                    border: `1px solid ${tdlrResult.statusColor === "green" ? "rgba(16,185,129,0.25)" : tdlrResult.statusColor === "red" ? "rgba(239,68,68,0.25)" : "rgba(234,179,8,0.25)"}`,
+                    borderRadius: "8px",
+                    padding: "12px 16px",
+                  }}>
+                    {tdlrResult.found ? (
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: "10px",
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            backgroundColor: tdlrResult.statusColor === "green" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
+                            color: tdlrResult.statusColor === "green" ? "#10B981" : "#EF4444",
+                          }}>
+                            {tdlrResult.statusColor === "green" ? "TDLR Verified" : "TDLR " + tdlrResult.status}
+                          </span>
+                        </div>
+                        {tdlrResult.holderName && (
+                          <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 2px" }}>Holder: <strong style={{ color: "#CDC9C0" }}>{tdlrResult.holderName}</strong></p>
+                        )}
+                        {tdlrResult.licenseType && (
+                          <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 2px" }}>Type: {tdlrResult.licenseType}</p>
+                        )}
+                        {tdlrResult.expirationDate && (
+                          <p style={{ fontSize: "12px", color: "#94A3B8", margin: 0 }}>Expires: {new Date(tdlrResult.expirationDate).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: "12px", color: "#EAB308", margin: 0 }}>License not found in TDLR database. Please double-check your license number.</p>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                 <button type="button" onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>Back</button>

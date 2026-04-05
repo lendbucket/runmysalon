@@ -29,10 +29,17 @@ function formatDay(dateStr: string): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 }
 
+interface StaffMe {
+  tdlrStatus: string | null
+  tdlrExpirationDate: string | null
+  tdlrLicenseNumber: string | null
+}
+
 export default function MySchedulePage() {
   const { data: session } = useSession()
   const [shifts, setShifts] = useState<ShiftCard[]>([])
   const [loading, setLoading] = useState(true)
+  const [staffMe, setStaffMe] = useState<StaffMe | null>(null)
 
   useEffect(() => {
     if (!session?.user) return
@@ -40,11 +47,56 @@ export default function MySchedulePage() {
       .then(r => r.json())
       .then(d => setShifts(d.shifts || []))
       .finally(() => setLoading(false))
+    fetch("/api/staff/me")
+      .then(r => r.json())
+      .then(d => { if (d.staffMember) setStaffMe(d.staffMember) })
+      .catch(() => {})
   }, [session])
+
+  const licenseActive = staffMe?.tdlrStatus?.toLowerCase() === "active" || staffMe?.tdlrStatus?.toLowerCase() === "current"
+  const licenseExpired = staffMe?.tdlrStatus?.toLowerCase() === "expired" || (staffMe?.tdlrExpirationDate && new Date(staffMe.tdlrExpirationDate) < new Date())
 
   return (
     <div style={{ maxWidth: "600px", margin: "0 auto", padding: "28px 20px" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" />
+
+      {/* License Status Banner */}
+      {staffMe && (
+        <div style={{
+          marginBottom: "16px",
+          padding: "12px 16px",
+          borderRadius: "10px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          backgroundColor: licenseActive ? "rgba(16,185,129,0.08)" : licenseExpired ? "rgba(239,68,68,0.08)" : "rgba(234,179,8,0.08)",
+          border: `1px solid ${licenseActive ? "rgba(16,185,129,0.25)" : licenseExpired ? "rgba(239,68,68,0.25)" : "rgba(234,179,8,0.25)"}`,
+        }}>
+          <span className="material-symbols-outlined" style={{
+            fontSize: "20px",
+            color: licenseActive ? "#10B981" : licenseExpired ? "#EF4444" : "#EAB308",
+          }}>
+            {licenseActive ? "verified" : licenseExpired ? "gpp_bad" : "shield"}
+          </span>
+          <div>
+            <span style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: licenseActive ? "#10B981" : licenseExpired ? "#EF4444" : "#EAB308",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}>
+              {licenseActive ? "TDLR License Active" : licenseExpired ? "TDLR License Expired" : "License Unverified"}
+            </span>
+            {staffMe.tdlrExpirationDate && (
+              <span style={{ fontSize: "11px", color: "#94A3B8", marginLeft: "8px" }}>
+                Exp: {new Date(staffMe.tdlrExpirationDate).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#FFFFFF", margin: "0 0 4px", letterSpacing: "-0.02em" }}>My Schedule</h1>
       <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 24px" }}>Your upcoming shifts</p>
 

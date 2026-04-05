@@ -13,6 +13,11 @@ type StaffRow = {
   position: string;
   inviteStatus: string;
   location: Loc;
+  tdlrStatus: string | null;
+  tdlrLicenseNumber: string | null;
+  tdlrExpirationDate: string | null;
+  tdlrVerifiedAt: string | null;
+  tdlrHolderName: string | null;
 };
 
 function initials(name: string) {
@@ -47,6 +52,30 @@ export default function StaffPage() {
   const [locationTab, setLocationTab] = useState<"all" | "cc" | "sa">("all");
   const [inviting, setInviting] = useState<string | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
+  const [verifyingTdlr, setVerifyingTdlr] = useState<string | null>(null);
+
+  const verifyTdlr = async (member: StaffRow) => {
+    if (!member.tdlrLicenseNumber) return;
+    setVerifyingTdlr(member.id);
+    try {
+      const lookupRes = await fetch(`/api/tdlr/verify?license=${encodeURIComponent(member.tdlrLicenseNumber)}`);
+      const lookupData = await lookupRes.json();
+      if (lookupData.found) {
+        await fetch("/api/tdlr/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            staffMemberId: member.id,
+            licenseNumber: member.tdlrLicenseNumber,
+            licenseStatus: lookupData.status || (lookupData.isActive ? "Active" : "Expired"),
+            expirationDate: lookupData.expirationDate || null,
+          }),
+        });
+        void load();
+      }
+    } catch { /* ignore */ }
+    setVerifyingTdlr(null);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,6 +188,32 @@ export default function StaffPage() {
                     </Link>
                   ) : null}
                   <p className="mt-2 text-xs text-neutral-600">{m.location.name}</p>
+                  {/* TDLR Status Badge */}
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {m.tdlrStatus?.toLowerCase() === "active" || m.tdlrStatus?.toLowerCase() === "current" ? (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400 ring-1 ring-emerald-500/30">
+                        TDLR Active
+                      </span>
+                    ) : m.tdlrStatus && (m.tdlrStatus.toLowerCase() === "expired" || (m.tdlrExpirationDate && new Date(m.tdlrExpirationDate) < new Date())) ? (
+                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400 ring-1 ring-red-500/30">
+                        TDLR Expired
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-amber-500/35">
+                        License Unverified
+                      </span>
+                    )}
+                    {!m.tdlrStatus && m.tdlrLicenseNumber && (
+                      <button
+                        type="button"
+                        onClick={() => verifyTdlr(m)}
+                        disabled={verifyingTdlr === m.id}
+                        className="rounded-full bg-[#C9A84C]/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#C9A84C] transition hover:bg-[#C9A84C]/30 disabled:opacity-50"
+                      >
+                        {verifyingTdlr === m.id ? "Verifying..." : "Verify"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <span

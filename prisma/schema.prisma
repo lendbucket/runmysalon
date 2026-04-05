@@ -57,6 +57,11 @@ model StaffMember {
   position           String   @default("stylist")
   isActive           Boolean  @default(true)
   inviteStatus       String   @default("not_invited")
+  tdlrLicenseNumber  String?
+  tdlrStatus         String?
+  tdlrExpirationDate DateTime?
+  tdlrVerifiedAt     DateTime?
+  tdlrHolderName     String?
   createdAt          DateTime @default(now())
   location           Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   user               User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
