@@ -36,6 +36,9 @@ model User {
   creditProfile       CreditProfile?
   disputeLetters      DisputeLetter[]
   incomeVerifications IncomeVerification[]
+  insuranceProfile    InsuranceProfile?
+  incidentReports     IncidentReport[]
+  otherIncome         OtherIncome[]
   @@map("users")
 }
 
@@ -453,4 +456,53 @@ model IncomeVerification {
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
   @@map("income_verifications")
+}
+
+model InsuranceProfile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  status          String    @default("none")
+  policyNumber    String?
+  provider        String?   @default("Next Insurance")
+  coverageAmount  Float?    @default(1000000)
+  monthlyPremium  Float?    @default(15)
+  startDate       DateTime?
+  expirationDate  DateTime?
+  certificateUrl  String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+  user            User      @relation(fields: [userId], references: [id])
+  @@map("insurance_profiles")
+}
+
+model IncidentReport {
+  id               String   @id @default(cuid())
+  userId           String
+  incidentDate     DateTime
+  clientName       String?
+  incidentType     String
+  description      String   @db.Text
+  witnessName      String?
+  witnessContact   String?
+  medicalAttention Boolean  @default(false)
+  claimFiled       Boolean  @default(false)
+  claimNumber      String?
+  status           String   @default("documented")
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id])
+  @@map("incident_reports")
+}
+
+model OtherIncome {
+  id        String   @id @default(cuid())
+  userId    String
+  source    String
+  amount    Float
+  date      DateTime
+  notes     String?
+  taxYear   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  @@map("other_income")
 }
