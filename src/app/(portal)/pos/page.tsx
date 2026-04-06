@@ -1,6 +1,5 @@
 "use client"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import Script from "next/script"
 import { useUserRole } from "@/hooks/useUserRole"
 
 /* ── Team member name map (hardcoded) ── */
@@ -126,69 +125,81 @@ export default function POSPage() {
     return () => window.removeEventListener("resize", check)
   }, [])
 
-  // Initialize Square card form when paymentMethod is "card" and SDK is loaded
+  // Load Square SDK script manually
   useEffect(() => {
-    if (paymentMethod !== "card") return
-    if (!squareSdkLoaded) return
-    if (squareInitialized.current) return
-
-    const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID
-    if (!appId || appId.includes("placeholder")) {
-      setSquareInitError("Square App ID not configured")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).Square) { setSquareSdkLoaded(true); return }
+    if (document.getElementById("square-sdk-script")) {
+      const check = setInterval(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((window as any).Square) { clearInterval(check); setSquareSdkLoaded(true) }
+      }, 200)
+      setTimeout(() => clearInterval(check), 10000)
       return
     }
+    const script = document.createElement("script")
+    script.id = "square-sdk-script"
+    script.src = "https://web.squarecdn.com/v1/square.js"
+    script.crossOrigin = "anonymous"
+    script.onload = () => { console.log("Square SDK loaded"); setSquareSdkLoaded(true) }
+    script.onerror = () => { setSquareInitError("Square payments unavailable. Check connection and refresh.") }
+    document.head.appendChild(script)
+  }, [])
 
-    let cancelled = false
-    let retryTimer: ReturnType<typeof setTimeout>
+  // Initialize Square card form
+  const initSquare = useCallback(async (locId: string) => {
+    if (squareInitialized.current) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!(window as any).Square) { setSquareInitError("Square SDK not loaded. Please refresh."); return }
+    const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID
+    if (!appId || appId.includes("placeholder")) { setSquareInitError("Square App ID not configured"); return }
 
-    const tryInit = async (attempt: number) => {
-      if (cancelled || squareInitialized.current) return
+    squareInitialized.current = true
+    setSquareReady(false)
+    setSquareInitError(null)
 
-      const container = document.getElementById("sq-card-container")
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sq = (window as any).Square as { payments: (appId: string, locId: string) => Promise<unknown> } | undefined
-
-      if (!container || !sq) {
-        if (attempt < 10) {
-          retryTimer = setTimeout(() => tryInit(attempt + 1), 300)
-        } else {
-          setSquareInitError("Square SDK failed to load. Please refresh.")
-        }
-        return
-      }
-
-      try {
-        const locId = location === "San Antonio" ? "LXJYXDXWR0XZF" : "LTJSA6QR1HGW6"
-        const payments = await sq.payments(appId, locId)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const card = await (payments as any).card({
-          style: {
-            ".input-container": { borderColor: "rgba(205,201,192,0.2)", borderRadius: "6px" },
-            ".input-container.is-focus": { borderColor: "#CDC9C0" },
-            input: { backgroundColor: "rgba(15,29,36,1)", color: "#FFFFFF", fontFamily: "inherit" },
-            "input::placeholder": { color: "rgba(205,201,192,0.35)" },
-            ".message-text": { color: "rgba(205,201,192,0.5)" },
-            ".message-icon": { color: "rgba(205,201,192,0.5)" },
-            ".message-text.is-error": { color: "#fca5a5" },
-            ".message-icon.is-error": { color: "#fca5a5" },
-          },
-        })
-        if (cancelled) return
-        await card.attach("#sq-card-container")
-        if (cancelled) return
-        squareInitialized.current = true
-        setSquareCard(card)
-        setSquareReady(true)
-        setSquareInitError(null)
-      } catch (e) {
-        console.warn("Square SDK init failed:", e)
-        if (!cancelled) setSquareInitError("Card form failed to load. Please refresh.")
-      }
+      const payments = await (window as any).Square.payments(appId, locId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const card = await (payments as any).card({
+        style: {
+          ".input-container": { borderColor: "rgba(205,201,192,0.2)", borderRadius: "8px", backgroundColor: "rgba(255,255,255,0.04)" },
+          ".input-container.is-focus": { borderColor: "#CDC9C0" },
+          input: { color: "#FFFFFF", fontSize: "16px", fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" },
+          "input::placeholder": { color: "rgba(255,255,255,0.3)" },
+          ".input-container.is-error": { borderColor: "#EF4444" },
+          label: { color: "rgba(205,201,192,0.5)", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em" },
+        },
+      })
+      await new Promise(r => setTimeout(r, 100))
+      const container = document.getElementById("sq-card-container")
+      if (!container) { squareInitialized.current = false; throw new Error("Card container not found") }
+      await card.attach("#sq-card-container")
+      setSquareCard(card)
+      setSquareReady(true)
+      console.log("Square card initialized successfully")
+    } catch (err: unknown) {
+      console.error("Square init error:", err)
+      squareInitialized.current = false
+      const msg = err instanceof Error ? err.message : String(err)
+      let errorMsg = "Card reader failed to initialize."
+      if (msg.includes("Application ID")) errorMsg = "Invalid Square App ID."
+      else if (msg.includes("location")) errorMsg = "Invalid Square location ID."
+      else if (msg.includes("domain")) errorMsg = "Domain not authorized. Add portal.salonenvyusa.com in Square Developer Dashboard."
+      else if (msg) errorMsg = msg
+      setSquareInitError(errorMsg)
+      console.warn("ACTION REQUIRED: Add portal.salonenvyusa.com to allowed domains in Square Developer Dashboard > Your App > Web Payments SDK")
     }
+  }, [])
 
-    tryInit(0)
-    return () => { cancelled = true; clearTimeout(retryTimer) }
-  }, [paymentMethod, location, squareSdkLoaded])
+  // Trigger init when SDK loaded and card payment selected
+  useEffect(() => {
+    if (!squareSdkLoaded || paymentMethod !== "card" || squareInitialized.current) return
+    const locId = location === "San Antonio" ? "LXJYXDXWR0XZF" : "LTJSA6QR1HGW6"
+    const timer = setTimeout(() => initSquare(locId), 300)
+    return () => clearTimeout(timer)
+  }, [squareSdkLoaded, paymentMethod, location, initSquare])
 
   // Reset Square state on location change
   useEffect(() => {
@@ -1033,8 +1044,15 @@ export default function POSPage() {
                   </div>
                 )}
                 {squareInitError && (
-                  <div style={{ fontSize: "11px", color: "#fca5a5", textAlign: "center", padding: "12px", backgroundColor: "rgba(239,68,68,0.06)", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.15)" }}>
-                    {squareInitError}
+                  <div style={{ padding: "14px 16px", backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#FCA5A5", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>error</span>
+                      Card Reader Error
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.6, marginBottom: "10px" }}>{squareInitError}</div>
+                    <button onClick={() => { squareInitialized.current = false; setSquareCard(null); setSquareReady(false); setSquareInitError(null); const locId = location === "San Antonio" ? "LXJYXDXWR0XZF" : "LTJSA6QR1HGW6"; setTimeout(() => initSquare(locId), 300) }} style={{ padding: "6px 14px", backgroundColor: "transparent", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", color: "#FCA5A5", fontSize: "11px", fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Retry
+                    </button>
                   </div>
                 )}
               </div>
@@ -1398,11 +1416,6 @@ export default function POSPage() {
      ═════════════════════════════════════ */
   return (
     <div style={{ height: "calc(100vh - 52px)", display: "flex", flexDirection: "column" }}>
-      <Script
-        src="https://web.squarecdn.com/v1/square.js"
-        strategy="afterInteractive"
-        onLoad={() => setSquareSdkLoaded(true)}
-      />
       {/* Header bar */}
       <div
         style={{
