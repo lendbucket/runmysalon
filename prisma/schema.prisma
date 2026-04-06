@@ -41,6 +41,7 @@ model User {
   otherIncome         OtherIncome[]
   courseCompletions    CourseCompletion[]
   tdlrLicenseRenewal  TdlrLicenseRenewal?
+  healthProfile        HealthProfile?
   @@map("users")
 }
 
@@ -554,4 +555,24 @@ model TdlrLicenseRenewal {
   updatedAt         DateTime  @default(now()) @updatedAt
   user              User      @relation(fields: [userId], references: [id])
   @@map("tdlr_license_renewals")
+}
+
+model HealthProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  enrollmentStatus  String    @default("none")
+  planType          String?
+  provider          String?
+  monthlyPremium    Float?
+  deductible        Float?
+  hasHsa            Boolean   @default(false)
+  hsaContribution   Float?
+  hasDental         Boolean   @default(false)
+  hasVision         Boolean   @default(false)
+  coverageStartDate DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  user              User      @relation(fields: [userId], references: [id])
+  @@map("health_profiles")
 }
