@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
 
 const LOCATION_IDS = ["LTJSA6QR1HGW6", "LXJYXDXWR0XZF"] as const
-
-const TEAM_MEMBERS: Record<string, { name: string; location: "Corpus Christi" | "San Antonio" }> = {
-  "TMbc13IBzS8Z43AO": { name: "Clarissa Reyna", location: "Corpus Christi" },
-  "TMaExUyYaWYlvSqh": { name: "Alexis Rodriguez", location: "Corpus Christi" },
-  "TMCzd3unwciKEVX7": { name: "Kaylie Espinoza", location: "Corpus Christi" },
-  "TMn7kInT8g7Vrgxi": { name: "Ashlynn Ochoa", location: "Corpus Christi" },
-  "TMMdDDwU8WXpCZ9m": { name: "Jessy Blamey", location: "Corpus Christi" },
-  "TM_xI40vPph2_Cos": { name: "Mia Gonzales", location: "Corpus Christi" },
-  "TMMJKxeQuMlMW1Dw": { name: "Melissa Cruz", location: "San Antonio" },
-  "TM5CjcvcHRXZQ4hP": { name: "Madelynn Martinez", location: "San Antonio" },
-  "TMcc0QbHuUZfgcIB": { name: "Jaylee Jaeger", location: "San Antonio" },
-  "TMfFCmgJ5RV-WCBq": { name: "Aubree Saldana", location: "San Antonio" },
-  "TMk1YstlrnPrKw8p": { name: "Kiyara Smith", location: "San Antonio" },
-}
 
 function getSquare() {
   return new SquareClient({
@@ -56,6 +43,22 @@ export async function GET(request: NextRequest) {
 
   if (!startParam || !endParam) {
     return NextResponse.json({ error: "start and end query params required (YYYY-MM-DD)" }, { status: 400 })
+  }
+
+  // Build team members map dynamically from database
+  const staffMembers = await prisma.staffMember.findMany({
+    where: { isActive: true, squareTeamMemberId: { not: null } },
+    select: { squareTeamMemberId: true, fullName: true, location: { select: { name: true } } },
+  })
+
+  const TEAM_MEMBERS: Record<string, { name: string; location: "Corpus Christi" | "San Antonio" }> = {}
+  for (const s of staffMembers) {
+    if (s.squareTeamMemberId) {
+      TEAM_MEMBERS[s.squareTeamMemberId] = {
+        name: s.fullName,
+        location: s.location.name as "Corpus Christi" | "San Antonio",
+      }
+    }
   }
 
   const startAt = new Date(`${startParam}T00:00:00-06:00`).toISOString()

@@ -242,11 +242,63 @@ export default function PayrollPage() {
   return (
     <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>Payroll Summary</h1>
-        <p style={{ fontSize: "12px", color: "#94A3B8", margin: "4px 0 0" }}>
-          Wed — Tue pay period · Pay date every Tuesday · 40% of service subtotal · CST
-        </p>
+      <div style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>Payroll Summary</h1>
+          <p style={{ fontSize: "12px", color: "#94A3B8", margin: "4px 0 0" }}>
+            Wed — Tue pay period · Pay date every Tuesday · 40% of service subtotal · CST
+          </p>
+        </div>
+        {!loading && filtered.length > 0 && totals.services > 0 && (
+          <button
+            onClick={() => {
+              const rows = [["Stylist", "Location", "Checkouts", "Subtotal", "Commission (40%)", "Tips", "Total Pay"]]
+              for (const p of filtered.sort((a, b) => b.subtotal - a.subtotal)) {
+                rows.push([
+                  p.name,
+                  p.location,
+                  String(p.services),
+                  fmtCurrency(p.subtotal),
+                  fmtCurrency(p.commission),
+                  fmtCurrency(p.tips),
+                  fmtCurrency(p.commission + p.tips),
+                ])
+              }
+              rows.push([
+                "TOTAL", "", String(totals.services),
+                fmtCurrency(totals.subtotal), fmtCurrency(totals.commission),
+                fmtCurrency(totals.tips), fmtCurrency(totals.commission + totals.tips),
+              ])
+              const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n")
+              const blob = new Blob([csv], { type: "text/csv" })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url
+              a.download = `payroll_${dates.start}_to_${dates.end}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            style={{
+              padding: "8px 16px",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              border: "1px solid rgba(205,201,192,0.2)",
+              borderRadius: "8px",
+              backgroundColor: "rgba(205,201,192,0.06)",
+              color: "#CDC9C0",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>download</span>
+            Export CSV
+          </button>
+        )}
       </div>
 
       {/* Controls */}
