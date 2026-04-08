@@ -43,6 +43,7 @@ model User {
   tdlrLicenseRenewal  TdlrLicenseRenewal?
   healthProfile        HealthProfile?
   videoSubmissions     VideoSubmission[] @relation("VideoSubmissions")
+  payrollPeriodsPaid   PayrollPeriod[]
   @@map("users")
 }
 
@@ -59,6 +60,7 @@ model Location {
   purchaseOrders         PurchaseOrder[]
   onboardingEnrollments  OnboardingEnrollment[]
   videoSubmissions       VideoSubmission[]
+  payrollPeriods         PayrollPeriod[]
   @@map("locations")
 }
 
@@ -604,4 +606,17 @@ model VideoSubmission {
   submitter        User       @relation("VideoSubmissions", fields: [submittedBy], references: [id])
   location         Location   @relation(fields: [locationId], references: [id])
   @@map("video_submissions")
+}
+
+model PayrollPeriod {
+  id           String    @id @default(cuid())
+  startDate    DateTime
+  endDate      DateTime
+  locationId   String?
+  markedPaidAt DateTime?
+  markedPaidBy String?
+  createdAt    DateTime  @default(now())
+  location     Location? @relation(fields: [locationId], references: [id])
+  markedBy     User?     @relation(fields: [markedPaidBy], references: [id])
+  @@map("payroll_periods")
 }
