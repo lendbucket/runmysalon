@@ -29,11 +29,13 @@ export async function POST(req: NextRequest) {
   const stylistData: Record<string, { name: string; serviceCount: number; serviceSubtotal: number; tips: number }> = {}
   for (const id of memberIds) stylistData[id] = { name: TEAM_MEMBERS[id].name, serviceCount: 0, serviceSubtotal: 0, tips: 0 }
 
-  // STEP 1: Fetch all ACCEPTED bookings → build customer_id → [{teamMemberId, startAt}] map
+  // STEP 1: Fetch all ACCEPTED bookings with WIDER window (±24h for edge cases)
   const custBookings: Record<string, { teamMemberId: string; startAt: string }[]> = {}
+  const bookingStart = new Date(startDate.getTime() - 24 * 60 * 60 * 1000)
+  const bookingEnd = new Date(endDate.getTime() + 24 * 60 * 60 * 1000)
   let bCursor: string | undefined
   do {
-    const p = new URLSearchParams({ location_id: sqLocId, start_at_min: startDate.toISOString(), start_at_max: endDate.toISOString(), limit: "100" })
+    const p = new URLSearchParams({ location_id: sqLocId, start_at_min: bookingStart.toISOString(), start_at_max: bookingEnd.toISOString(), limit: "100" })
     if (bCursor) p.set("cursor", bCursor)
     const d = await sq(`/bookings?${p}`)
     for (const b of (d.bookings || [])) {
@@ -54,17 +56,26 @@ export async function POST(req: NextRequest) {
     const d = await sq(`/payments?${p}`)
     for (const pay of (d.payments || [])) {
       if (pay.status !== "COMPLETED") continue
+
+      // FIX 1: Strict date guard — exclude anything outside the exact period
+      const paymentTime = new Date(pay.created_at).getTime()
+      if (paymentTime < startDate.getTime() || paymentTime > endDate.getTime()) continue
+
       const cid = pay.customer_id
       if (!cid) continue
-      const bookings = custBookings[cid] || []
-      if (bookings.length === 0) continue
 
-      // Find closest booking to payment time
+      // FIX 3: Only consider bookings within 24h BEFORE the payment (service before payment)
+      const eligibleBookings = (custBookings[cid] || []).filter(b => {
+        const bt = new Date(b.startAt).getTime()
+        return bt <= paymentTime && bt >= paymentTime - 24 * 60 * 60 * 1000
+      })
+      if (eligibleBookings.length === 0) continue
+
+      // Find closest eligible booking to payment time
       let tmid: string
-      if (bookings.length === 1) { tmid = bookings[0].teamMemberId }
+      if (eligibleBookings.length === 1) { tmid = eligibleBookings[0].teamMemberId }
       else {
-        const pt = new Date(pay.created_at).getTime()
-        tmid = bookings.reduce((prev, curr) => Math.abs(new Date(curr.startAt).getTime() - pt) < Math.abs(new Date(prev.startAt).getTime() - pt) ? curr : prev).teamMemberId
+        tmid = eligibleBookings.reduce((prev, curr) => Math.abs(new Date(curr.startAt).getTime() - paymentTime) < Math.abs(new Date(prev.startAt).getTime() - paymentTime) ? curr : prev).teamMemberId
       }
 
       if (!stylistData[tmid]) continue // Not in this location's team
