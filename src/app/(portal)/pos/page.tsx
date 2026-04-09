@@ -7,34 +7,7 @@ import { useUserRole } from "@/hooks/useUserRole"
 const PaymentForm = dynamic(() => import("react-square-web-payments-sdk").then(m => m.PaymentForm), { ssr: false })
 const CreditCard = dynamic(() => import("react-square-web-payments-sdk").then(m => m.CreditCard), { ssr: false })
 
-/* ── Team member name map (hardcoded) ── */
-const TEAM_NAMES: Record<string, string> = {
-  TMbc13IBzS8Z43AO: "Clarissa",
-  TMMJKxeQuMlMW1Dw: "Melissa",
-  TMKwAEkzf3NN3Hiu: "Yahaira",
-  TMxKBPJq29Wfrl2N: "Jasmine",
-  TMr3JMjH29LqXLJp: "Briana",
-  TM3eYXBb4hFwcPwA: "Priscilla",
-  TMPFXkqFP7vJXRMa: "Christina",
-  TM0JKR4Zq4jMNcbE: "Nayelie",
-}
-
-/* ── Stylist arrays per location ── */
-const CC_STYLISTS = [
-  { id: "TMbc13IBzS8Z43AO", name: "Clarissa Reyna" },
-  { id: "TMaExUyYaWYlvSqh", name: "Alexis Rodriguez" },
-  { id: "TMCzd3unwciKEVX7", name: "Kaylie Espinoza" },
-  { id: "TMn7kInT8g7Vrgxi", name: "Ashlynn Ochoa" },
-  { id: "TMMdDDwU8WXpCZ9m", name: "Jessy Blamey" },
-  { id: "TM_xI40vPph2_Cos", name: "Mia Gonzales" },
-]
-const SA_STYLISTS = [
-  { id: "TMMJKxeQuMlMW1Dw", name: "Melissa Cruz" },
-  { id: "TM5CjcvcHRXZQ4hP", name: "Madelynn Martinez" },
-  { id: "TMcc0QbHuUZfgcIB", name: "Jaylee Jaeger" },
-  { id: "TMfFCmgJ5RV-WCBq", name: "Aubree Saldana" },
-  { id: "TMk1YstlrnPrKw8p", name: "Kiyara Smith" },
-]
+import { TEAM_NAMES, CC_STYLISTS, SA_STYLISTS } from "@/lib/staff"
 function getLocationStylists(loc: string) {
   return loc === "San Antonio" ? SA_STYLISTS : CC_STYLISTS
 }

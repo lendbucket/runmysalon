@@ -3,10 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { SquareClient, SquareEnvironment } from "square";
 
-const TEST_TEAM_MEMBERS = [
-  { id: "TMbc13IBzS8Z43AO", name: "Clarissa Reyna" },
-  { id: "TMMJKxeQuMlMW1Dw", name: "Melissa Cruz" },
-];
+import { CC_STYLISTS, SA_STYLISTS } from "@/lib/staff"
+const TEST_TEAM_MEMBERS = [...CC_STYLISTS.slice(0, 1), ...SA_STYLISTS.slice(0, 1)];
 
 function getSquare() {
   return new SquareClient({

@@ -2,33 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useUserRole } from "@/hooks/useUserRole"
 import Link from "next/link"
-
-const TEAM_NAMES: Record<string, string> = {
-  TMbc13IBzS8Z43AO: "Clarissa",
-  TMMJKxeQuMlMW1Dw: "Melissa",
-  TMKwAEkzf3NN3Hiu: "Yahaira",
-  TMxKBPJq29Wfrl2N: "Jasmine",
-  TMr3JMjH29LqXLJp: "Briana",
-  TM3eYXBb4hFwcPwA: "Priscilla",
-  TMPFXkqFP7vJXRMa: "Christina",
-  TM0JKR4Zq4jMNcbE: "Nayelie",
-}
-
-const CC_STYLISTS = [
-  { id: "TMbc13IBzS8Z43AO", name: "Clarissa" },
-  { id: "TMaExUyYaWYlvSqh", name: "Alexis" },
-  { id: "TMCzd3unwciKEVX7", name: "Kaylie" },
-  { id: "TMn7kInT8g7Vrgxi", name: "Ashlynn" },
-  { id: "TMMdDDwU8WXpCZ9m", name: "Jessy" },
-  { id: "TM_xI40vPph2_Cos", name: "Mia" },
-]
-const SA_STYLISTS = [
-  { id: "TMMJKxeQuMlMW1Dw", name: "Melissa" },
-  { id: "TM5CjcvcHRXZQ4hP", name: "Madelynn" },
-  { id: "TMcc0QbHuUZfgcIB", name: "Jaylee" },
-  { id: "TMfFCmgJ5RV-WCBq", name: "Aubree" },
-  { id: "TMk1YstlrnPrKw8p", name: "Kiyara" },
-]
+import { TEAM_NAMES, CC_STYLISTS, SA_STYLISTS } from "@/lib/staff"
 function getLocationStylists(loc: string) {
   return loc === "San Antonio" ? SA_STYLISTS : CC_STYLISTS
 }

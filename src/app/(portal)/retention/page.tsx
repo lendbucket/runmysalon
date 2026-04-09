@@ -1,20 +1,7 @@
 "use client"
 
 import { useState } from "react"
-
-const TEAM_NAMES: Record<string, string> = {
-  "TMbc13IBzS8Z43AO": "Clarissa Reyna",
-  "TMaExUyYaWYlvSqh": "Alexis Rodriguez",
-  "TMCzd3unwciKEVX7": "Kaylie Espinoza",
-  "TMn7kInT8g7Vrgxi": "Ashlynn Ochoa",
-  "TMMdDDwU8WXpCZ9m": "Jessy Blamey",
-  "TM_xI40vPph2_Cos": "Mia Gonzales",
-  "TMMJKxeQuMlMW1Dw": "Melissa Cruz",
-  "TM5CjcvcHRXZQ4hP": "Madelynn Martinez",
-  "TMcc0QbHuUZfgcIB": "Jaylee Jaeger",
-  "TMfFCmgJ5RV-WCBq": "Aubree Saldana",
-  "TMk1YstlrnPrKw8p": "Kiyara Smith",
-}
+import { TEAM_NAMES } from "@/lib/staff"
 
 interface CustomerData {
   customerId: string

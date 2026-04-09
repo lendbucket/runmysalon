@@ -2,34 +2,7 @@
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import { useUserRole } from "@/hooks/useUserRole"
-
-const TEAM_MEMBER_NAMES: Record<string, string> = {
-  "TMbc13IBzS8Z43AO": "Clarissa Reyna",
-  "TMaExUyYaWYlvSqh": "Alexis Rodriguez",
-  "TMCzd3unwciKEVX7": "Kaylie Espinoza",
-  "TMn7kInT8g7Vrgxi": "Ashlynn Ochoa",
-  "TMMdDDwU8WXpCZ9m": "Jessy Blamey",
-  "TM_xI40vPph2_Cos": "Mia Gonzales",
-  "TMMJKxeQuMlMW1Dw": "Melissa Cruz",
-  "TM5CjcvcHRXZQ4hP": "Madelynn Martinez",
-  "TMcc0QbHuUZfgcIB": "Jaylee Jaeger",
-  "TMfFCmgJ5RV-WCBq": "Aubree Saldana",
-  "TMk1YstlrnPrKw8p": "Kiyara Smith",
-}
-
-const TEAM_MEMBER_LOCATIONS: Record<string, string> = {
-  "TMbc13IBzS8Z43AO": "Corpus Christi",
-  "TMaExUyYaWYlvSqh": "Corpus Christi",
-  "TMCzd3unwciKEVX7": "Corpus Christi",
-  "TMn7kInT8g7Vrgxi": "Corpus Christi",
-  "TMMdDDwU8WXpCZ9m": "Corpus Christi",
-  "TM_xI40vPph2_Cos": "Corpus Christi",
-  "TMMJKxeQuMlMW1Dw": "San Antonio",
-  "TM5CjcvcHRXZQ4hP": "San Antonio",
-  "TMcc0QbHuUZfgcIB": "San Antonio",
-  "TMfFCmgJ5RV-WCBq": "San Antonio",
-  "TMk1YstlrnPrKw8p": "San Antonio",
-}
+import { TEAM_NAMES as TEAM_MEMBER_NAMES, TEAM_MEMBER_LOCATIONS } from "@/lib/staff"
 
 interface StylistMetric {
   teamMemberId: string
