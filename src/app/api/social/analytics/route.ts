@@ -13,6 +13,12 @@ export async function GET(req: NextRequest) {
   const igId = locationId === "CC" ? process.env.META_CC_INSTAGRAM_ID : process.env.META_SA_INSTAGRAM_ID
   const token = locationId === "CC" ? process.env.META_CC_PAGE_ACCESS_TOKEN : process.env.META_SA_PAGE_ACCESS_TOKEN
 
+  console.log("Analytics called for:", locationId, "pageId:", pageId, "token exists:", !!token)
+
+  if (!pageId || !token) {
+    return NextResponse.json({ error: "Missing credentials for location: " + locationId, locationId }, { status: 400 })
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results: any = { locationId, errors: [] }
 
@@ -52,7 +58,7 @@ export async function GET(req: NextRequest) {
   const since = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000)
   const until = Math.floor(Date.now() / 1000)
   try {
-    const res = await fetch(`https://graph.facebook.com/v18.0/${igId}/insights?metric=impressions,reach,profile_views&period=day&since=${since}&until=${until}&access_token=${token}`)
+    const res = await fetch(`https://graph.facebook.com/v18.0/${igId}/insights?metric=reach,follower_count,impressions,profile_views&period=day&since=${since}&until=${until}&access_token=${token}`)
     const data = await res.json()
     if (data.error) results.errors.push({ source: "ig_insights", message: data.error.message, code: data.error.code })
     else results.igInsights = data.data || []
