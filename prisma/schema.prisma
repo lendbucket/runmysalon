@@ -69,6 +69,8 @@ model Location {
   auditLogs              AuditLog[]
   socialPosts            SocialPost[]
   socialToken            SocialToken?
+  socialComments         SocialComment[]
+  socialAnalytics        SocialAnalytics[]
   @@map("locations")
 }
 
@@ -693,4 +695,37 @@ model SocialToken {
   updatedAt     DateTime  @updatedAt
   location      Location  @relation(fields: [locationId], references: [id])
   @@map("social_tokens")
+}
+
+model SocialComment {
+  id           String    @id @default(cuid())
+  platform     String
+  externalId   String
+  postId       String?
+  authorName   String
+  authorAvatar String?
+  message      String
+  createdAt    DateTime  @default(now())
+  locationId   String
+  replied      Boolean   @default(false)
+  replyText    String?
+  repliedAt    DateTime?
+  location     Location  @relation(fields: [locationId], references: [id])
+  @@map("social_comments")
+}
+
+model SocialAnalytics {
+  id             String   @id @default(cuid())
+  locationId     String
+  platform       String
+  date           DateTime
+  followersCount Int      @default(0)
+  reach          Int      @default(0)
+  impressions    Int      @default(0)
+  engagement     Int      @default(0)
+  postsCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  location       Location @relation(fields: [locationId], references: [id])
+  @@unique([locationId, platform, date])
+  @@map("social_analytics")
 }
