@@ -43,7 +43,7 @@ model User {
   tdlrLicenseRenewal  TdlrLicenseRenewal?
   healthProfile        HealthProfile?
   videoSubmissions     VideoSubmission[] @relation("VideoSubmissions")
-  payrollPeriodsPaid   PayrollPeriod[]
+  // payrollPeriodsPaid removed — PayrollPeriod no longer has User relation
   alertsCreated        AdminAlert[]    @relation("AlertsCreated")
   alertReads           AlertRead[]
   auditLogs            AuditLog[]
@@ -63,7 +63,7 @@ model Location {
   purchaseOrders         PurchaseOrder[]
   onboardingEnrollments  OnboardingEnrollment[]
   videoSubmissions       VideoSubmission[]
-  payrollPeriods         PayrollPeriod[]
+  // payrollPeriods removed — PayrollPeriod no longer has Location relation
   alerts                 AdminAlert[]
   auditLogs              AuditLog[]
   socialToken            SocialToken?
@@ -635,16 +635,37 @@ model VideoSubmission {
 }
 
 model PayrollPeriod {
-  id           String    @id @default(cuid())
-  startDate    DateTime
-  endDate      DateTime
-  locationId   String?
-  markedPaidAt DateTime?
-  markedPaidBy String?
-  createdAt    DateTime  @default(now())
-  location     Location? @relation(fields: [locationId], references: [id])
-  markedBy     User?     @relation(fields: [markedPaidBy], references: [id])
+  id              String         @id @default(cuid())
+  locationId      String
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          String         @default("pending")
+  paidAt          DateTime?
+  paidBy          String?
+  totalCommission Float          @default(0)
+  totalTips       Float          @default(0)
+  totalServices   Int            @default(0)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @default(now()) @updatedAt
+  entries         PayrollEntry[]
   @@map("payroll_periods")
+}
+
+model PayrollEntry {
+  id              String        @id @default(cuid())
+  periodId        String
+  teamMemberId    String
+  teamMemberName  String
+  locationId      String
+  serviceCount    Int           @default(0)
+  serviceSubtotal Float         @default(0)
+  commission      Float         @default(0)
+  tips            Float         @default(0)
+  totalPayout     Float         @default(0)
+  period          PayrollPeriod @relation(fields: [periodId], references: [id])
+  createdAt       DateTime      @default(now())
+  @@map("payroll_entries")
 }
 
 model AuditLog {

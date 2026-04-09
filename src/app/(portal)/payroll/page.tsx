@@ -1,448 +1,224 @@
 "use client"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useUserRole } from "@/hooks/useUserRole"
 
-interface PayrollEntry {
-  teamMemberId: string
-  name: string
-  location: string
-  services: number
-  subtotal: number
-  commission: number
-  tips: number
-  totalPay: number
-}
-
-interface PaidInfo { paidAt: string; paidBy: string | null }
-
-interface PeriodRecord {
-  id: string
-  startDate: string
-  endDate: string
-  markedPaidAt: string | null
-  markedBy: { name: string | null } | null
-  location: { name: string } | null
-}
-
-type LocationFilter = "All" | "Corpus Christi" | "San Antonio"
-type SortKey = "name" | "services" | "subtotal" | "commission" | "tips" | "totalPay"
-
+const ACC = "#606E74", ACC_B = "#7a8f96", ACC_DIM = "rgba(96,110,116,0.08)", ACC_BDR = "rgba(96,110,116,0.2)"
+const BORDER = "rgba(255,255,255,0.07)", BORDER2 = "rgba(255,255,255,0.12)", S1 = "rgba(255,255,255,0.03)", S2 = "rgba(255,255,255,0.05)"
+const MUTED = "rgba(255,255,255,0.3)", MID = "rgba(255,255,255,0.6)", GREEN = "#10B981", AMBER = "#ffb347", BLUE = "#4da6ff"
 const mono: React.CSSProperties = { fontFamily: "'Fira Code', 'Courier New', monospace" }
 const jakarta: React.CSSProperties = { fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }
 
-function fmt(n: number) {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Period = any
+type Toast = { message: string; type: "success" | "error" } | null
 
-function fmtDate(d: string) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
-}
-
-/** Compute Wed-Tue period N weeks back (0 = current) */
-function getPeriod(weeksBack: number): { start: string; end: string; label: string } {
+function getPeriod(offset: number) {
   const now = new Date()
   const cst = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }))
   const day = cst.getDay()
   const daysBack = day >= 3 ? day - 3 : day + 4
-  const wed = new Date(cst)
-  wed.setDate(cst.getDate() - daysBack - weeksBack * 7)
-  const tue = new Date(wed)
-  tue.setDate(wed.getDate() + 6)
-  const f = (d: Date) => d.toISOString().slice(0, 10)
-  const label = weeksBack === 0 ? "Current Period" : weeksBack === 1 ? "Last Period" : `${weeksBack} Periods Ago`
-  return { start: f(wed), end: f(tue), label }
+  const wed = new Date(cst); wed.setDate(cst.getDate() - daysBack - offset * 7); wed.setHours(0, 0, 0, 0)
+  const tue = new Date(wed); tue.setDate(wed.getDate() + 6); tue.setHours(23, 59, 59, 999)
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  return { start: new Date(`${fmt(wed)}T06:00:00Z`), end: new Date(`${fmt(tue)}T05:59:59Z`), label: `${wed.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${tue.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` }
 }
 
-const PERIODS = [0, 1, 2, 3].map(getPeriod)
-
-const ACC = "#606E74"
-const ACC_BRIGHT = "#7a8f96"
-const ACC_DIM = "rgba(96,110,116,0.08)"
-const ACC_BORDER = "rgba(96,110,116,0.2)"
-const BORDER = "rgba(255,255,255,0.07)"
-const BORDER2 = "rgba(255,255,255,0.12)"
-const S1 = "rgba(255,255,255,0.03)"
-const MUTED = "rgba(255,255,255,0.3)"
-const MID = "rgba(255,255,255,0.6)"
-const GREEN = "#10B981"
+function fmtUsd(n: number) { return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 
 export default function PayrollPage() {
-  const { isOwner } = useUserRole()
-
-  const [periodIdx, setPeriodIdx] = useState(0) // 0=current, 1=last, etc.
-  const [isCustom, setIsCustom] = useState(false)
-  const [customStart, setCustomStart] = useState("")
-  const [customEnd, setCustomEnd] = useState("")
-  const [locFilter, setLocFilter] = useState<LocationFilter>("All")
-  const [payroll, setPayroll] = useState<PayrollEntry[]>([])
-  const [paidInfo, setPaidInfo] = useState<PaidInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [sortKey, setSortKey] = useState<SortKey>("subtotal")
-  const [sortAsc, setSortAsc] = useState(false)
+  const { isOwner, isManager, isStylist } = useUserRole()
+  const [loc, setLoc] = useState<"CC" | "SA">("CC")
+  const [offset, setOffset] = useState(0)
+  const [period, setPeriod] = useState<Period>(null)
+  const [loading, setLoading] = useState(false)
+  const [calculating, setCalculating] = useState(false)
   const [markingPaid, setMarkingPaid] = useState(false)
-  const [periods, setPeriods] = useState<PeriodRecord[]>([])
+  const [history, setHistory] = useState<Period[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [toast, setToast] = useState<Toast>(null)
 
-  const dates = useMemo(() => {
-    if (isCustom) return { start: customStart, end: customEnd }
-    return PERIODS[periodIdx] || PERIODS[0]
-  }, [isCustom, customStart, customEnd, periodIdx])
+  const p = getPeriod(offset)
 
-  const fetchPayroll = useCallback(async () => {
-    if (!dates.start || !dates.end) return
+  const showT = (m: string, t: "success" | "error" = "success") => { setToast({ message: m, type: t }); setTimeout(() => setToast(null), 3000) }
+
+  const loadPayroll = useCallback(async () => {
     setLoading(true)
-    setError("")
     try {
-      const res = await fetch(`/api/payroll?start=${dates.start}&end=${dates.end}`)
-      if (!res.ok) throw new Error((await res.json()).error || "Failed to load")
+      const res = await fetch(`/api/payroll/periods?locationId=${loc}`)
       const data = await res.json()
-      setPayroll(data.payroll || [])
-      setPaidInfo(data.paidInfo || null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Unknown error")
-    } finally {
-      setLoading(false)
-    }
-  }, [dates.start, dates.end])
+      const periods: Period[] = data.periods || []
+      const match = periods.find((pp: Period) => Math.abs(new Date(pp.periodStart).getTime() - p.start.getTime()) < 120000)
+      setPeriod(match || null)
+    } catch { /* */ }
+    setLoading(false)
+  }, [loc, p.start])
 
-  const fetchPeriods = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
+    try { const res = await fetch(`/api/payroll/periods?locationId=${loc}`); const data = await res.json(); setHistory(data.periods || []) } catch { /* */ }
+  }, [loc])
+
+  useEffect(() => { loadPayroll() }, [loadPayroll])
+  useEffect(() => { loadHistory() }, [loadHistory])
+
+  async function calculate() {
+    setCalculating(true)
     try {
-      const res = await fetch("/api/payroll/periods")
-      if (res.ok) {
-        const data = await res.json()
-        setPeriods(data.periods || [])
-      }
-    } catch { /* noop */ }
-  }, [])
-
-  useEffect(() => { fetchPayroll() }, [fetchPayroll])
-  useEffect(() => { fetchPeriods() }, [fetchPeriods])
-
-  const filtered = useMemo(() => {
-    if (locFilter === "All") return payroll
-    return payroll.filter(p => p.location === locFilter)
-  }, [payroll, locFilter])
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
-      if (typeof av === "string" && typeof bv === "string") return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av)
-      return sortAsc ? (av as number) - (bv as number) : (bv as number) - (av as number)
-    })
-  }, [filtered, sortKey, sortAsc])
-
-  const ccEntries = useMemo(() => sorted.filter(p => p.location === "Corpus Christi"), [sorted])
-  const saEntries = useMemo(() => sorted.filter(p => p.location === "San Antonio"), [sorted])
-
-  const totals = useMemo(() => {
-    const t = { services: 0, subtotal: 0, commission: 0, tips: 0, totalPay: 0 }
-    for (const p of filtered) {
-      t.services += p.services; t.subtotal += p.subtotal; t.commission += p.commission
-      t.tips += p.tips; t.totalPay += p.totalPay
-    }
-    return t
-  }, [filtered])
-
-  const stylistCount = filtered.filter(p => p.services > 0).length
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortAsc(!sortAsc)
-    else { setSortKey(key); setSortAsc(false) }
+      const res = await fetch("/api/payroll/calculate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: loc, start: p.start.toISOString(), end: p.end.toISOString() }) })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setPeriod(data.period); loadHistory(); showT("Payroll calculated")
+    } catch (e: unknown) { showT(e instanceof Error ? e.message : "Failed", "error") }
+    setCalculating(false)
   }
 
-  const handleMarkPaid = async () => {
-    if (!dates.start || !dates.end) return
-    setMarkingPaid(true)
+  async function markPaid() {
+    if (!period) return; setMarkingPaid(true)
     try {
-      await fetch("/api/payroll/periods", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start: dates.start, end: dates.end }),
-      })
-      await fetchPayroll()
-      await fetchPeriods()
-    } catch { /* noop */ }
+      const res = await fetch(`/api/payroll/periods/${period.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "paid" }) })
+      const data = await res.json(); setPeriod(data.period); loadHistory(); showT("Marked as paid")
+    } catch { showT("Failed", "error") }
     setMarkingPaid(false)
   }
 
-  const handleExport = () => {
-    const rows = [["Stylist", "Location", "Period Start", "Period End", "Services", "Subtotal", "Commission (40%)", "Tips", "Total Pay"]]
-    for (const p of sorted) {
-      rows.push([p.name, p.location, dates.start, dates.end, String(p.services), fmt(p.subtotal), fmt(p.commission), fmt(p.tips), fmt(p.totalPay)])
-    }
-    rows.push(["TOTAL", "", dates.start, dates.end, String(totals.services), fmt(totals.subtotal), fmt(totals.commission), fmt(totals.tips), fmt(totals.totalPay)])
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url; a.download = `payroll_${dates.start}_to_${dates.end}.csv`; a.click()
-    URL.revokeObjectURL(url)
-  }
+  const payDay = new Date(p.end); payDay.setDate(payDay.getDate())
+  const entries = period?.entries || []
 
-  const loadHistoryPeriod = (start: string, end: string) => {
-    setIsCustom(true)
-    setCustomStart(start.split("T")[0])
-    setCustomEnd(end.split("T")[0])
-    setShowHistory(false)
-  }
+  if (isStylist) return <div style={{ padding: "40px", textAlign: "center", color: MUTED }}><div style={{ fontSize: "16px", fontWeight: 700 }}>Owner / Manager Access Only</div></div>
 
-  if (!isOwner) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center", color: MUTED }}>
-        <span className="material-symbols-outlined" style={{ fontSize: "48px", marginBottom: "16px", display: "block" }}>lock</span>
-        <div style={{ fontSize: "16px", fontWeight: 700 }}>Owner Access Only</div>
-      </div>
-    )
-  }
-
-  const inputStyle: React.CSSProperties = { padding: "8px 12px", fontSize: "16px", borderRadius: "8px", border: `1px solid ${BORDER2}`, backgroundColor: "rgba(255,255,255,0.06)", color: "#fff", outline: "none", ...jakarta }
-  const cardStyle: React.CSSProperties = { backgroundColor: S1, borderRadius: "12px", border: `1px solid ${BORDER}`, padding: "16px 20px" }
-  const thStyle = (key: SortKey, align: "left" | "right" = "right"): React.CSSProperties => ({
-    padding: "10px 16px", textAlign: align, fontSize: "9px", fontWeight: 700, letterSpacing: "0.12em",
-    textTransform: "uppercase", color: sortKey === key ? ACC_BRIGHT : MUTED, whiteSpace: "nowrap",
-    cursor: "pointer", userSelect: "none",
-  })
-
-  function LocationTable({ entries, title }: { entries: PayrollEntry[]; title: string }) {
-    const loc = entries.reduce((a, p) => ({
-      services: a.services + p.services, subtotal: a.subtotal + p.subtotal,
-      commission: a.commission + p.commission, tips: a.tips + p.tips, totalPay: a.totalPay + p.totalPay,
-    }), { services: 0, subtotal: 0, commission: 0, tips: 0, totalPay: 0 })
-    if (entries.length === 0) return null
-    return (
-      <div style={{ ...cardStyle, marginBottom: "16px", padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORDER}`, fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: ACC_BRIGHT }}>{title}</div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <th onClick={() => handleSort("name")} style={thStyle("name", "left")}>Stylist {sortKey === "name" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-                <th onClick={() => handleSort("services")} style={thStyle("services")}>Services {sortKey === "services" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-                <th onClick={() => handleSort("subtotal")} style={thStyle("subtotal")}>Subtotal {sortKey === "subtotal" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-                <th onClick={() => handleSort("commission")} style={thStyle("commission")}>Commission {sortKey === "commission" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-                <th onClick={() => handleSort("tips")} style={thStyle("tips")}>Tips {sortKey === "tips" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-                <th onClick={() => handleSort("totalPay")} style={thStyle("totalPay")}>Total Pay {sortKey === "totalPay" ? (sortAsc ? "\u2191" : "\u2193") : ""}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map(p => (
-                <tr key={p.teamMemberId} style={{ borderBottom: `1px solid rgba(255,255,255,0.03)` }}>
-                  <td style={{ padding: "10px 16px", color: "#fff", fontWeight: 600, ...jakarta }}>{p.name}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: MID, ...mono }}>{p.services}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: MID, ...mono }}>{fmt(p.subtotal)}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: GREEN, fontWeight: 700, ...mono }}>{fmt(p.commission)}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: MID, ...mono }}>{fmt(p.tips)}</td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", color: "#fff", fontWeight: 700, ...mono }}>{fmt(p.totalPay)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: `2px solid ${BORDER2}` }}>
-                <td style={{ padding: "12px 16px", color: ACC_BRIGHT, fontWeight: 800, fontSize: "12px", ...jakarta }}>TOTAL</td>
-                <td style={{ padding: "12px 16px", textAlign: "right", color: ACC_BRIGHT, fontWeight: 700, ...mono }}>{loc.services}</td>
-                <td style={{ padding: "12px 16px", textAlign: "right", color: ACC_BRIGHT, fontWeight: 700, ...mono }}>{fmt(loc.subtotal)}</td>
-                <td style={{ padding: "12px 16px", textAlign: "right", color: GREEN, fontWeight: 800, ...mono }}>{fmt(loc.commission)}</td>
-                <td style={{ padding: "12px 16px", textAlign: "right", color: ACC_BRIGHT, fontWeight: 700, ...mono }}>{fmt(loc.tips)}</td>
-                <td style={{ padding: "12px 16px", textAlign: "right", color: "#fff", fontWeight: 800, ...mono }}>{fmt(loc.totalPay)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    )
-  }
+  const Sk = ({ h = "34px" }: { h?: string }) => <div style={{ height: h, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
 
   return (
-    <div style={{ ...jakarta, padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
-        <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-0.02em" }}>Payroll</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
-            <p style={{ fontSize: "12px", color: MUTED, margin: 0 }}>Wed-Tue pay period · Tuesday pay date · 40% commission · CST</p>
-            {paidInfo && (
-              <span style={{ ...mono, fontSize: "9px", padding: "3px 10px", borderRadius: "4px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: GREEN, textTransform: "uppercase" }}>
-                Paid {new Date(paidInfo.paidAt).toLocaleDateString()}{paidInfo.paidBy ? ` by ${paidInfo.paidBy}` : ""}
-              </span>
+    <div style={{ ...jakarta, backgroundColor: "#06080d", minHeight: "100%", color: "#fff", padding: "24px", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
+      <style>{`@media(max-width:767px){.pr4{grid-template-columns:1fr 1fr !important}} @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}`}</style>
+      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
+          <h1 style={{ fontSize: "18px", fontWeight: 500, margin: 0 }}>Payroll</h1>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            {(["CC", "SA"] as const).map(l => <button key={l} onClick={() => setLoc(l)} style={{ padding: "6px 14px", fontSize: "12px", fontWeight: 600, border: loc === l ? `1px solid ${ACC_B}` : `1px solid ${BORDER2}`, borderRadius: "8px", backgroundColor: loc === l ? ACC_DIM : "transparent", color: loc === l ? ACC_B : MUTED, cursor: "pointer", ...jakarta }}>{l === "CC" ? "Corpus Christi" : "San Antonio"}</button>)}
+            {period && <button onClick={() => window.open(`/api/payroll/export?periodId=${period.id}`, "_blank")} style={{ padding: "6px 14px", border: `1px solid ${BORDER2}`, borderRadius: "8px", backgroundColor: "transparent", color: ACC_B, fontSize: "12px", fontWeight: 600, cursor: "pointer", ...jakarta }}>Export CSV</button>}
+            {period && period.status === "pending" && (isOwner || isManager) && <button onClick={markPaid} disabled={markingPaid} style={{ padding: "6px 14px", border: `1px solid rgba(16,185,129,0.3)`, borderRadius: "8px", backgroundColor: "rgba(16,185,129,0.08)", color: GREEN, fontSize: "12px", fontWeight: 600, cursor: "pointer", ...jakarta, opacity: markingPaid ? 0.5 : 1 }}>{markingPaid ? "..." : "Mark as Paid"}</button>}
+          </div>
+        </div>
+
+        {/* Period selector */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", marginBottom: "6px" }}>
+          <button onClick={() => setOffset(o => o + 1)} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: ACC_B, cursor: "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_left</span></button>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+              <span style={{ ...mono, fontSize: "16px", fontWeight: 500 }}>{p.label}</span>
+              {period && <span style={{ ...mono, fontSize: "9px", padding: "2px 8px", borderRadius: "4px", backgroundColor: period.status === "paid" ? "rgba(16,185,129,0.1)" : ACC_DIM, border: `1px solid ${period.status === "paid" ? "rgba(16,185,129,0.2)" : ACC_BDR}`, color: period.status === "paid" ? GREEN : ACC_B, textTransform: "uppercase" }}>{period.status}</span>}
+            </div>
+            <div style={{ ...mono, fontSize: "10px", color: MUTED, marginTop: "4px" }}>Pay day: {payDay.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Chicago" })}</div>
+          </div>
+          <button onClick={() => setOffset(o => Math.max(0, o - 1))} disabled={offset === 0} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: offset === 0 ? MUTED : ACC_B, cursor: offset === 0 ? "default" : "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_right</span></button>
+          {offset > 0 && <button onClick={() => setOffset(0)} style={{ ...mono, padding: "4px 10px", fontSize: "9px", border: `1px solid ${BORDER2}`, borderRadius: "5px", background: "none", color: ACC_B, cursor: "pointer", textTransform: "uppercase" }}>Current</button>}
+        </div>
+
+        <div style={{ height: "20px" }} />
+
+        {/* KPI cards */}
+        <div className="pr4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
+          {[
+            { label: "Total Commission", val: period ? fmtUsd(period.totalCommission) : "\u2014", border: GREEN },
+            { label: "Total Tips", val: period ? fmtUsd(period.totalTips) : "\u2014", border: AMBER },
+            { label: "Total Payout", val: period ? fmtUsd(period.totalCommission + period.totalTips) : "\u2014", border: ACC_B },
+            { label: "Services", val: period ? String(period.totalServices) : "\u2014", border: BLUE },
+          ].map(k => (
+            <div key={k.label} style={{ background: S1, border: `1px solid ${BORDER2}`, borderLeft: `3px solid ${k.border}`, borderRadius: "0 10px 10px 0", padding: "18px 20px" }}>
+              {loading ? <Sk /> : <div style={{ ...mono, fontSize: "28px", fontWeight: 500 }}>{k.val}</div>}
+              <div style={{ ...mono, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: MUTED, marginTop: "6px" }}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Calculate button if no data */}
+        {!period && !loading && (
+          <div style={{ background: S1, border: `1px solid ${BORDER2}`, borderRadius: "12px", padding: "48px", textAlign: "center", marginBottom: "20px" }}>
+            <div style={{ fontSize: "14px", color: MID, marginBottom: "8px" }}>No payroll calculated for this period</div>
+            <div style={{ fontSize: "12px", color: MUTED, marginBottom: "20px" }}>Click Calculate to pull Square data and compute commissions</div>
+            <button onClick={calculate} disabled={calculating} style={{ padding: "10px 24px", background: `linear-gradient(135deg, ${ACC_B}, ${ACC})`, border: "none", borderRadius: "9px", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", ...jakarta, opacity: calculating ? 0.5 : 1 }}>{calculating ? "Calculating..." : "Calculate Payroll"}</button>
+          </div>
+        )}
+
+        {/* Stylist table */}
+        {period && entries.length > 0 && (
+          <div style={{ background: S1, border: `1px solid ${BORDER}`, borderRadius: "12px", overflow: "hidden", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: `1px solid ${BORDER}` }}>
+              <span style={{ fontSize: "14px", fontWeight: 500 }}>Stylist Breakdown</span>
+              {period.status === "pending" && <button onClick={calculate} disabled={calculating} style={{ ...mono, fontSize: "10px", color: ACC_B, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>{calculating ? "..." : "Recalculate"}</button>}
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr style={{ background: S2, borderBottom: `1px solid ${BORDER2}` }}>
+                  {["Stylist", "Services", "Service Subtotal", "Commission (40%)", "Tips", "Total Payout"].map(h => (
+                    <th key={h} style={{ padding: "10px 14px", textAlign: h === "Stylist" ? "left" : "right", ...mono, fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTED }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {entries.map((e: Period) => (
+                    <tr key={e.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                      <td style={{ padding: "14px", fontSize: "14px", fontWeight: 500 }}>{e.teamMemberName}</td>
+                      <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "13px", color: MUTED }}>{e.serviceCount}</td>
+                      <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "13px", color: MID }}>{fmtUsd(e.serviceSubtotal)}</td>
+                      <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "14px", fontWeight: 500, color: GREEN }}>{fmtUsd(e.commission)}</td>
+                      <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "13px", color: AMBER }}>{fmtUsd(e.tips)}</td>
+                      <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "15px", fontWeight: 600 }}>{fmtUsd(e.totalPayout)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr style={{ background: S1, borderTop: `2px solid ${BORDER2}` }}>
+                  <td style={{ padding: "14px", fontSize: "13px", fontWeight: 700 }}>TOTAL</td>
+                  <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "13px", fontWeight: 700, color: MUTED }}>{period.totalServices}</td>
+                  <td style={{ padding: "14px" }}></td>
+                  <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "14px", fontWeight: 700, color: GREEN }}>{fmtUsd(period.totalCommission)}</td>
+                  <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "13px", fontWeight: 700, color: AMBER }}>{fmtUsd(period.totalTips)}</td>
+                  <td style={{ ...mono, padding: "14px", textAlign: "right", fontSize: "15px", fontWeight: 700 }}>{fmtUsd(period.totalCommission + period.totalTips)}</td>
+                </tr></tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {period && entries.length === 0 && !loading && (
+          <div style={{ background: S1, border: `1px solid ${BORDER}`, borderRadius: "12px", padding: "40px", textAlign: "center", color: MUTED, marginBottom: "20px" }}>No service data found for this period</div>
+        )}
+
+        {/* History */}
+        {history.length > 0 && (
+          <div>
+            <button onClick={() => setShowHistory(!showHistory)} style={{ ...mono, display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", color: ACC_B, fontSize: "12px", fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", padding: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: "16px", transform: showHistory ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>expand_more</span>
+              Previous Periods ({history.length})
+            </button>
+            {showHistory && (
+              <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {history.map((hp: Period) => {
+                  const s = new Date(hp.periodStart); const e = new Date(hp.periodEnd)
+                  return (
+                    <div key={hp.id} onClick={() => { const diff = Math.round((getPeriod(0).start.getTime() - s.getTime()) / (7 * 24 * 60 * 60 * 1000)); setOffset(diff) }} style={{ background: S1, border: `1px solid ${BORDER}`, borderRadius: "8px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 600 }}>{s.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })} – {e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" })}</div>
+                        <div style={{ ...mono, fontSize: "10px", color: MUTED }}>{hp.locationId}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span style={{ ...mono, fontSize: "9px", padding: "2px 7px", borderRadius: "4px", backgroundColor: hp.status === "paid" ? "rgba(16,185,129,0.1)" : ACC_DIM, border: `1px solid ${hp.status === "paid" ? "rgba(16,185,129,0.2)" : ACC_BDR}`, color: hp.status === "paid" ? GREEN : ACC_B, textTransform: "uppercase" }}>{hp.status}</span>
+                        <span style={{ ...mono, fontSize: "13px", fontWeight: 500 }}>{fmtUsd(hp.totalCommission + hp.totalTips)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {!loading && totals.services > 0 && (
-            <>
-              {!paidInfo && (
-                <button onClick={handleMarkPaid} disabled={markingPaid} style={{ padding: "8px 16px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", border: `1px solid rgba(16,185,129,0.3)`, borderRadius: "8px", backgroundColor: "rgba(16,185,129,0.08)", color: GREEN, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", ...jakarta, opacity: markingPaid ? 0.6 : 1 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>check_circle</span>
-                  {markingPaid ? "Marking..." : "Mark as Paid"}
-                </button>
-              )}
-              <button onClick={handleExport} style={{ padding: "8px 16px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", border: `1px solid ${BORDER2}`, borderRadius: "8px", backgroundColor: "rgba(255,255,255,0.04)", color: ACC_BRIGHT, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", ...jakarta }}>
-                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>download</span>
-                Export CSV
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Period selector + location filter */}
-      <div style={{ ...cardStyle, marginBottom: "20px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
-          {PERIODS.map((p, i) => (
-            <button key={i} onClick={() => { setPeriodIdx(i); setIsCustom(false) }} style={{
-              padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-              border: !isCustom && periodIdx === i ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`,
-              borderRadius: "7px",
-              backgroundColor: !isCustom && periodIdx === i ? ACC_DIM : "transparent",
-              color: !isCustom && periodIdx === i ? ACC_BRIGHT : MUTED,
-              cursor: "pointer", whiteSpace: "nowrap", ...mono,
-            }}>
-              {p.label}
-              <span style={{ display: "block", fontSize: "8px", color: MUTED, fontWeight: 500, marginTop: "2px" }}>{fmtDate(p.start)} - {fmtDate(p.end)}</span>
-            </button>
-          ))}
-          <button onClick={() => setIsCustom(true)} style={{
-            padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-            border: isCustom ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`,
-            borderRadius: "7px", backgroundColor: isCustom ? ACC_DIM : "transparent",
-            color: isCustom ? ACC_BRIGHT : MUTED, cursor: "pointer", ...mono,
-          }}>Custom</button>
-        </div>
-
-        {isCustom && (
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px", alignItems: "center" }}>
-            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={inputStyle} />
-            <span style={{ color: MUTED, fontSize: "12px" }}>to</span>
-            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={inputStyle} />
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: "6px" }}>
-          {(["All", "Corpus Christi", "San Antonio"] as LocationFilter[]).map(loc => (
-            <button key={loc} onClick={() => setLocFilter(loc)} style={{
-              padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-              border: locFilter === loc ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`,
-              borderRadius: "6px", backgroundColor: locFilter === loc ? ACC_DIM : "transparent",
-              color: locFilter === loc ? ACC_BRIGHT : MUTED, cursor: "pointer", ...mono,
-            }}>{loc === "Corpus Christi" ? "CC" : loc === "San Antonio" ? "SA" : loc}</button>
-          ))}
-        </div>
-
-        {dates.start && dates.end && (
-          <div style={{ marginTop: "10px", ...mono, fontSize: "11px", color: MUTED }}>
-            {dates.start} to {dates.end}
-          </div>
         )}
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <div style={{ width: "32px", height: "32px", border: `3px solid ${BORDER}`, borderTop: `3px solid ${ACC_BRIGHT}`, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-          <div style={{ fontSize: "12px", color: MUTED }}>Loading payroll data...</div>
-        </div>
-      )}
+      {/* Toast */}
+      {toast && <div style={{ position: "fixed", bottom: "100px", right: "20px", background: toast.type === "success" ? "rgba(16,185,129,0.15)" : "rgba(255,107,107,0.15)", border: `1px solid ${toast.type === "success" ? "rgba(16,185,129,0.3)" : "rgba(255,107,107,0.3)"}`, borderRadius: "10px", padding: "12px 20px", color: "#fff", fontSize: "13px", fontWeight: 500, zIndex: 999, backdropFilter: "blur(8px)", ...jakarta }}>{toast.message}</div>}
 
-      {/* Error */}
-      {error && !loading && (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "40px", color: "#ff6b6b" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "32px", marginBottom: "8px", display: "block" }}>error</span>
-          {error}
-        </div>
-      )}
-
-      {/* Empty */}
-      {!loading && !error && payroll.length > 0 && totals.services === 0 && (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "40px" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "40px", color: MUTED, marginBottom: "8px", display: "block" }}>inbox</span>
-          <div style={{ fontSize: "13px", color: MUTED }}>No services found for this period</div>
-        </div>
-      )}
-
-      {/* Data */}
-      {!loading && !error && totals.services > 0 && (
-        <>
-          {/* KPI cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", marginBottom: "20px" }}>
-            {[
-              { label: "Total Services", value: String(totals.services), color: "#fff" },
-              { label: "Total Subtotal", value: fmt(totals.subtotal), color: "#fff" },
-              { label: "Total Commissions", value: fmt(totals.commission), color: GREEN },
-              { label: "Total Tips", value: fmt(totals.tips), color: "#fff" },
-              { label: "Total Payout", value: fmt(totals.totalPay), color: GREEN },
-              { label: "Avg per Stylist", value: stylistCount > 0 ? fmt(totals.totalPay / stylistCount) : "$0.00", color: ACC_BRIGHT },
-            ].map(s => (
-              <div key={s.label} style={cardStyle}>
-                <div style={{ ...mono, fontSize: "9px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: MUTED, marginBottom: "6px" }}>{s.label}</div>
-                <div style={{ ...mono, fontSize: "22px", fontWeight: 800, color: s.color }}>{s.value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Tables */}
-          {(locFilter === "All" || locFilter === "Corpus Christi") && <LocationTable entries={ccEntries} title="Corpus Christi" />}
-          {(locFilter === "All" || locFilter === "San Antonio") && <LocationTable entries={saEntries} title="San Antonio" />}
-
-          {/* Grand total bar */}
-          {locFilter === "All" && (
-            <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: `linear-gradient(135deg, ${S1} 0%, rgba(16,185,129,0.06) 100%)`, border: `1px solid rgba(16,185,129,0.15)` }}>
-              <div>
-                <div style={{ ...mono, fontSize: "9px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: MUTED }}>Grand Total</div>
-                <div style={{ fontSize: "12px", color: MID, marginTop: "2px" }}>{totals.services} services across {stylistCount} stylists</div>
-              </div>
-              <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                {[
-                  { label: "Subtotal", value: fmt(totals.subtotal), color: "#fff" },
-                  { label: "Commission", value: fmt(totals.commission), color: GREEN },
-                  { label: "Tips", value: fmt(totals.tips), color: "#fff" },
-                  { label: "Total Pay", value: fmt(totals.totalPay), color: ACC_BRIGHT },
-                ].map(t => (
-                  <div key={t.label} style={{ textAlign: "right" }}>
-                    <div style={{ ...mono, fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTED }}>{t.label}</div>
-                    <div style={{ ...mono, fontSize: "18px", fontWeight: 800, color: t.color }}>{t.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Period History */}
-      {periods.length > 0 && (
-        <div style={{ marginTop: "28px" }}>
-          <button onClick={() => setShowHistory(!showHistory)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer", color: ACC_BRIGHT, fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: 0, ...mono }}>
-            <span className="material-symbols-outlined" style={{ fontSize: "18px", transform: showHistory ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>expand_more</span>
-            Period History ({periods.length})
-          </button>
-          {showHistory && (
-            <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
-              {periods.map(p => {
-                const s = p.startDate.split("T")[0]
-                const e = p.endDate.split("T")[0]
-                return (
-                  <div key={p.id} onClick={() => loadHistoryPeriod(s, e)} style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: "12px 16px" }}>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>{fmtDate(s)} - {fmtDate(e)}</div>
-                      <div style={{ ...mono, fontSize: "10px", color: MUTED }}>{s} to {e}</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      {p.markedPaidAt && (
-                        <>
-                          <div style={{ ...mono, fontSize: "9px", color: GREEN, textTransform: "uppercase" }}>Paid {new Date(p.markedPaidAt).toLocaleDateString()}</div>
-                          {p.markedBy?.name && <div style={{ fontSize: "10px", color: MUTED }}>by {p.markedBy.name}</div>}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" />
     </div>
   )
 }
