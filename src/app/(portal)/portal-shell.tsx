@@ -27,6 +27,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/onboarding", icon: "person_add", label: "Onboarding" },
   { href: "/alerts", icon: "notifications", label: "Alerts", badge: true },
+  { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
@@ -43,6 +44,7 @@ const MANAGER_NAV: NavItem[] = [
   { href: "/retention", icon: "favorite", label: "Retention" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
+  { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]

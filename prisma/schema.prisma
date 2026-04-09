@@ -47,6 +47,7 @@ model User {
   alertsCreated        AdminAlert[]    @relation("AlertsCreated")
   alertReads           AlertRead[]
   auditLogs            AuditLog[]
+  socialPosts          SocialPost[]
   @@map("users")
 }
 
@@ -66,6 +67,8 @@ model Location {
   payrollPeriods         PayrollPeriod[]
   alerts                 AdminAlert[]
   auditLogs              AuditLog[]
+  socialPosts            SocialPost[]
+  socialToken            SocialToken?
   @@map("locations")
 }
 
@@ -659,4 +662,35 @@ model AuditLog {
   user       User?     @relation(fields: [userId], references: [id])
   location   Location? @relation(fields: [locationId], references: [id])
   @@map("audit_logs")
+}
+
+model SocialPost {
+  id          String    @id @default(cuid())
+  platform    String
+  message     String
+  imageUrl    String?
+  scheduledAt DateTime?
+  postedAt    DateTime?
+  status      String    @default("draft")
+  locationId  String
+  createdById String
+  fbPostId    String?
+  igPostId    String?
+  createdAt   DateTime  @default(now())
+  location    Location  @relation(fields: [locationId], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  @@map("social_posts")
+}
+
+model SocialToken {
+  id            String    @id @default(cuid())
+  locationId    String    @unique
+  fbPageId      String
+  fbAccessToken String
+  igAccountId   String?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  location      Location  @relation(fields: [locationId], references: [id])
+  @@map("social_tokens")
 }
