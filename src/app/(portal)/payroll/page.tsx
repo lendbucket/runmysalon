@@ -1,7 +1,6 @@
 "use client"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useUserRole } from "@/hooks/useUserRole"
-import { useRouter } from "next/navigation"
 
 interface PayrollEntry {
   teamMemberId: string
@@ -69,7 +68,6 @@ const GREEN = "#10B981"
 
 export default function PayrollPage() {
   const { isOwner } = useUserRole()
-  const router = useRouter()
 
   const [periodIdx, setPeriodIdx] = useState(0) // 0=current, 1=last, etc.
   const [isCustom, setIsCustom] = useState(false)
@@ -190,8 +188,12 @@ export default function PayrollPage() {
   }
 
   if (!isOwner) {
-    router.push("/dashboard")
-    return null
+    return (
+      <div style={{ padding: "40px", textAlign: "center", color: MUTED }}>
+        <span className="material-symbols-outlined" style={{ fontSize: "48px", marginBottom: "16px", display: "block" }}>lock</span>
+        <div style={{ fontSize: "16px", fontWeight: 700 }}>Owner Access Only</div>
+      </div>
+    )
   }
 
   const inputStyle: React.CSSProperties = { padding: "8px 12px", fontSize: "16px", borderRadius: "8px", border: `1px solid ${BORDER2}`, backgroundColor: "rgba(255,255,255,0.06)", color: "#fff", outline: "none", ...jakarta }

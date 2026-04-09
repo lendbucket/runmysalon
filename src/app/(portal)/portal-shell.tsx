@@ -26,6 +26,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/complaints", icon: "report", label: "Complaints" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/onboarding", icon: "person_add", label: "Onboarding" },
+  { href: "/alerts", icon: "notifications", label: "Alerts", badge: true },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
@@ -125,6 +126,18 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   }, [pathname])
 
   const pendingCount = 0 // TODO: wire up approvals count
+  const [alertCount, setAlertCount] = useState(0)
+
+  useEffect(() => {
+    const fetchAlerts = () => {
+      fetch("/api/alerts").then(r => r.json()).then(d => {
+        if (d.unreadCount !== undefined) setAlertCount(d.unreadCount)
+      }).catch(() => {})
+    }
+    fetchAlerts()
+    const id = setInterval(fetchAlerts, 60000)
+    return () => clearInterval(id)
+  }, [])
 
   /* ── Shared helpers ── */
   function navLink(item: NavItem, compact?: boolean) {
@@ -163,23 +176,27 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         )}
         {!item.icon && <span style={{ width: "17px", marginRight: "10px" }} />}
         <span style={{ flex: 1 }}>{item.label === "Envy Suite®" ? (<>Envy Suite<sup style={{ fontSize: "65%", verticalAlign: "super", marginLeft: "1px" }}>&reg;</sup></>) : item.label}</span>
-        {item.badge && isOwner && (
-          <span style={{
-            minWidth: "18px",
-            height: "18px",
-            borderRadius: "9px",
-            backgroundColor: "#EF4444",
-            color: "#fff",
-            fontSize: "9px",
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 5px",
-          }}>
-            {pendingCount || ""}
-          </span>
-        )}
+        {item.badge && (() => {
+          const count = item.href === "/alerts" ? alertCount : item.href === "/approvals" ? pendingCount : 0
+          if (!count) return null
+          return (
+            <span style={{
+              minWidth: "18px",
+              height: "18px",
+              borderRadius: "9px",
+              backgroundColor: "#EF4444",
+              color: "#fff",
+              fontSize: "9px",
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 5px",
+            }}>
+              {count}
+            </span>
+          )
+        })()}
       </Link>
     )
   }

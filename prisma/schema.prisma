@@ -44,6 +44,8 @@ model User {
   healthProfile        HealthProfile?
   videoSubmissions     VideoSubmission[] @relation("VideoSubmissions")
   payrollPeriodsPaid   PayrollPeriod[]
+  alertsCreated        AdminAlert[]    @relation("AlertsCreated")
+  alertReads           AlertRead[]
   @@map("users")
 }
 
@@ -61,6 +63,7 @@ model Location {
   onboardingEnrollments  OnboardingEnrollment[]
   videoSubmissions       VideoSubmission[]
   payrollPeriods         PayrollPeriod[]
+  alerts                 AdminAlert[]
   @@map("locations")
 }
 
@@ -187,12 +190,30 @@ model Session {
 }
 
 model AdminAlert {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  severity  String   @default("info")
-  createdAt DateTime @default(now())
+  id          String      @id @default(cuid())
+  type        String      @default("broadcast")
+  title       String
+  body        String
+  severity    String      @default("info")
+  locationId  String?
+  createdById String?
+  expiresAt   DateTime?
+  createdAt   DateTime    @default(now())
+  location    Location?   @relation(fields: [locationId], references: [id])
+  createdBy   User?       @relation("AlertsCreated", fields: [createdById], references: [id])
+  reads       AlertRead[]
   @@map("admin_alerts")
+}
+
+model AlertRead {
+  id      String     @id @default(cuid())
+  alertId String
+  userId  String
+  readAt  DateTime   @default(now())
+  alert   AdminAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [userId], references: [id])
+  @@unique([alertId, userId])
+  @@map("alert_reads")
 }
 
 model PurchaseOrder {
