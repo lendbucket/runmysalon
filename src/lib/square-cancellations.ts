@@ -46,6 +46,7 @@ export interface CancellationStats {
   repeatClientCancellations: number
   newClientCancellations: number
   estimatedRevenueLost: number
+  avgTicket: number
   byStylist: Record<string, number>
   byDay: Record<string, number>
 }
@@ -252,7 +253,36 @@ export async function getCancellations(
     (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
   )
 
-  // Step 8: Calculate stats
+  // Step 8: Calculate avg ticket from recent completed orders
+  let avgTicket = 75 // fallback
+  try {
+    const LOCATION_IDS = ["LTJSA6QR1HGW6", "LXJYXDXWR0XZF"]
+    const ordersRes = await square.orders.search({
+      locationIds: LOCATION_IDS,
+      query: {
+        filter: {
+          dateTimeFilter: { closedAt: { startAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), endAt: new Date().toISOString() } },
+          stateFilter: { states: ["COMPLETED"] },
+        },
+      },
+      limit: 200,
+    })
+    const orders = ordersRes.orders || []
+    if (orders.length > 0) {
+      const totalRev = orders.reduce((sum, o) => {
+        const total = Number(o.totalMoney?.amount || 0)
+        const tax = Number(o.totalTaxMoney?.amount || 0)
+        const tip = Number(o.totalTipMoney?.amount || 0)
+        return sum + (total - tax - tip) / 100
+      }, 0)
+      const computed = Math.round(totalRev / orders.length)
+      if (computed > 0) avgTicket = computed
+    }
+  } catch {
+    // Use fallback
+  }
+
+  // Step 9: Calculate stats
   const stats: CancellationStats = {
     totalCancellations: cancellations.length,
     cancelledByCustomer: cancellations.filter((c) => c.status === "CANCELLED_BY_CUSTOMER").length,
@@ -260,7 +290,8 @@ export async function getCancellations(
     noShows: cancellations.filter((c) => c.status === "NO_SHOW").length,
     repeatClientCancellations: cancellations.filter((c) => c.isRepeatClient).length,
     newClientCancellations: cancellations.filter((c) => !c.isRepeatClient).length,
-    estimatedRevenueLost: 0, // TODO: calculate from actual average ticket data
+    estimatedRevenueLost: cancellations.length * avgTicket,
+    avgTicket,
     byStylist: {},
     byDay: {},
   }

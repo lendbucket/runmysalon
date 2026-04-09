@@ -28,6 +28,7 @@ interface CancellationStats {
   repeatClientCancellations: number
   newClientCancellations: number
   estimatedRevenueLost: number
+  avgTicket: number
   byStylist: Record<string, number>
   byDay: Record<string, number>
 }
@@ -141,9 +142,11 @@ function BarChart({ data, color }: { data: Record<string, number>; color: string
 function CustomerModal({
   entry,
   onClose,
+  avgTicket,
 }: {
   entry: CancellationEntry
   onClose: () => void
+  avgTicket: number
 }) {
   return (
     <div
@@ -276,7 +279,7 @@ function CustomerModal({
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Est. Past Spend</span>
-                <span style={{ color: "#fff", fontSize: "12px" }}>${(entry.totalPastVisits * 0).toLocaleString()}</span>
+                <span style={{ color: "#fff", fontSize: "12px" }}>${(entry.totalPastVisits * avgTicket).toLocaleString()}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Last Visit</span>
@@ -532,6 +535,7 @@ export default function CancellationsPage() {
                 label: "Est. Revenue Lost",
                 value: `$${data.stats.estimatedRevenueLost.toLocaleString()}`,
                 color: "#F59E0B",
+                sub: `Est. avg ticket: $${data.stats.avgTicket || 0}`,
               },
             ].map((kpi) => (
               <div key={kpi.label} style={cardStyle}>
@@ -550,6 +554,9 @@ export default function CancellationsPage() {
                 <div style={{ fontSize: "26px", fontWeight: 800, color: kpi.color }}>
                   {kpi.value}
                 </div>
+                {"sub" in kpi && kpi.sub && (
+                  <div style={{ fontFamily: "'Fira Code', monospace", fontSize: "10px", color: "#606E74", marginTop: "4px" }}>{kpi.sub}</div>
+                )}
               </div>
             ))}
           </div>
@@ -796,7 +803,7 @@ export default function CancellationsPage() {
                       {c.totalPastVisits}
                     </td>
                     <td style={{ padding: "10px 12px", color: "rgba(205,201,192,0.6)", whiteSpace: "nowrap" }}>
-                      ${(c.totalPastVisits * 0).toLocaleString()}
+                      ${(c.totalPastVisits * (data?.stats.avgTicket || 75)).toLocaleString()}
                     </td>
                     <td style={{ padding: "10px 12px", color: "rgba(205,201,192,0.5)", whiteSpace: "nowrap" }}>
                       {c.lastVisitDate ? formatDate(c.lastVisitDate) : "---"}
@@ -860,7 +867,7 @@ export default function CancellationsPage() {
       )}
 
       {/* Customer Modal */}
-      {selectedEntry && <CustomerModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />}
+      {selectedEntry && <CustomerModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} avgTicket={data?.stats.avgTicket || 75} />}
     </div>
   )
 }
