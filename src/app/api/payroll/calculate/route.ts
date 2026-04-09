@@ -28,81 +28,74 @@ export async function POST(req: NextRequest) {
 
   console.log(`[Payroll] loc=${locationId} period=${start} → ${end} members=${JSON.stringify(memberIds)}`)
 
-  // STEP 1: Cache service variation prices from Square Catalog
-  const priceCache: Record<string, number> = {}
-  async function getPrice(varId: string): Promise<number> {
-    if (priceCache[varId] !== undefined) return priceCache[varId]
-    try {
-      const d = await sq(`/catalog/object/${varId}`)
-      const p = d.object?.item_variation_data?.price_money?.amount || 0
-      priceCache[varId] = p; return p
-    } catch { priceCache[varId] = 0; return 0 }
-  }
-
-  // STEP 2: Fetch tips per customer from SA payments
-  const customerTips: Record<string, number> = {}
-  let pCursor: string | undefined
-  do {
-    const p = new URLSearchParams({ location_id: SA_LOCATION_ID, begin_time: startDate.toISOString(), end_time: endDate.toISOString(), limit: "100", sort_order: "ASC" })
-    if (pCursor) p.set("cursor", pCursor)
-    const d = await sq(`/payments?${p}`)
-    for (const pay of (d.payments || [])) {
-      if (pay.status !== "COMPLETED" || !pay.customer_id) continue
-      const tips = (pay.tip_money?.amount || 0) / 100
-      if (tips > 0) customerTips[pay.customer_id] = (customerTips[pay.customer_id] || 0) + tips
-    }
-    pCursor = d.cursor
-  } while (pCursor)
-
-  console.log(`[Payroll] tips found for ${Object.keys(customerTips).length} customers`)
-
-  // STEP 3: Fetch bookings from BOTH locations, process service catalog prices
+  // STEP 1: Build customer → team_member map from bookings (BOTH locations)
+  const customerToMember: Record<string, string> = {}
   const wStart = new Date(startDate.getTime() - 24 * 60 * 60 * 1000).toISOString()
   const wEnd = new Date(endDate.getTime() + 24 * 60 * 60 * 1000).toISOString()
-  let totalBookings = 0, totalSegments = 0
 
   for (const bLocId of [CC_LOCATION_ID, SA_LOCATION_ID]) {
-    let bCursor: string | undefined
+    let cursor: string | undefined
     do {
       const p = new URLSearchParams({ location_id: bLocId, start_at_min: wStart, start_at_max: wEnd, limit: "100" })
-      if (bCursor) p.set("cursor", bCursor)
+      if (cursor) p.set("cursor", cursor)
       const d = await sq(`/bookings?${p}`)
-      bCursor = d.cursor
-
+      cursor = d.cursor
       for (const b of (d.bookings || [])) {
         if (b.status !== "ACCEPTED") continue
-        const bTime = new Date(b.start_at).getTime()
-        if (bTime < startDate.getTime() || bTime > endDate.getTime()) continue
-        totalBookings++
-
-        for (const seg of (b.appointment_segments || [])) {
-          const tmId = seg.team_member_id
-          if (!tmId || !stylistData[tmId]) continue
-          const varId = seg.service_variation_id
-          if (!varId) continue
-          const priceCents = await getPrice(varId)
-          stylistData[tmId].serviceSubtotal += priceCents / 100
-          stylistData[tmId].serviceCount++
-          totalSegments++
-        }
-
-        // Attribute tips from payment to first stylist on booking
-        const custId = b.customer_id
-        if (custId && customerTips[custId]) {
-          const firstTm = b.appointment_segments?.[0]?.team_member_id
-          if (firstTm && stylistData[firstTm]) {
-            stylistData[firstTm].tips += customerTips[custId]
-            delete customerTips[custId]
-          }
-        }
+        const cid = b.customer_id; const tmid = b.appointment_segments?.[0]?.team_member_id
+        if (!cid || !tmid) continue
+        if (!memberIds.includes(tmid)) continue
+        customerToMember[cid] = tmid
       }
-    } while (bCursor)
+    } while (cursor)
   }
 
-  console.log(`[Payroll] bookings=${totalBookings} segments=${totalSegments}`)
+  console.log(`[Payroll] customerToMember: ${Object.keys(customerToMember).length} entries`)
+
+  // STEP 2: Fetch COMPLETED orders closed within period from SA location
+  let orderCursor: string | undefined
+  let totalOrders = 0, matchedOrders = 0
+
+  do {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: Record<string, any> = {
+      location_ids: [SA_LOCATION_ID],
+      query: { filter: { date_time_filter: { closed_at: { start_at: startDate.toISOString(), end_at: endDate.toISOString() } }, state_filter: { states: ["COMPLETED"] } }, sort: { sort_field: "CLOSED_AT", sort_order: "ASC" } },
+      limit: 100,
+    }
+    if (orderCursor) body.cursor = orderCursor
+
+    const data = await sq("/orders/search", { method: "POST", body: JSON.stringify(body) })
+    orderCursor = data.cursor
+
+    for (const order of (data.orders || [])) {
+      totalOrders++
+      const cid = order.customer_id
+      if (!cid) continue
+      const tmid = customerToMember[cid]
+      if (!tmid || !stylistData[tmid]) continue
+
+      // Sum service line items (item_type === "ITEM") — gross_sales_money is pre-tax
+      let subtotal = 0, svcCount = 0
+      for (const li of (order.line_items || [])) {
+        if (li.item_type !== "ITEM") continue
+        subtotal += (li.gross_sales_money?.amount || 0) / 100
+        svcCount++
+      }
+      if (subtotal === 0 && svcCount === 0) continue
+
+      const tips = (order.total_tip_money?.amount || 0) / 100
+      stylistData[tmid].serviceSubtotal += subtotal
+      stylistData[tmid].serviceCount += svcCount
+      stylistData[tmid].tips += tips
+      matchedOrders++
+    }
+  } while (orderCursor)
+
+  console.log(`[Payroll] orders: total=${totalOrders} matched=${matchedOrders}`)
   console.log(`[Payroll] data=${JSON.stringify(stylistData)}`)
 
-  // STEP 4: Calculate commissions
+  // STEP 3: Calculate commissions
   let totalComm = 0, totalTips = 0, totalSvc = 0
   const entries = Object.entries(stylistData).map(([id, d]) => {
     const comm = Math.round(d.serviceSubtotal * 0.40 * 100) / 100
@@ -110,7 +103,7 @@ export async function POST(req: NextRequest) {
     return { teamMemberId: id, teamMemberName: d.name, locationId, serviceCount: d.serviceCount, serviceSubtotal: Math.round(d.serviceSubtotal * 100) / 100, commission: comm, tips: Math.round(d.tips * 100) / 100, totalPayout: Math.round((comm + d.tips) * 100) / 100 }
   }).sort((a, b) => b.commission - a.commission)
 
-  // STEP 5: Save to DB
+  // STEP 4: Save to DB
   let period = await prisma.payrollPeriod.findFirst({ where: { locationId, periodStart: startDate, periodEnd: endDate } })
   if (period) {
     await prisma.payrollEntry.deleteMany({ where: { periodId: period.id } })
