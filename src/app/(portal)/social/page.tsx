@@ -2,411 +2,328 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useUserRole } from "@/hooks/useUserRole"
 
-/* ── Types ── */
-type SPost = {
-  id: string; locationId: string; platform: string; content: string; imageUrls: string[] | null
-  status: string; scheduledAt: string | null; publishedAt: string | null; fbPostId: string | null
-  igPostId: string | null; errorMessage: string | null; likes: number | null; comments: number | null
-  shares: number | null; createdAt: string
-}
+type SPost = { id: string; locationId: string; platform: string; content: string; imageUrls: string[] | null; status: string; scheduledAt: string | null; publishedAt: string | null; fbPostId: string | null; igPostId: string | null; errorMessage: string | null; likes: number | null; comments: number | null; shares: number | null; createdAt: string }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Analytics = { igProfile: any; fbPosts: any; locationId: string } | null
-type Tab = "calendar" | "scheduled" | "drafts" | "published" | "analytics"
+type Tab = "calendar" | "scheduled" | "drafts" | "published" | "analytics" | "design"
 type Toast = { message: string; type: "success" | "error" } | null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CanvaDesign = { id: string; title: string; thumbnail?: { url: string }; created_at?: number; urls?: { edit_url?: string } }
 
-/* ── Design tokens ── */
-const ACC = "#606E74"
-const ACC_BRIGHT = "#7a8f96"
-const ACC_DIM = "rgba(96,110,116,0.08)"
-const ACC_BORDER = "rgba(96,110,116,0.2)"
-const BORDER = "rgba(255,255,255,0.07)"
-const BORDER2 = "rgba(255,255,255,0.12)"
-const S1 = "rgba(255,255,255,0.03)"
-const S2 = "rgba(255,255,255,0.05)"
-const MUTED = "rgba(255,255,255,0.3)"
-const MID = "rgba(255,255,255,0.6)"
-const GREEN = "#10B981"
-const AMBER = "#ffb347"
-const FB_BLUE = "#1877F2"
-const IG_PINK = "#bc1888"
+const ACC = "#606E74", ACC_B = "#7a8f96", ACC_DIM = "rgba(96,110,116,0.08)", ACC_BDR = "rgba(96,110,116,0.2)"
+const BORDER = "rgba(255,255,255,0.07)", BORDER2 = "rgba(255,255,255,0.12)", S1 = "rgba(255,255,255,0.03)", S2 = "rgba(255,255,255,0.05)"
+const MUTED = "rgba(255,255,255,0.3)", MID = "rgba(255,255,255,0.6)", GREEN = "#10B981", AMBER = "#ffb347"
+const FB = "#1877F2", IG = "#bc1888", CANVA = "#00C4CC"
 const mono: React.CSSProperties = { fontFamily: "'Fira Code', 'Courier New', monospace" }
 const jakarta: React.CSSProperties = { fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }
-
-const cardS: React.CSSProperties = { backgroundColor: S1, border: `1px solid ${BORDER}`, borderRadius: "14px", padding: "20px" }
-const inputS: React.CSSProperties = { width: "100%", padding: "10px 14px", borderRadius: "8px", backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER2}`, color: "#fff", fontSize: "16px", outline: "none", boxSizing: "border-box" as const, ...jakarta }
-const labelS: React.CSSProperties = { ...mono, display: "block", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: MUTED, marginBottom: "8px" }
-const pillS = (active: boolean, color?: string): React.CSSProperties => ({
-  padding: "7px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: active ? `1px solid ${color || ACC}` : `1px solid ${BORDER2}`, backgroundColor: active ? (color ? `${color}15` : ACC_DIM) : "transparent", color: active ? (color || ACC_BRIGHT) : MUTED, ...jakarta, transition: "all 0.15s",
-})
+const cs: React.CSSProperties = { backgroundColor: S1, border: `1px solid ${BORDER}`, borderRadius: "14px", padding: "20px" }
+const inp: React.CSSProperties = { width: "100%", padding: "10px 14px", borderRadius: "8px", backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER2}`, color: "#fff", fontSize: "16px", outline: "none", boxSizing: "border-box" as const, ...jakarta }
+const lblS: React.CSSProperties = { ...mono, display: "block", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: MUTED, marginBottom: "8px" }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "calendar", label: "Calendar" }, { id: "scheduled", label: "Scheduled" },
-  { id: "drafts", label: "Drafts" }, { id: "published", label: "Published" },
-  { id: "analytics", label: "Analytics" },
+  { id: "calendar", label: "Calendar" }, { id: "scheduled", label: "Scheduled" }, { id: "drafts", label: "Drafts" },
+  { id: "published", label: "Published" }, { id: "analytics", label: "Analytics" }, { id: "design", label: "Canva" },
 ]
+const HASHTAGS = ["#salonlife", "#hairgoals", "#hairstylist", "#corpuschristi", "#salonenvyusa", "#behindthechair", "#haircolor", "#balayage", "#haircare", "#beautysalon"]
 
-function timeAgo(d: string) { const m = Math.round((Date.now() - new Date(d).getTime()) / 60000); if (m < 1) return "just now"; if (m < 60) return `${m}m ago`; if (m < 1440) return `${Math.round(m / 60)}h ago`; return `${Math.round(m / 1440)}d ago` }
+function timeAgo(d: string) { const m = Math.round((Date.now() - new Date(d).getTime()) / 60000); if (m < 1) return "just now"; if (m < 60) return `${m}m`; if (m < 1440) return `${Math.round(m / 60)}h`; return `${Math.round(m / 1440)}d` }
 function fmtDt(d: string) { return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) }
+function pill(active: boolean, color?: string): React.CSSProperties { return { padding: "7px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: active ? `1px solid ${color || ACC}` : `1px solid ${BORDER2}`, backgroundColor: active ? (color ? `${color}15` : ACC_DIM) : "transparent", color: active ? (color || ACC_B) : MUTED, ...jakarta, transition: "all 0.15s" } }
 
 export default function SocialPage() {
-  const { isOwner, isManager, isStylist } = useUserRole()
-
-  /* ── State ── */
-  const [activeTab, setActiveTab] = useState<Tab>("calendar")
-  const [activeLocation, setActiveLocation] = useState("BOTH")
-  const [activePlatform, setActivePlatform] = useState("all")
+  const { isOwner, isStylist } = useUserRole()
+  const [tab, setTab] = useState<Tab>("calendar")
+  const [locF, setLocF] = useState("BOTH")
+  const [platF, setPlatF] = useState("all")
   const [posts, setPosts] = useState<SPost[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1)
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
-  const [showComposer, setShowComposer] = useState(false)
-  const [editingPost, setEditingPost] = useState<SPost | null>(null)
-  const [composerDate, setComposerDate] = useState("")
+  const [cMo, setCMo] = useState(new Date().getMonth() + 1)
+  const [cYr, setCYr] = useState(new Date().getFullYear())
   const [analytics, setAnalytics] = useState<Analytics>(null)
-  const [analyticsLoc, setAnalyticsLoc] = useState("CC")
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false)
+  const [anaLoc, setAnaLoc] = useState("CC")
+  const [anaLoad, setAnaLoad] = useState(false)
   const [toast, setToast] = useState<Toast>(null)
-
-  // Composer state
+  // Canva
+  const [canvaOk, setCanvaOk] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [canvaUser, setCanvaUser] = useState<any>(null)
+  const [canvaDesigns, setCanvaDesigns] = useState<CanvaDesign[]>([])
+  const [canvaLoad, setCanvaLoad] = useState(false)
+  const [canvaCont, setCanvaCont] = useState<string | null>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
+  // Composer
+  const [showComp, setShowComp] = useState(false)
+  const [editPost, setEditPost] = useState<SPost | null>(null)
   const [cLoc, setCLoc] = useState("BOTH")
-  const [cPlat, setCPlat] = useState("both")
+  const [cPlats, setCPlats] = useState<string[]>(["facebook", "instagram"])
   const [cContent, setCContent] = useState("")
   const [cImages, setCImages] = useState<string[]>([])
-  const [schedMode, setSchedMode] = useState<"now" | "later" | "draft">("draft")
+  const [sMode, setSMode] = useState<"now" | "later" | "draft">("draft")
   const [cDate, setCDate] = useState("")
   const [saving, setSaving] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+  const [prevMode, setPrevMode] = useState<"instagram" | "facebook">("instagram")
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function showToastMsg(message: string, type: "success" | "error" = "success") {
-    setToast({ message, type }); setTimeout(() => setToast(null), 3000)
-  }
+  const showT = (m: string, t: "success" | "error" = "success") => { setToast({ message: m, type: t }); setTimeout(() => setToast(null), 3500) }
 
-  /* ── Data loading ── */
+  // URL params on mount
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get("tab")) setTab(p.get("tab") as Tab)
+    if (p.get("canva") === "connected") showT("Connected to Canva")
+  }, [])
+
+  // Data
   const loadPosts = useCallback(async () => {
     setLoading(true)
     const p = new URLSearchParams()
-    if (activeLocation !== "BOTH") p.set("locationId", activeLocation)
-    if (activePlatform !== "all") p.set("platform", activePlatform)
-    if (activeTab === "scheduled") p.set("status", "scheduled")
-    else if (activeTab === "drafts") p.set("status", "draft")
-    else if (activeTab === "published") p.set("status", "published")
-    else if (activeTab === "calendar") { p.set("month", String(currentMonth)); p.set("year", String(currentYear)) }
-    try { const r = await fetch(`/api/social/posts?${p}`); const d = await r.json(); setPosts(d.posts || []) } catch { /* */ }
+    if (locF !== "BOTH") p.set("locationId", locF)
+    if (platF !== "all") p.set("platform", platF)
+    if (tab === "scheduled") p.set("status", "scheduled"); else if (tab === "drafts") p.set("status", "draft"); else if (tab === "published") p.set("status", "published")
+    if (tab === "calendar") { p.set("month", String(cMo)); p.set("year", String(cYr)) }
+    try { const r = await fetch(`/api/social/posts?${p}`); const d = await r.json(); setPosts(d.posts || []) } catch { /**/ }
     setLoading(false)
-  }, [activeTab, activeLocation, activePlatform, currentMonth, currentYear])
-
-  const loadAnalytics = useCallback(async () => {
-    setLoadingAnalytics(true)
-    try { const r = await fetch(`/api/social/analytics?locationId=${analyticsLoc}`); setAnalytics(await r.json()) } catch { /* */ }
-    setLoadingAnalytics(false)
-  }, [analyticsLoc])
+  }, [tab, locF, platF, cMo, cYr])
+  const loadAna = useCallback(async () => { setAnaLoad(true); try { const r = await fetch(`/api/social/analytics?locationId=${anaLoc}`); setAnalytics(await r.json()) } catch { /**/ }; setAnaLoad(false) }, [anaLoc])
+  const checkCanva = async () => { try { const r = await fetch("/api/social/canva?action=status"); const d = await r.json(); setCanvaOk(d.connected); if (d.connected) setCanvaUser(d.user) } catch { /**/ } }
+  const loadDesigns = async (pt?: string) => { setCanvaLoad(true); try { const r = await fetch(`/api/social/canva?action=designs${pt ? `&page_token=${pt}` : ""}`); const d = await r.json(); if (d.needsAuth) setCanvaOk(false); else { setCanvaDesigns(prev => pt ? [...prev, ...(d.designs || [])] : d.designs || []); setCanvaCont(d.continuation || null) } } catch { /**/ }; setCanvaLoad(false) }
+  const exportDesign = async (did: string): Promise<string | null> => { setExporting(did); try { const r = await fetch(`/api/social/canva?action=export&design_id=${did}`); const d = await r.json(); return d.url || null } catch { return null } finally { setExporting(null) } }
 
   useEffect(() => { loadPosts() }, [loadPosts])
-  useEffect(() => { if (activeTab === "analytics") loadAnalytics() }, [activeTab, loadAnalytics])
+  useEffect(() => { if (tab === "analytics") loadAna() }, [tab, loadAna])
+  useEffect(() => { checkCanva() }, [])
+  useEffect(() => { if (tab === "design" && canvaOk) loadDesigns() }, [tab, canvaOk])
 
-  /* ── Composer actions ── */
-  function openComposer(post?: SPost, date?: string) {
-    if (post) {
-      setEditingPost(post); setCLoc(post.locationId); setCPlat(post.platform); setCContent(post.content)
-      setCImages(Array.isArray(post.imageUrls) ? post.imageUrls : [])
-      setSchedMode(post.status === "scheduled" ? "later" : post.status === "draft" ? "draft" : "now")
-      setCDate(post.scheduledAt ? new Date(post.scheduledAt).toISOString().slice(0, 16) : "")
-    } else {
-      setEditingPost(null); setCLoc("BOTH"); setCPlat("both"); setCContent(""); setCImages([])
-      setSchedMode("draft"); setCDate(date || "")
-      if (date) setSchedMode("later")
-    }
-    setShowComposer(true)
+  // Composer
+  function openComp(post?: SPost, date?: string, img?: string) {
+    if (post) { setEditPost(post); setCLoc(post.locationId); setCPlats(post.platform === "both" ? ["facebook", "instagram"] : [post.platform]); setCContent(post.content); setCImages(Array.isArray(post.imageUrls) ? post.imageUrls : []); setSMode(post.scheduledAt ? "later" : "draft"); setCDate(post.scheduledAt ? new Date(post.scheduledAt).toISOString().slice(0, 16) : "") }
+    else { setEditPost(null); setCLoc("BOTH"); setCPlats(["facebook", "instagram"]); setCContent(""); setCImages(img ? [img] : []); setSMode(date ? "later" : "draft"); setCDate(date || "") }
+    setShowComp(true)
   }
-
-  async function handleSubmit() {
-    if (!cContent.trim()) return
-    setSaving(true)
-    const status = schedMode === "now" ? "published" : schedMode === "later" ? "scheduled" : "draft"
-    const body = { locationId: cLoc, platform: cPlat, content: cContent, imageUrls: cImages, status, scheduledAt: schedMode === "later" && cDate ? cDate : null }
+  async function submitPost() {
+    if (!cContent.trim()) return; setSaving(true)
+    const status = sMode === "now" ? "published" : sMode === "later" ? "scheduled" : "draft"
+    const platform = cPlats.length === 2 ? "both" : cPlats[0] || "both"
+    const body = { locationId: cLoc, platform, content: cContent, imageUrls: cImages, status, scheduledAt: sMode === "later" && cDate ? cDate : null }
     try {
-      const url = editingPost ? `/api/social/posts/${editingPost.id}` : "/api/social/posts"
-      const method = editingPost ? "PATCH" : "POST"
-      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      if (r.ok) { setShowComposer(false); setEditingPost(null); setComposerDate(""); loadPosts(); showToastMsg(status === "published" ? "Posted successfully" : status === "scheduled" ? "Post scheduled" : "Draft saved") }
-      else { const d = await r.json(); showToastMsg(d.error || "Failed to save", "error") }
-    } catch { showToastMsg("Network error", "error") }
-    setSaving(false)
+      const url = editPost ? `/api/social/posts/${editPost.id}` : "/api/social/posts"
+      const r = await fetch(url, { method: editPost ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      if (r.ok) { setShowComp(false); setEditPost(null); loadPosts(); showT(status === "published" ? "Posted!" : status === "scheduled" ? "Scheduled" : "Draft saved") }
+      else { const d = await r.json(); showT(d.error || "Failed", "error") }
+    } catch { showT("Network error", "error") }; setSaving(false)
   }
+  async function delPost(id: string) { await fetch(`/api/social/posts/${id}`, { method: "DELETE" }); loadPosts(); showT("Deleted") }
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) { Array.from(e.target.files || []).forEach(f => { const r = new FileReader(); r.onload = () => { if (r.result) setCImages(p => [...p, r.result as string]) }; r.readAsDataURL(f) }); if (fileRef.current) fileRef.current.value = "" }
 
-  async function deletePost(id: string) {
-    await fetch(`/api/social/posts/${id}`, { method: "DELETE" })
-    loadPosts(); showToastMsg("Post deleted")
-  }
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files) return
-    Array.from(files).forEach(file => {
-      const reader = new FileReader()
-      reader.onload = () => { if (reader.result) setCImages(prev => [...prev, reader.result as string]) }
-      reader.readAsDataURL(file)
-    })
-    if (fileRef.current) fileRef.current.value = ""
-  }
-
-  /* ── Calendar helpers ── */
-  const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay()
-  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate()
-  const calCells = Array.from({ length: 42 }, (_, i) => { const d = i - firstDay + 1; return d >= 1 && d <= daysInMonth ? d : null })
-  const today = new Date()
-  const isToday = (d: number) => d === today.getDate() && currentMonth - 1 === today.getMonth() && currentYear === today.getFullYear()
-  const postsOnDay = (d: number) => posts.filter(p => { const pd = new Date(p.scheduledAt || p.publishedAt || p.createdAt); return pd.getDate() === d && pd.getMonth() === currentMonth - 1 && pd.getFullYear() === currentYear })
-
-  /* ── Analytics helpers ── */
-  const fbPosts = analytics?.fbPosts?.data || []
-  const igProfile = analytics?.igProfile || null
-
-  const Skel = ({ h = "34px" }: { h?: string }) => <div style={{ height: h, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+  // Calendar
+  const fd = new Date(cYr, cMo - 1, 1).getDay(), dim = new Date(cYr, cMo, 0).getDate()
+  const cells = Array.from({ length: 42 }, (_, i) => { const d = i - fd + 1; return d >= 1 && d <= dim ? d : null })
+  const td = new Date(); const isToday = (d: number) => d === td.getDate() && cMo - 1 === td.getMonth() && cYr === td.getFullYear()
+  const onDay = (d: number) => posts.filter(p => { const x = new Date(p.scheduledAt || p.publishedAt || p.createdAt); return x.getDate() === d && x.getMonth() === cMo - 1 && x.getFullYear() === cYr })
+  const fbP = analytics?.fbPosts?.data || []; const igP = analytics?.igProfile || null
+  const Sk = ({ h = "34px" }: { h?: string }) => <div style={{ height: h, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
 
   if (isStylist) return <div style={{ padding: "40px", textAlign: "center", color: MUTED }}><div style={{ fontSize: "16px", fontWeight: 700 }}>Owner / Manager Access Only</div></div>
 
   return (
     <div style={{ ...jakarta, backgroundColor: "#06080d", minHeight: "100%", color: "#fff", padding: "24px", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
-      <style>{`@media(max-width:767px){.sg4{grid-template-columns:1fr 1fr !important}.sg2c{grid-template-columns:1fr !important}} @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}`}</style>
+      <style>{`@media(max-width:767px){.sg4{grid-template-columns:1fr 1fr !important}.sg2c{grid-template-columns:1fr !important}.comp-grid{grid-template-columns:1fr !important}.comp-prev{display:none !important}} @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}`}</style>
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-
-        {/* ── Header ── */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-          <h1 style={{ fontSize: "18px", fontWeight: 500, color: "#fff", margin: 0 }}>Social Media</h1>
-          <button onClick={() => openComposer()} style={{ padding: "8px 18px", background: `linear-gradient(135deg, ${ACC_BRIGHT}, ${ACC})`, border: "none", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer", ...jakarta }}>Create Post</button>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "14px" }}>
+          <h1 style={{ fontSize: "18px", fontWeight: 500, margin: 0 }}>Social Media</h1>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            {["BOTH", "CC", "SA"].map(l => <button key={l} onClick={() => setLocF(l)} style={{ ...mono, padding: "4px 10px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: locF === l ? `1px solid ${ACC_B}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: locF === l ? ACC_DIM : "transparent", color: locF === l ? ACC_B : MUTED, cursor: "pointer" }}>{l === "BOTH" ? "Both" : l}</button>)}
+            <div style={{ width: "1px", height: "18px", background: BORDER2, margin: "0 2px" }} />
+            {["all", "facebook", "instagram"].map(p => <button key={p} onClick={() => setPlatF(p)} style={{ ...mono, padding: "4px 10px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: platF === p ? `1px solid ${ACC_B}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: platF === p ? ACC_DIM : "transparent", color: platF === p ? ACC_B : MUTED, cursor: "pointer" }}>{p === "all" ? "All" : p === "facebook" ? "FB" : "IG"}</button>)}
+            <button onClick={() => openComp()} style={{ padding: "7px 16px", background: `linear-gradient(135deg, ${ACC_B}, ${ACC})`, border: "none", borderRadius: "8px", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer", ...jakarta }}>Create Post</button>
+          </div>
         </div>
-
-        {/* ── Filters ── */}
-        <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
-          {["BOTH", "CC", "SA"].map(l => <button key={l} onClick={() => setActiveLocation(l)} style={{ ...mono, padding: "5px 10px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: activeLocation === l ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: activeLocation === l ? ACC_DIM : "transparent", color: activeLocation === l ? ACC_BRIGHT : MUTED, cursor: "pointer" }}>{l === "BOTH" ? "Both" : l}</button>)}
-          <div style={{ width: "1px", height: "20px", background: BORDER2, margin: "0 4px" }} />
-          {["all", "facebook", "instagram"].map(p => <button key={p} onClick={() => setActivePlatform(p)} style={{ ...mono, padding: "5px 10px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: activePlatform === p ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: activePlatform === p ? ACC_DIM : "transparent", color: activePlatform === p ? ACC_BRIGHT : MUTED, cursor: "pointer" }}>{p === "all" ? "All" : p === "facebook" ? "FB" : "IG"}</button>)}
-        </div>
-
-        {/* ── Tab bar ── */}
+        {/* Tabs */}
         <div style={{ display: "flex", gap: "2px", marginBottom: "20px", overflowX: "auto", borderBottom: `1px solid ${BORDER}` }}>
-          {TABS.map(t => <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: activeTab === t.id ? ACC_BRIGHT : MUTED, backgroundColor: activeTab === t.id ? ACC_DIM : "transparent", border: "none", borderBottom: activeTab === t.id ? `2px solid ${ACC}` : "2px solid transparent", borderRadius: activeTab === t.id ? "6px 6px 0 0" : "0", cursor: "pointer", whiteSpace: "nowrap", ...mono }}>{t.label}</button>)}
+          {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: tab === t.id ? ACC_B : MUTED, backgroundColor: tab === t.id ? ACC_DIM : "transparent", border: "none", borderBottom: tab === t.id ? `2px solid ${ACC}` : "2px solid transparent", borderRadius: tab === t.id ? "6px 6px 0 0" : "0", cursor: "pointer", whiteSpace: "nowrap", ...mono }}>{t.label}</button>)}
         </div>
 
-        {/* ═══ CALENDAR TAB ═══ */}
-        {activeTab === "calendar" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <button onClick={() => { if (currentMonth === 1) { setCurrentMonth(12); setCurrentYear(y => y - 1) } else setCurrentMonth(m => m - 1) }} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: ACC_BRIGHT, cursor: "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_left</span></button>
-              <span style={{ fontSize: "16px", fontWeight: 700 }}>{new Date(currentYear, currentMonth - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
-              <div style={{ display: "flex", gap: "4px" }}>
-                <button onClick={() => { setCurrentMonth(today.getMonth() + 1); setCurrentYear(today.getFullYear()) }} style={{ ...mono, padding: "5px 10px", fontSize: "9px", border: `1px solid ${BORDER2}`, borderRadius: "5px", background: "none", color: ACC_BRIGHT, cursor: "pointer", textTransform: "uppercase" }}>Today</button>
-                <button onClick={() => { if (currentMonth === 12) { setCurrentMonth(1); setCurrentYear(y => y + 1) } else setCurrentMonth(m => m + 1) }} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: ACC_BRIGHT, cursor: "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_right</span></button>
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", background: BORDER }}>
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d} style={{ ...mono, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: MUTED, padding: "8px", background: "#06080d", textAlign: "center" }}>{d}</div>)}
-              {calCells.map((d, i) => (
-                <div key={i} onClick={() => d && openComposer(undefined, `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(d).padStart(2, "0")}T10:00`)} style={{ minHeight: "90px", background: d ? (isToday(d) ? ACC_DIM : S1) : "#06080d", padding: "6px", cursor: d ? "pointer" : "default", position: "relative", border: d && isToday(d) ? `1px solid ${ACC_BORDER}` : "none", transition: "background 0.15s" }}>
-                  {d && <>
-                    <div style={{ ...mono, fontSize: "11px", color: isToday(d) ? ACC_BRIGHT : MUTED, fontWeight: isToday(d) ? 500 : 400 }}>{d}</div>
-                    {postsOnDay(d).slice(0, 3).map(p => (
-                      <div key={p.id} onClick={e => { e.stopPropagation(); openComposer(p) }} style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", background: p.platform === "facebook" ? "rgba(24,119,242,0.15)" : p.platform === "instagram" ? "rgba(188,24,136,0.15)" : ACC_DIM, color: p.platform === "facebook" ? FB_BLUE : p.platform === "instagram" ? IG_PINK : ACC_BRIGHT, border: `1px solid ${p.platform === "facebook" ? "rgba(24,119,242,0.25)" : p.platform === "instagram" ? "rgba(188,24,136,0.25)" : ACC_BORDER}` }}>{p.content.slice(0, 18)}</div>
-                    ))}
-                    {postsOnDay(d).length > 3 && <div style={{ ...mono, fontSize: "8px", color: MUTED, marginTop: "2px" }}>+{postsOnDay(d).length - 3}</div>}
-                  </>}
-                </div>
-              ))}
-            </div>
+        {/* ═══ CALENDAR ═══ */}
+        {tab === "calendar" && (<div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+            <button onClick={() => { if (cMo === 1) { setCMo(12); setCYr(y => y - 1) } else setCMo(m => m - 1) }} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: ACC_B, cursor: "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_left</span></button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}><span style={{ fontSize: "16px", fontWeight: 700 }}>{new Date(cYr, cMo - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span><button onClick={() => { setCMo(td.getMonth() + 1); setCYr(td.getFullYear()) }} style={{ ...mono, padding: "4px 10px", fontSize: "9px", border: `1px solid ${BORDER2}`, borderRadius: "5px", background: "none", color: ACC_B, cursor: "pointer", textTransform: "uppercase" }}>Today</button></div>
+            <button onClick={() => { if (cMo === 12) { setCMo(1); setCYr(y => y + 1) } else setCMo(m => m + 1) }} style={{ background: "none", border: `1px solid ${BORDER2}`, borderRadius: "6px", padding: "5px 8px", color: ACC_B, cursor: "pointer" }}><span className="material-symbols-outlined" style={{ fontSize: "16px" }}>chevron_right</span></button>
           </div>
-        )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", background: BORDER }}>
+            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d} style={{ ...mono, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: MUTED, padding: "8px", background: "#06080d", textAlign: "center" }}>{d}</div>)}
+            {cells.map((d, i) => (<div key={i} onClick={() => d && openComp(undefined, `${cYr}-${String(cMo).padStart(2, "0")}-${String(d).padStart(2, "0")}T10:00`)} style={{ minHeight: "90px", background: d ? isToday(d) ? ACC_DIM : S1 : "#06080d", padding: "6px", cursor: d ? "pointer" : "default", border: d && isToday(d) ? `1px solid ${ACC_BDR}` : "none" }}>
+              {d && <><div style={{ ...mono, fontSize: "11px", color: isToday(d) ? ACC_B : MUTED, fontWeight: isToday(d) ? 500 : 400 }}>{d}</div>
+                {onDay(d).slice(0, 3).map(p => <div key={p.id} onClick={e => { e.stopPropagation(); openComp(p) }} style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", background: p.platform === "facebook" ? "rgba(24,119,242,0.15)" : p.platform === "instagram" ? "rgba(188,24,136,0.15)" : ACC_DIM, color: p.platform === "facebook" ? FB : p.platform === "instagram" ? IG : ACC_B, border: `1px solid ${p.platform === "facebook" ? "rgba(24,119,242,0.25)" : p.platform === "instagram" ? "rgba(188,24,136,0.25)" : ACC_BDR}` }}>{p.content.slice(0, 18)}</div>)}
+                {onDay(d).length > 3 && <div style={{ ...mono, fontSize: "8px", color: MUTED, marginTop: "2px" }}>+{onDay(d).length - 3}</div>}</>}
+            </div>))}
+          </div>
+        </div>)}
 
-        {/* ═══ LIST TABS (Scheduled / Drafts / Published) ═══ */}
-        {(activeTab === "scheduled" || activeTab === "drafts" || activeTab === "published") && (
-          <div>
-            {loading ? [1,2,3].map(i => <div key={i} style={{ ...cardS, marginBottom: "8px" }}><Skel h="60px" /></div>) : posts.length === 0 ? (
-              <div style={{ ...cardS, textAlign: "center", padding: "48px", color: MUTED }}>No {activeTab} posts</div>
-            ) : posts.map(p => (
-              <div key={p.id} style={{ ...cardS, marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "14px", flexWrap: "wrap" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: p.platform === "facebook" ? FB_BLUE : p.platform === "instagram" ? `linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, ${IG_PINK})` : `linear-gradient(135deg, ${FB_BLUE}, ${IG_PINK})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "12px", color: "#fff", fontWeight: 700 }}>{p.platform === "facebook" ? "f" : p.platform === "instagram" ? "ig" : "+"}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
-                    <span style={{ ...mono, fontSize: "9px", padding: "2px 7px", borderRadius: "4px", backgroundColor: ACC_DIM, border: `1px solid ${ACC_BORDER}`, color: ACC_BRIGHT, textTransform: "uppercase" }}>{p.locationId}</span>
-                    <span style={{ ...mono, fontSize: "11px", color: MUTED }}>{p.scheduledAt ? fmtDt(p.scheduledAt) : p.publishedAt ? fmtDt(p.publishedAt) : timeAgo(p.createdAt)}</span>
-                    {p.status === "failed" && <span style={{ ...mono, fontSize: "9px", padding: "2px 6px", borderRadius: "4px", backgroundColor: "rgba(255,107,107,0.1)", color: "#ff6b6b" }}>FAILED</span>}
-                  </div>
-                  <div style={{ fontSize: "13px", color: MID, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.content}</div>
-                  {activeTab === "published" && (p.likes != null || p.comments != null) && <div style={{ ...mono, fontSize: "10px", color: MUTED, marginTop: "4px" }}>{p.likes || 0} likes · {p.comments || 0} comments · {p.shares || 0} shares</div>}
+        {/* ═══ LIST TABS ═══ */}
+        {(tab === "scheduled" || tab === "drafts" || tab === "published") && (<div>
+          {loading ? [1,2,3].map(i => <div key={i} style={{ ...cs, marginBottom: "8px" }}><Sk h="60px" /></div>) : posts.length === 0 ? <div style={{ ...cs, textAlign: "center", padding: "48px", color: MUTED }}>No {tab} posts</div> : posts.map(p => (
+            <div key={p.id} style={{ ...cs, marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "14px", flexWrap: "wrap", borderLeft: `3px solid ${p.platform === "facebook" ? FB : p.platform === "instagram" ? IG : ACC_B}`, borderRadius: "0 14px 14px 0" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: p.platform === "facebook" ? FB : p.platform === "instagram" ? `linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, ${IG})` : `linear-gradient(135deg, ${FB}, ${IG})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "14px", color: "#fff", fontWeight: 700 }}>{p.platform === "facebook" ? "f" : p.platform === "instagram" ? "ig" : "+"}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
+                  <span style={{ ...mono, fontSize: "9px", padding: "2px 7px", borderRadius: "4px", backgroundColor: ACC_DIM, border: `1px solid ${ACC_BDR}`, color: ACC_B, textTransform: "uppercase" }}>{p.locationId}</span>
+                  <span style={{ ...mono, fontSize: "11px", color: MUTED }}>{p.scheduledAt ? fmtDt(p.scheduledAt) : p.publishedAt ? fmtDt(p.publishedAt) : timeAgo(p.createdAt)}</span>
+                  {p.status === "failed" && <span style={{ ...mono, fontSize: "9px", padding: "2px 6px", borderRadius: "4px", backgroundColor: "rgba(255,107,107,0.1)", color: "#ff6b6b" }}>FAILED</span>}
                 </div>
-                <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                  <button onClick={() => openComposer(p)} style={{ padding: "5px 10px", border: `1px solid ${BORDER2}`, borderRadius: "6px", background: "none", color: ACC_BRIGHT, fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono }}>{activeTab === "published" ? "Repost" : "Edit"}</button>
-                  <button onClick={() => deletePost(p.id)} style={{ padding: "5px 10px", border: "1px solid rgba(255,107,107,0.2)", borderRadius: "6px", background: "none", color: "#ff6b6b", fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono }}>Del</button>
+                <div style={{ fontSize: "13px", color: MID, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.content}</div>
+                {tab === "published" && (p.likes != null || p.comments != null) && <div style={{ ...mono, fontSize: "10px", color: MUTED, marginTop: "4px" }}>{p.likes || 0} likes · {p.comments || 0} comments · {p.shares || 0} shares</div>}
+              </div>
+              <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                <button onClick={() => openComp(p)} style={{ padding: "5px 10px", border: `1px solid ${BORDER2}`, borderRadius: "6px", background: "none", color: ACC_B, fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono }}>{tab === "published" ? "Repost" : "Edit"}</button>
+                <button onClick={() => delPost(p.id)} style={{ padding: "5px 10px", border: "1px solid rgba(255,107,107,0.2)", borderRadius: "6px", background: "none", color: "#ff6b6b", fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono }}>Del</button>
+              </div>
+            </div>))}
+        </div>)}
+
+        {/* ═══ ANALYTICS ═══ */}
+        {tab === "analytics" && (<div>
+          <div style={{ display: "flex", gap: "4px", marginBottom: "16px" }}>{["CC", "SA"].map(l => <button key={l} onClick={() => setAnaLoc(l)} style={{ ...mono, padding: "5px 12px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: anaLoc === l ? `1px solid ${ACC_B}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: anaLoc === l ? ACC_DIM : "transparent", color: anaLoc === l ? ACC_B : MUTED, cursor: "pointer" }}>{l}</button>)}</div>
+          <div className="sg4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
+            {[{ label: "IG Followers", val: anaLoad ? null : igP ? String(igP.followers_count || 0) : "\u2014", border: IG }, { label: "IG Posts", val: anaLoad ? null : igP ? String(igP.media_count || 0) : "\u2014", border: IG }, { label: "FB Posts", val: anaLoad ? null : String(fbP.length), border: FB }, { label: "Published (DB)", val: loading ? null : String(posts.filter(p => p.status === "published").length), border: GREEN }].map(k => (
+              <div key={k.label} style={{ ...cs, borderLeft: `3px solid ${k.border}`, borderRadius: "0 14px 14px 0" }}><div style={lblS}>{k.label}</div>{k.val === null ? <Sk /> : <div style={{ ...mono, fontSize: "28px", fontWeight: 600 }}>{k.val}</div>}</div>))}
+          </div>
+          {igP && <div style={{ ...cs, borderLeft: `3px solid ${IG}`, borderRadius: "0 14px 14px 0", marginBottom: "16px" }}><div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "4px" }}>@{igP.username || "salonenvyusa"}</div><div style={{ ...mono, fontSize: "12px", color: MUTED }}>{(igP.followers_count || 0).toLocaleString()} followers · {igP.media_count || 0} posts</div></div>}
+          <div style={cs}><div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>Recent FB Posts</div>
+            {fbP.length === 0 ? <div style={{ color: MUTED, textAlign: "center", padding: "20px" }}>No data</div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr>{["Preview","Date","Likes","Comments","Shares"].map(h => <th key={h} style={{ padding: "8px", textAlign: h === "Preview" ? "left" : "right", fontSize: "9px", fontWeight: 700, color: MUTED, textTransform: "uppercase", borderBottom: `1px solid ${BORDER}`, ...mono }}>{h}</th>)}</tr></thead><tbody>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {fbP.map((p: any, i: number) => <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}><td style={{ padding: "8px", fontSize: "12px", color: MID, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.message || "").slice(0, 50) || "(no text)"}</td><td style={{ ...mono, padding: "8px", textAlign: "right", fontSize: "11px", color: MUTED }}>{p.created_time ? new Date(p.created_time).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</td><td style={{ ...mono, padding: "8px", textAlign: "right", fontSize: "12px", color: ACC_B }}>{p.likes?.summary?.total_count || 0}</td><td style={{ ...mono, padding: "8px", textAlign: "right", fontSize: "12px", color: ACC_B }}>{p.comments?.summary?.total_count || 0}</td><td style={{ ...mono, padding: "8px", textAlign: "right", fontSize: "12px", color: ACC_B }}>{p.shares?.count || 0}</td></tr>)}
+            </tbody></table></div>}
+          </div>
+        </div>)}
+
+        {/* ═══ CANVA DESIGN TAB ═══ */}
+        {tab === "design" && (<div>
+          {!canvaOk ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", maxWidth: "480px", margin: "0 auto" }}>
+              <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: CANVA, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: "32px", fontWeight: 700, color: "#fff" }}>C</div>
+              <div style={{ fontSize: "24px", fontWeight: 500, marginBottom: "10px" }}>Design with Canva</div>
+              <p style={{ fontSize: "14px", color: MID, lineHeight: 1.7, marginBottom: "24px" }}>Connect your Canva account to browse designs, create new ones, and publish directly to Facebook and Instagram.</p>
+              <button onClick={() => { window.location.href = "/api/social/canva?action=auth" }} style={{ padding: "12px 28px", background: CANVA, border: "none", borderRadius: "9px", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", ...jakarta }}>Connect Canva Account</button>
+              <p style={{ fontSize: "11px", color: MUTED, marginTop: "12px" }}>You will be redirected to Canva to authorize read access to your designs.</p>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
+                <span style={{ ...mono, fontSize: "11px", padding: "4px 10px", borderRadius: "20px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: GREEN }}>Connected{canvaUser?.profile?.display_name ? ` as ${canvaUser.profile.display_name}` : ""}</span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={() => window.open("https://www.canva.com/design/new", "_blank")} style={{ padding: "7px 14px", border: `1px solid ${CANVA}40`, borderRadius: "7px", background: "none", color: CANVA, fontSize: "12px", fontWeight: 600, cursor: "pointer", ...jakarta }}>New Design</button>
+                  <button onClick={async () => { await fetch("/api/social/canva?action=disconnect"); setCanvaOk(false); setCanvaDesigns([]) }} style={{ padding: "7px 14px", border: `1px solid ${BORDER2}`, borderRadius: "7px", background: "none", color: MUTED, fontSize: "12px", cursor: "pointer", ...jakarta }}>Disconnect</button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* ═══ ANALYTICS TAB ═══ */}
-        {activeTab === "analytics" && (
-          <div>
-            <div style={{ display: "flex", gap: "4px", marginBottom: "16px" }}>
-              {["CC", "SA"].map(l => <button key={l} onClick={() => setAnalyticsLoc(l)} style={{ ...mono, padding: "5px 12px", fontSize: "9px", fontWeight: 700, textTransform: "uppercase", border: analyticsLoc === l ? `1px solid ${ACC_BRIGHT}` : `1px solid ${BORDER2}`, borderRadius: "5px", backgroundColor: analyticsLoc === l ? ACC_DIM : "transparent", color: analyticsLoc === l ? ACC_BRIGHT : MUTED, cursor: "pointer" }}>{l}</button>)}
-            </div>
-
-            {/* KPIs */}
-            <div className="sg4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
-              {[
-                { label: "IG Followers", val: loadingAnalytics ? null : igProfile ? String(igProfile.followers_count || 0) : "\u2014", border: IG_PINK },
-                { label: "IG Posts", val: loadingAnalytics ? null : igProfile ? String(igProfile.media_count || 0) : "\u2014", border: IG_PINK },
-                { label: "FB Posts (Recent)", val: loadingAnalytics ? null : String(fbPosts.length), border: FB_BLUE },
-                { label: "DB Posts This Mo.", val: loading ? null : String(posts.filter(p => p.status === "published").length), border: GREEN },
-              ].map(k => (
-                <div key={k.label} style={{ ...cardS, borderLeft: `3px solid ${k.border}`, borderRadius: "0 14px 14px 0" }}>
-                  <div style={labelS}>{k.label}</div>
-                  {k.val === null ? <Skel /> : <div style={{ ...mono, fontSize: "28px", fontWeight: 600, color: "#fff" }}>{k.val}</div>}
-                </div>
-              ))}
-            </div>
-
-            {/* IG Profile */}
-            {igProfile && (
-              <div style={{ ...cardS, borderLeft: `3px solid ${IG_PINK}`, borderRadius: "0 14px 14px 0", marginBottom: "16px" }}>
-                <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>@{igProfile.username || "salonenvyusa"}</div>
-                <div style={{ ...mono, fontSize: "12px", color: MUTED }}>{igProfile.followers_count?.toLocaleString() || 0} followers · {igProfile.media_count || 0} posts</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "14px" }}>
+                {canvaLoad && canvaDesigns.length === 0 ? Array.from({ length: 6 }, (_, i) => <div key={i} style={{ ...cs, height: "260px", animation: "pulse 1.5s ease-in-out infinite" }} />) : canvaDesigns.map(d => (
+                  <div key={d.id} style={{ ...cs, overflow: "hidden", padding: 0, cursor: "pointer", transition: "all 0.2s" }}>
+                    <div style={{ width: "100%", aspectRatio: "1", background: S2, overflow: "hidden" }}>
+                      {d.thumbnail?.url ? <img src={d.thumbnail.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: MUTED, fontSize: "12px" }}>No preview</div>}
+                    </div>
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ fontSize: "13px", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>{d.title || "Untitled"}</div>
+                      <div style={{ ...mono, fontSize: "10px", color: MUTED, marginBottom: "8px" }}>{d.created_at ? new Date(d.created_at * 1000).toLocaleDateString() : ""}</div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        {d.urls?.edit_url && <button onClick={() => window.open(d.urls!.edit_url, "_blank")} style={{ flex: 1, padding: "5px", border: `1px solid ${BORDER2}`, borderRadius: "5px", background: "none", color: ACC_B, fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono }}>Edit</button>}
+                        <button onClick={async () => { const url = await exportDesign(d.id); if (url) { openComp(undefined, undefined, url); showT("Design exported — compose your post") } else showT("Export failed", "error") }} disabled={exporting === d.id} style={{ flex: 1, padding: "5px", border: `1px solid ${CANVA}40`, borderRadius: "5px", background: "none", color: CANVA, fontSize: "10px", fontWeight: 700, cursor: "pointer", ...mono, opacity: exporting === d.id ? 0.5 : 1 }}>{exporting === d.id ? "..." : "Use"}</button>
+                      </div>
+                    </div>
+                  </div>))}
               </div>
-            )}
-
-            {/* Recent FB posts performance */}
-            <div style={{ ...cardS, marginBottom: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>Recent Posts</div>
-              {fbPosts.length === 0 ? <div style={{ color: MUTED, fontSize: "13px", textAlign: "center", padding: "20px" }}>No post data</div> : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead><tr>{["Platform","Preview","Date","Likes","Comments","Shares"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: h === "Preview" ? "left" : "right", fontSize: "9px", fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", borderBottom: `1px solid ${BORDER}`, ...mono }}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {fbPosts.map((p: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                          <td style={{ padding: "8px 10px", textAlign: "right" }}><span style={{ ...mono, fontSize: "9px", padding: "2px 6px", borderRadius: "4px", backgroundColor: "rgba(24,119,242,0.15)", color: FB_BLUE }}>FB</span></td>
-                          <td style={{ padding: "8px 10px", fontSize: "12px", color: MID, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.message || "").slice(0, 50) || "(no text)"}</td>
-                          <td style={{ ...mono, padding: "8px 10px", textAlign: "right", fontSize: "11px", color: MUTED }}>{p.created_time ? new Date(p.created_time).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</td>
-                          <td style={{ ...mono, padding: "8px 10px", textAlign: "right", fontSize: "12px", color: ACC_BRIGHT }}>{p.likes?.summary?.total_count || 0}</td>
-                          <td style={{ ...mono, padding: "8px 10px", textAlign: "right", fontSize: "12px", color: ACC_BRIGHT }}>{p.comments?.summary?.total_count || 0}</td>
-                          <td style={{ ...mono, padding: "8px 10px", textAlign: "right", fontSize: "12px", color: ACC_BRIGHT }}>{p.shares?.count || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {canvaCont && <div style={{ textAlign: "center", marginTop: "16px" }}><button onClick={() => loadDesigns(canvaCont)} disabled={canvaLoad} style={{ padding: "8px 20px", border: `1px solid ${BORDER2}`, borderRadius: "7px", background: "none", color: ACC_B, fontSize: "12px", cursor: "pointer", ...jakarta }}>{canvaLoad ? "Loading..." : "Load more"}</button></div>}
             </div>
-          </div>
-        )}
+          )}
+        </div>)}
       </div>
 
-      {/* ═══ POST COMPOSER OVERLAY ═══ */}
-      {showComposer && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "20px", overflowY: "auto" }}>
-          <div style={{ background: "#0d1117", border: `1px solid ${BORDER2}`, borderRadius: "16px", padding: "28px", width: "100%", maxWidth: "680px", marginTop: "20px" }}>
-            {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <h2 style={{ fontSize: "17px", fontWeight: 500, margin: 0 }}>{editingPost ? "Edit Post" : "Create Post"}</h2>
-              <button onClick={() => { setShowComposer(false); setEditingPost(null) }} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: "20px" }}>&times;</button>
-            </div>
-
-            {/* Platform */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={labelS}>Platform</div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => setCPlat("facebook")} style={pillS(cPlat === "facebook", FB_BLUE)}>Facebook</button>
-                <button onClick={() => setCPlat("instagram")} style={pillS(cPlat === "instagram", IG_PINK)}>Instagram</button>
-                <button onClick={() => setCPlat("both")} style={pillS(cPlat === "both")}>Both</button>
+      {/* ═══ COMPOSER ═══ */}
+      {showComp && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div className="comp-grid" style={{ display: "grid", gridTemplateColumns: "1fr 380px", width: "100%", maxWidth: "960px", maxHeight: "90vh", background: "#0d1117", border: `1px solid ${BORDER2}`, borderRadius: "16px", overflow: "hidden" }}>
+            {/* LEFT: Editor */}
+            <div style={{ padding: "28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: 500, margin: 0 }}>{editPost ? "Edit Post" : "New Post"}</h2>
+                <button onClick={() => { setShowComp(false); setEditPost(null) }} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: "20px" }}>&times;</button>
               </div>
-            </div>
-
-            {/* Location */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={labelS}>Location</div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                {["CC", "SA", "BOTH"].map(l => <button key={l} onClick={() => setCLoc(l)} style={pillS(cLoc === l)}>{l === "BOTH" ? "Both" : l}</button>)}
-              </div>
-            </div>
-
-            {/* Caption */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={labelS}>Caption</div>
-              <textarea value={cContent} onChange={e => setCContent(e.target.value)} placeholder="Write your caption..." style={{ ...inputS, minHeight: "120px", resize: "vertical" as const }} />
-              <div style={{ textAlign: "right", ...mono, fontSize: "10px", color: cContent.length > 2000 ? "#ff6b6b" : MUTED, marginTop: "4px" }}>{cContent.length.toLocaleString()} / 2,200</div>
-            </div>
-
-            {/* Media */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={labelS}>Media</div>
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple style={{ display: "none" }} onChange={handleFile} />
-              <div onClick={() => fileRef.current?.click()} style={{ border: `2px dashed ${BORDER2}`, borderRadius: "10px", padding: "24px", textAlign: "center", cursor: "pointer", background: S1, transition: "all 0.2s" }}>
-                <div style={{ fontSize: "13px", color: MUTED }}>Drag images here or click to upload</div>
-                <div style={{ ...mono, fontSize: "10px", color: MUTED, marginTop: "4px" }}>JPEG, PNG, WebP — up to 10 images</div>
-              </div>
-              {cImages.length > 0 && (
-                <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-                  {cImages.map((img, i) => (
-                    <div key={i} style={{ position: "relative" }}>
-                      <img src={img} alt="" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "6px", border: `1px solid ${BORDER2}` }} />
-                      <button onClick={() => setCImages(prev => prev.filter((_, j) => j !== i))} style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: "#ff6b6b", border: "none", color: "#fff", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Canva */}
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ ...mono, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: MUTED, marginBottom: "8px" }}>Design with Canva</div>
-                <button onClick={() => window.open("https://www.canva.com/create/social-media-graphics/", "_blank")} style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 16px", background: "#00C4CC", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#fff", border: "none", ...jakarta }}>Create with Canva</button>
-                <div style={{ fontSize: "11px", color: MUTED, marginTop: "6px" }}>Design a post in Canva, download it, then upload the image above</div>
-              </div>
-            </div>
-
-            {/* Schedule */}
-            <div style={{ marginBottom: "20px" }}>
-              <div style={labelS}>When to post</div>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {([["now", "Post Now"], ["later", "Schedule"], ["draft", "Save as Draft"]] as const).map(([m, l]) => <button key={m} onClick={() => setSchedMode(m)} style={pillS(schedMode === m)}>{l}</button>)}
-              </div>
-              {schedMode === "later" && <input type="datetime-local" value={cDate} onChange={e => setCDate(e.target.value)} style={{ ...inputS, marginTop: "10px" }} />}
-            </div>
-
-            {/* Preview toggle */}
-            <div style={{ marginBottom: "16px" }}>
-              <button onClick={() => setShowPreview(!showPreview)} style={{ background: "none", border: "none", color: ACC_BRIGHT, fontSize: "12px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", ...jakarta }}>
-                <span className="material-symbols-outlined" style={{ fontSize: "16px", transform: showPreview ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>expand_more</span>
-                Preview
-              </button>
-              {showPreview && (
-                <div style={{ marginTop: "10px", background: S2, border: `1px solid ${BORDER}`, borderRadius: "10px", padding: "14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                    <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: ACC_DIM, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: "10px", fontWeight: 700, color: ACC_BRIGHT }}>SE</span></div>
-                    <div><div style={{ fontSize: "12px", fontWeight: 700 }}>Salon Envy</div><div style={{ ...mono, fontSize: "9px", color: MUTED }}>Just now</div></div>
+              {/* Platform */}
+              <div><div style={lblS}>Platform</div><div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={() => setCPlats(p => p.includes("facebook") ? p.filter(x => x !== "facebook") : [...p, "facebook"])} style={pill(cPlats.includes("facebook"), FB)}>Facebook</button>
+                <button onClick={() => setCPlats(p => p.includes("instagram") ? p.filter(x => x !== "instagram") : [...p, "instagram"])} style={pill(cPlats.includes("instagram"), IG)}>Instagram</button>
+              </div></div>
+              {/* Location */}
+              <div><div style={lblS}>Post to</div><div style={{ display: "flex", gap: "8px" }}>
+                {["CC", "SA", "BOTH"].map(l => <button key={l} onClick={() => setCLoc(l)} style={pill(cLoc === l)}>{l === "CC" ? "Corpus Christi" : l === "SA" ? "San Antonio" : "Both Locations"}</button>)}
+              </div></div>
+              {/* Media */}
+              <div><div style={lblS}>Photos</div>
+                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFile} />
+                {cImages.length === 0 ? (
+                  <div onClick={() => fileRef.current?.click()} style={{ border: `2px dashed ${BORDER2}`, borderRadius: "12px", padding: "40px 20px", textAlign: "center", cursor: "pointer", background: S1 }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={ACC_B} strokeWidth="1.5" style={{ margin: "0 auto 10px", display: "block" }}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                    <div style={{ fontSize: "14px", color: MID, fontWeight: 500 }}>Add photos</div>
+                    <div style={{ fontSize: "12px", color: MUTED, marginTop: "4px" }}>or drag and drop here</div>
                   </div>
-                  <div style={{ fontSize: "14px", color: cContent ? "#fff" : MUTED, lineHeight: 1.5, minHeight: "30px", marginBottom: "8px" }}>{cContent || "Your post text will appear here..."}</div>
-                  {cImages.length > 0 && <img src={cImages[0]} alt="" style={{ width: "100%", maxHeight: "200px", objectFit: "cover", borderRadius: "6px" }} />}
-                </div>
-              )}
+                ) : (
+                  <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
+                    {cImages.map((img, i) => <div key={i} style={{ position: "relative", flexShrink: 0 }}><img src={img} alt="" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: `1px solid ${BORDER2}` }} /><button onClick={() => setCImages(p => p.filter((_, j) => j !== i))} style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>{i === 0 && <div style={{ position: "absolute", bottom: "4px", left: "4px", ...mono, fontSize: "8px", padding: "1px 4px", borderRadius: "3px", background: "rgba(0,0,0,0.6)", color: "#fff" }}>Cover</div>}</div>)}
+                    <div onClick={() => fileRef.current?.click()} style={{ width: "80px", height: "80px", flexShrink: 0, border: `2px dashed ${BORDER2}`, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "24px", color: MUTED }}>+</div>
+                  </div>
+                )}
+              </div>
+              {/* Caption */}
+              <div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={lblS}>Caption</span><span style={{ ...mono, fontSize: "11px", color: cContent.length > 2000 ? "#ff6b6b" : cContent.length > 1800 ? AMBER : MUTED }}>{cContent.length.toLocaleString()} / 2,200</span></div>
+                <textarea value={cContent} onChange={e => setCContent(e.target.value)} placeholder="Write a caption..." style={{ ...inp, minHeight: "120px", resize: "vertical" as const, fontSize: "15px", lineHeight: "1.6", borderRadius: "10px" }} />
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "8px" }}>{HASHTAGS.slice(0, 6).map(h => <button key={h} onClick={() => setCContent(c => c + " " + h)} style={{ ...mono, fontSize: "10px", padding: "3px 8px", borderRadius: "9999px", backgroundColor: ACC_DIM, border: `1px solid ${BORDER}`, color: ACC_B, cursor: "pointer" }}>{h}</button>)}</div>
+              </div>
+              {/* Schedule */}
+              <div><div style={lblS}>When</div><div style={{ display: "flex", gap: "6px" }}>
+                {([["now", "Post Now"], ["later", "Schedule"], ["draft", "Save Draft"]] as const).map(([m, l]) => <button key={m} onClick={() => setSMode(m)} style={pill(sMode === m)}>{l}</button>)}
+              </div>{sMode === "later" && <input type="datetime-local" value={cDate} onChange={e => setCDate(e.target.value)} style={{ ...inp, marginTop: "10px" }} />}</div>
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "auto", paddingTop: "16px", borderTop: `1px solid ${BORDER}` }}>
+                <button onClick={() => { setShowComp(false); setEditPost(null) }} style={{ padding: "10px 18px", background: "transparent", border: `1px solid ${BORDER2}`, borderRadius: "9px", color: MID, fontSize: "13px", cursor: "pointer", ...jakarta }}>Cancel</button>
+                <button onClick={submitPost} disabled={saving || !cContent.trim()} style={{ padding: "10px 24px", background: `linear-gradient(135deg, ${ACC_B}, ${ACC})`, border: "none", borderRadius: "9px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", ...jakarta, opacity: (!cContent.trim() || saving) ? 0.5 : 1 }}>{saving ? "Saving..." : sMode === "now" ? "Post Now" : sMode === "later" ? "Schedule" : "Save Draft"}</button>
+              </div>
             </div>
-
-            {/* Actions */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => { setShowComposer(false); setEditingPost(null) }} style={{ flex: 1, padding: "12px", background: "transparent", border: `1px solid ${BORDER2}`, borderRadius: "10px", color: MID, fontSize: "13px", cursor: "pointer", ...jakarta }}>Cancel</button>
-              {schedMode !== "now" && <button onClick={() => { setSchedMode("draft"); handleSubmit() }} style={{ flex: 1, padding: "12px", background: "transparent", border: `1px solid ${BORDER2}`, borderRadius: "10px", color: MID, fontSize: "13px", cursor: "pointer", ...jakarta }}>Save Draft</button>}
-              <button onClick={handleSubmit} disabled={saving || !cContent.trim()} style={{ flex: 2, padding: "12px", background: `linear-gradient(135deg, ${ACC_BRIGHT}, ${ACC})`, border: "none", borderRadius: "10px", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", ...jakarta, opacity: (!cContent.trim() || saving) ? 0.5 : 1 }}>
-                {saving ? "Saving..." : schedMode === "now" ? "Post Now" : schedMode === "later" ? "Schedule Post" : "Save Draft"}
-              </button>
+            {/* RIGHT: Phone preview */}
+            <div className="comp-prev" style={{ borderLeft: `1px solid ${BORDER}`, background: "rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px", overflowY: "auto" }}>
+              <div style={{ display: "flex", gap: "4px", marginBottom: "16px" }}>
+                <button onClick={() => setPrevMode("instagram")} style={pill(prevMode === "instagram", IG)}>Instagram</button>
+                <button onClick={() => setPrevMode("facebook")} style={pill(prevMode === "facebook", FB)}>Facebook</button>
+              </div>
+              <div style={{ width: "280px", background: "#000", borderRadius: "36px", border: "8px solid #1a1a1a", overflow: "hidden", boxShadow: "0 0 0 2px #333, 0 20px 60px rgba(0,0,0,0.5)" }}>
+                {/* Status bar */}
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 20px 4px", fontSize: "11px", color: "#fff", fontWeight: 600 }}><span>9:41</span><span style={{ display: "flex", gap: "4px" }}><span style={{ fontSize: "9px" }}>5G</span></span></div>
+                {/* App header */}
+                <div style={{ padding: "8px 14px", borderBottom: `1px solid rgba(255,255,255,0.1)` }}><span style={{ fontSize: "16px", fontWeight: 700 }}>{prevMode === "instagram" ? "Instagram" : "Facebook"}</span></div>
+                {/* Post */}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px" }}>
+                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", backgroundColor: ACC_DIM, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: "10px", fontWeight: 700, color: ACC_B }}>SE</span></div>
+                    <div><div style={{ fontSize: "12px", fontWeight: 600 }}>{cLoc === "SA" ? "salonenvysa" : "salonenvyusa"}</div><div style={{ ...mono, fontSize: "9px", color: MUTED }}>{cLoc === "CC" ? "Corpus Christi, TX" : cLoc === "SA" ? "San Antonio, TX" : "Texas"}</div></div>
+                  </div>
+                  {cImages.length > 0 ? <img src={cImages[0]} alt="" style={{ width: "100%", aspectRatio: prevMode === "instagram" ? "1" : "1.91", objectFit: "cover" }} /> : <div style={{ width: "100%", aspectRatio: prevMode === "instagram" ? "1" : "1.91", background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="1"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg></div>}
+                  {prevMode === "instagram" && <div style={{ display: "flex", gap: "14px", padding: "10px 12px" }}>{["favorite_border", "chat_bubble_outline", "send"].map(ic => <span key={ic} className="material-symbols-outlined" style={{ fontSize: "22px", color: "#fff" }}>{ic}</span>)}</div>}
+                  <div style={{ padding: prevMode === "instagram" ? "0 12px 12px" : "8px 12px 12px" }}>
+                    {prevMode === "facebook" && <div style={{ display: "flex", gap: "12px", padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.1)", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: "8px" }}>{["Like", "Comment", "Share"].map(a => <span key={a} style={{ fontSize: "11px", color: "#B0B3B8" }}>{a}</span>)}</div>}
+                    <div style={{ fontSize: "12px", color: cContent ? "#E4E6EB" : MUTED, lineHeight: 1.5, maxHeight: "80px", overflow: "hidden" }}>
+                      {prevMode === "instagram" && <span style={{ fontWeight: 600, marginRight: "4px" }}>{cLoc === "SA" ? "salonenvysa" : "salonenvyusa"}</span>}
+                      {cContent || "Your caption here..."}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div style={{ position: "fixed", bottom: "100px", right: "20px", background: toast.type === "success" ? "rgba(16,185,129,0.15)" : "rgba(255,107,107,0.15)", border: `1px solid ${toast.type === "success" ? "rgba(16,185,129,0.3)" : "rgba(255,107,107,0.3)"}`, borderRadius: "10px", padding: "12px 20px", color: "#fff", fontSize: "13px", fontWeight: 500, zIndex: 999, backdropFilter: "blur(8px)", ...jakarta }}>{toast.message}</div>
-      )}
+      {/* Toast */}
+      {toast && <div style={{ position: "fixed", bottom: "100px", right: "20px", background: toast.type === "success" ? "rgba(16,185,129,0.15)" : "rgba(255,107,107,0.15)", border: `1px solid ${toast.type === "success" ? "rgba(16,185,129,0.3)" : "rgba(255,107,107,0.3)"}`, borderRadius: "10px", padding: "12px 20px", color: "#fff", fontSize: "13px", fontWeight: 500, zIndex: 999, backdropFilter: "blur(8px)", ...jakarta }}>{toast.message}</div>}
 
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" />
     </div>
