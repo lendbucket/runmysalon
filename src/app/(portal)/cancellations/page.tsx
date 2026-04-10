@@ -21,6 +21,7 @@ interface CancellationEntry {
   locationId: string
   visitCount?: number
   cancelledBy?: string
+  lostRevenue?: number
 }
 
 interface CancellationStats {
@@ -281,8 +282,8 @@ function CustomerModal({
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Est. Past Spend</span>
-                <span style={{ color: "#fff", fontSize: "12px" }}>${(entry.totalPastVisits * avgTicket).toLocaleString()}</span>
+                <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Lost Revenue</span>
+                <span style={{ color: "#fff", fontSize: "12px" }}>${(entry.lostRevenue ?? (entry.totalPastVisits * avgTicket)).toLocaleString()}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "rgba(205,201,192,0.5)", fontSize: "12px" }}>Last Visit</span>
@@ -724,7 +725,7 @@ export default function CancellationsPage() {
                     borderBottom: "1px solid rgba(205,201,192,0.08)",
                   }}
                 >
-                  {["Status", "Client", "Phone", "Email", "Scheduled", "Stylist", "Location", "Visits", "Spend", "Last Visit", "Actions"].map(
+                  {["Status", "Client", "Phone", "Email", "Scheduled", "Stylist", "Location", "Visits", "Lost $", "Last Visit", "Actions"].map(
                     (h) => (
                       <th
                         key={h}
@@ -852,7 +853,7 @@ export default function CancellationsPage() {
                       {c.totalPastVisits}
                     </td>
                     <td style={{ padding: "10px 12px", color: "rgba(205,201,192,0.6)", whiteSpace: "nowrap" }}>
-                      ${(c.totalPastVisits * (data?.stats.avgTicket || 75)).toLocaleString()}
+                      ${(c.lostRevenue ?? (c.totalPastVisits * (data?.stats.avgTicket || 75))).toLocaleString()}
                     </td>
                     <td style={{ padding: "10px 12px", color: "rgba(205,201,192,0.5)", whiteSpace: "nowrap" }}>
                       {c.lastVisitDate ? formatDate(c.lastVisitDate) : "---"}
