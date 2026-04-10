@@ -5,6 +5,7 @@ import {
   getDateRange,
 } from "./square-metrics"
 import { getFullCache } from "./catalogCache"
+import { CC_STYLISTS_MAP, SA_STYLISTS_MAP } from "./staff"
 
 function getSquare() {
   return new SquareClient({
@@ -20,6 +21,16 @@ const CANCELLATION_STATUSES = [
 ] as const
 
 type CancellationStatus = (typeof CANCELLATION_STATUSES)[number]
+
+export interface CustomerProfile {
+  id: string
+  name: string
+  phone: string
+  email: string
+  address: string
+  createdAt: string
+  note: string
+}
 
 export interface CancellationEntry {
   bookingId: string
@@ -42,6 +53,7 @@ export interface CancellationEntry {
   cancelledBy: "Customer" | "Salon" | "No Show"
   lostRevenue: number
   updatedAt: string
+  customer: CustomerProfile | null
 }
 
 export interface CancellationStats {
@@ -109,20 +121,18 @@ export async function getCancellations(
     CANCELLATION_STATUSES.includes(b.status as CancellationStatus)
   )
 
-  // Step 3: Optionally filter by location
+  // Step 3: Filter by location using stylist maps
   let filtered = cancelled
   if (locationFilter && locationFilter !== "Both") {
-    const locName =
-      locationFilter === "CC"
-        ? "Corpus Christi"
-        : locationFilter === "SA"
-          ? "San Antonio"
-          : locationFilter
-    filtered = cancelled.filter((b) => {
-      const tmId = b.appointmentSegments?.[0]?.teamMemberId
-      const loc = getLocationForBooking(b.locationId, tmId)
-      return loc === locName
-    })
+    const stylistMap = locationFilter === "CC" ? CC_STYLISTS_MAP
+      : locationFilter === "SA" ? SA_STYLISTS_MAP
+      : null
+    if (stylistMap) {
+      filtered = cancelled.filter((b) => {
+        const tmId = b.appointmentSegments?.[0]?.teamMemberId
+        return tmId && tmId in stylistMap
+      })
+    }
   }
 
   // Step 4: Collect unique customer IDs
@@ -197,11 +207,8 @@ export async function getCancellations(
     await Promise.all(historyPromises.slice(i, i + 3))
   }
 
-  // Step 6: Fetch customer details (up to 100)
-  const customerDetails: Record<
-    string,
-    { name: string; email: string; phone: string }
-  > = {}
+  // Step 6: Fetch full customer profiles (up to 100)
+  const customerProfiles: Record<string, CustomerProfile> = {}
   const custArray = Array.from(customerIds).slice(0, 100)
 
   for (let i = 0; i < custArray.length; i += 10) {
@@ -213,14 +220,22 @@ export async function getCancellations(
           const c = res.customer
           if (c) {
             const name = [c.givenName, c.familyName].filter(Boolean).join(" ") || "Unknown"
-            customerDetails[cid] = {
+            const addr = c.address
+            const address = addr
+              ? [addr.addressLine1, addr.addressLine2, addr.locality, addr.administrativeDistrictLevel1, addr.postalCode].filter(Boolean).join(", ")
+              : ""
+            customerProfiles[cid] = {
+              id: cid,
               name,
-              email: c.emailAddress || "",
               phone: c.phoneNumber || "",
+              email: c.emailAddress || "",
+              address,
+              createdAt: c.createdAt || "",
+              note: c.note || "",
             }
           }
         } catch {
-          customerDetails[cid] = { name: "Unknown", email: "", phone: "" }
+          customerProfiles[cid] = { id: cid, name: "Unknown", email: "", phone: "", address: "", createdAt: "", note: "" }
         }
       })
     )
@@ -269,7 +284,7 @@ export async function getCancellations(
   const cancellations: CancellationEntry[] = filtered.map((b) => {
     const tmId = b.appointmentSegments?.[0]?.teamMemberId || ""
     const cid = b.customerId || null
-    const cust = cid ? customerDetails[cid] : null
+    const cust = cid ? customerProfiles[cid] : null
     const hist = cid ? historicalVisits[cid] : null
 
     // Extract services and duration from appointment segments
@@ -310,6 +325,7 @@ export async function getCancellations(
       cancelledBy: cancelledByMap[b.status as string] || "Customer",
       lostRevenue: totalServicePrice > 0 ? Math.round(totalServicePrice * 100) / 100 : avgTicket,
       updatedAt: b.updatedAt || b.createdAt || "",
+      customer: cust,
     }
   })
 
