@@ -96,6 +96,17 @@ export default function AppointmentsPage() {
   const [wlSaving, setWlSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
+  // ── Transactions tab ──
+  const [activeTab, setActiveTab] = useState<"appointments" | "transactions">("appointments")
+  const [txPeriod, setTxPeriod] = useState("today")
+  const [txCustomStart, setTxCustomStart] = useState("")
+  const [txCustomEnd, setTxCustomEnd] = useState("")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [txData, setTxData] = useState<{ summary: any; transactions: any[] } | null>(null)
+  const [txLoading, setTxLoading] = useState(false)
+  const [txPage, setTxPage] = useState(0)
+  const TX_PER_PAGE = 25
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -200,6 +211,109 @@ export default function AppointmentsPage() {
 
   function openBookingModal() { resetBooking(); setShowBooking(true) }
 
+  // ── Transactions helpers ──
+  const getTxDateRange = useCallback((): { start: string; end: string } => {
+    const now = new Date()
+    const cst = (d: Date) => new Date(d.toLocaleString("en-US", { timeZone: "America/Chicago" }))
+    const today = cst(now)
+    const y = today.getFullYear(), m = today.getMonth(), day = today.getDate()
+    const dayOfWeek = today.getDay()
+
+    const startOfDay = (d: Date) => { const r = new Date(d); r.setHours(0, 0, 0, 0); return r }
+    const endOfDay = (d: Date) => { const r = new Date(d); r.setHours(23, 59, 59, 999); return r }
+    const toISO = (d: Date) => d.toISOString()
+
+    switch (txPeriod) {
+      case "today": return { start: toISO(startOfDay(today)), end: toISO(endOfDay(today)) }
+      case "yesterday": { const yd = new Date(y, m, day - 1); return { start: toISO(startOfDay(yd)), end: toISO(endOfDay(yd)) } }
+      case "last7": { const d7 = new Date(y, m, day - 6); return { start: toISO(startOfDay(d7)), end: toISO(endOfDay(today)) } }
+      case "thisWeek": { const ws = new Date(y, m, day - dayOfWeek); return { start: toISO(startOfDay(ws)), end: toISO(endOfDay(today)) } }
+      case "lastWeek": { const lws = new Date(y, m, day - dayOfWeek - 7); const lwe = new Date(y, m, day - dayOfWeek - 1); return { start: toISO(startOfDay(lws)), end: toISO(endOfDay(lwe)) } }
+      case "thisMonth": return { start: toISO(new Date(y, m, 1)), end: toISO(endOfDay(today)) }
+      case "last30": { const d30 = new Date(y, m, day - 29); return { start: toISO(startOfDay(d30)), end: toISO(endOfDay(today)) } }
+      case "last90": { const d90 = new Date(y, m, day - 89); return { start: toISO(startOfDay(d90)), end: toISO(endOfDay(today)) } }
+      case "lastMonth": return { start: toISO(new Date(y, m - 1, 1)), end: toISO(new Date(y, m, 0, 23, 59, 59, 999)) }
+      case "ytd": return { start: toISO(new Date(y, 0, 1)), end: toISO(endOfDay(today)) }
+      case "custom": {
+        if (txCustomStart && txCustomEnd) return { start: new Date(txCustomStart + "T00:00:00").toISOString(), end: new Date(txCustomEnd + "T23:59:59").toISOString() }
+        return { start: toISO(startOfDay(today)), end: toISO(endOfDay(today)) }
+      }
+      default: return { start: toISO(startOfDay(today)), end: toISO(endOfDay(today)) }
+    }
+  }, [txPeriod, txCustomStart, txCustomEnd])
+
+  const fetchTransactions = useCallback(async () => {
+    setTxLoading(true)
+    try {
+      const { start, end } = getTxDateRange()
+      const locId = location === "San Antonio" ? "SA" : "CC"
+      const res = await fetch(`/api/transactions?locationId=${locId}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`)
+      const data = await res.json()
+      setTxData(data.error ? null : data)
+      setTxPage(0)
+    } catch { setTxData(null) }
+    setTxLoading(false)
+  }, [getTxDateRange, location])
+
+  useEffect(() => { if (activeTab === "transactions") fetchTransactions() }, [activeTab, fetchTransactions])
+
+  const txPageData = useMemo(() => {
+    if (!txData?.transactions) return []
+    return txData.transactions.slice(txPage * TX_PER_PAGE, (txPage + 1) * TX_PER_PAGE)
+  }, [txData, txPage, TX_PER_PAGE])
+
+  const txTotalPages = txData?.transactions ? Math.ceil(txData.transactions.length / TX_PER_PAGE) : 0
+
+  function exportTxCsv() {
+    if (!txData?.transactions?.length) return
+    const rows = [["Date", "Time", "Client", "Stylist", "Services", "Payment Method", "Subtotal", "Tips", "Tax", "Total"]]
+    for (const tx of txData.transactions) {
+      const d = new Date(tx.closedAt)
+      rows.push([
+        d.toLocaleDateString("en-US", { timeZone: "America/Chicago" }),
+        d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }),
+        tx.customerName,
+        tx.stylistName,
+        tx.services.join("; "),
+        tx.paymentMethod,
+        tx.subtotal.toFixed(2),
+        tx.tips.toFixed(2),
+        tx.tax.toFixed(2),
+        tx.total.toFixed(2),
+      ])
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a"); a.href = url; a.download = `transactions_${txPeriod}_${Date.now()}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const TX_PERIODS = [
+    { key: "today", label: "Today" }, { key: "yesterday", label: "Yesterday" },
+    { key: "last7", label: "Last 7 Days" }, { key: "thisWeek", label: "This Week" },
+    { key: "lastWeek", label: "Last Week" }, { key: "thisMonth", label: "This Month" },
+    { key: "last30", label: "Last 30 Days" }, { key: "last90", label: "Last 90 Days" },
+    { key: "lastMonth", label: "Last Month" }, { key: "ytd", label: "Year to Date" },
+    { key: "custom", label: "Custom Range" },
+  ]
+
+  const CARD_BRANDS: Record<string, { color: string; abbr: string }> = {
+    VISA: { color: "#1A1F71", abbr: "V" }, MASTERCARD: { color: "#EB001B", abbr: "MC" },
+    AMEX: { color: "#006FCF", abbr: "AX" }, DISCOVER: { color: "#FF6600", abbr: "D" },
+    AMERICAN_EXPRESS: { color: "#006FCF", abbr: "AX" },
+  }
+
+  function paymentBadge(method: string) {
+    if (method === "Cash") return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(16,185,129,0.12)", color: "#10B981" }}>CASH</span>
+    if (method === "Apple Pay") return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(255,255,255,0.08)", color: "#fff" }}>Apple Pay</span>
+    const parts = method.split(" ")
+    const brand = parts[0]?.toUpperCase() || ""
+    const info = CARD_BRANDS[brand]
+    if (info) return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: `${info.color}22`, color: info.color === "#1A1F71" ? "#4F8EF7" : info.color }}>{info.abbr} {parts.slice(1).join(" ")}</span>
+    return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(205,201,192,0.08)", color: "rgba(205,201,192,0.6)" }}>{method}</span>
+  }
+
   // Filter by stylist and sort by startTime
   const sorted = useMemo(() => {
     const filtered = stylistFilter === "all"
@@ -249,9 +363,22 @@ export default function AppointmentsPage() {
       {/* Header */}
       <div style={{ marginBottom: "20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
-          <h1 style={{ fontSize: isMobile ? "22px" : "24px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>
-            Appointments
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <h1 style={{ fontSize: isMobile ? "22px" : "24px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>
+              {activeTab === "appointments" ? "Appointments" : "Transactions"}
+            </h1>
+            <div style={{ display: "flex", gap: "2px", backgroundColor: "rgba(205,201,192,0.06)", borderRadius: "8px", padding: "3px" }}>
+              {(["appointments", "transactions"] as const).map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                  padding: "6px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                  borderRadius: "6px", border: "none", cursor: "pointer",
+                  backgroundColor: activeTab === tab ? "#CDC9C0" : "transparent",
+                  color: activeTab === tab ? "#0f1d24" : "rgba(205,201,192,0.45)",
+                  transition: "all 0.15s",
+                }}>{tab === "appointments" ? "Appointments" : "Transactions"}</button>
+              ))}
+            </div>
+          </div>
           {isOwner && (
             <div style={{ display: "flex", gap: "4px" }}>
               {LOCATIONS.map((l) => (
@@ -276,18 +403,21 @@ export default function AppointmentsPage() {
               ))}
             </div>
           )}
-          <button onClick={openBookingModal} style={{
-            padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-            borderRadius: "6px", border: "none", cursor: "pointer", backgroundColor: "#CDC9C0", color: "#0f1d24",
-          }}>New Appointment</button>
-          <button onClick={() => setShowWaitlist(!showWaitlist)} style={{
-            padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-            borderRadius: "6px", border: showWaitlist ? "1px solid #CDC9C0" : "1px solid rgba(205,201,192,0.15)",
-            backgroundColor: showWaitlist ? "rgba(205,201,192,0.12)" : "transparent",
-            color: showWaitlist ? "#CDC9C0" : "rgba(205,201,192,0.45)", cursor: "pointer",
-          }}>Waitlist{waitlist.length > 0 ? ` (${waitlist.length})` : ""}</button>
+          {activeTab === "appointments" && <>
+            <button onClick={openBookingModal} style={{
+              padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+              borderRadius: "6px", border: "none", cursor: "pointer", backgroundColor: "#CDC9C0", color: "#0f1d24",
+            }}>New Appointment</button>
+            <button onClick={() => setShowWaitlist(!showWaitlist)} style={{
+              padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+              borderRadius: "6px", border: showWaitlist ? "1px solid #CDC9C0" : "1px solid rgba(205,201,192,0.15)",
+              backgroundColor: showWaitlist ? "rgba(205,201,192,0.12)" : "transparent",
+              color: showWaitlist ? "#CDC9C0" : "rgba(205,201,192,0.45)", cursor: "pointer",
+            }}>Waitlist{waitlist.length > 0 ? ` (${waitlist.length})` : ""}</button>
+          </>}
         </div>
 
+        {activeTab === "appointments" && <>
         {/* Date navigator */}
         <div style={{
           display: "flex",
@@ -424,8 +554,10 @@ export default function AppointmentsPage() {
             </button>
           ))}
         </div>
+        </>}
       </div>
 
+      {activeTab === "appointments" && <>
       {/* Appointment list / day view */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(205,201,192,0.35)", fontSize: "13px" }}>
@@ -902,6 +1034,156 @@ export default function AppointmentsPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      </>}
+
+      {/* ══════════ TRANSACTIONS TAB ══════════ */}
+      {activeTab === "transactions" && (
+        <div>
+          {/* Period selector */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+            {TX_PERIODS.map(p => (
+              <button key={p.key} onClick={() => setTxPeriod(p.key)} style={{
+                padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
+                borderRadius: "20px", border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                backgroundColor: txPeriod === p.key ? "#CDC9C0" : "rgba(205,201,192,0.06)",
+                color: txPeriod === p.key ? "#0f1d24" : "rgba(205,201,192,0.45)",
+              }}>{p.label}</button>
+            ))}
+          </div>
+
+          {/* Custom range inputs */}
+          {txPeriod === "custom" && (
+            <div style={{ display: "flex", gap: "10px", marginBottom: "16px", alignItems: "flex-end" }}>
+              <div>
+                <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)", marginBottom: "4px" }}>Start</div>
+                <input type="date" value={txCustomStart} onChange={e => setTxCustomStart(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "rgba(205,201,192,0.06)", border: "1px solid rgba(205,201,192,0.15)", borderRadius: "8px", color: "#fff", fontSize: "13px", outline: "none", colorScheme: "dark" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)", marginBottom: "4px" }}>End</div>
+                <input type="date" value={txCustomEnd} onChange={e => setTxCustomEnd(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "rgba(205,201,192,0.06)", border: "1px solid rgba(205,201,192,0.15)", borderRadius: "8px", color: "#fff", fontSize: "13px", outline: "none", colorScheme: "dark" }} />
+              </div>
+              <button onClick={fetchTransactions} style={{ padding: "8px 16px", backgroundColor: "#CDC9C0", color: "#0f1d24", border: "none", borderRadius: "8px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>Apply</button>
+            </div>
+          )}
+
+          {/* Summary cards */}
+          {txData?.summary && !txLoading && (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: "10px", marginBottom: "20px" }}>
+              {[
+                { label: "Total Revenue", value: fmtCurrency(txData.summary.revenue), icon: "attach_money" },
+                { label: "Total Tips", value: fmtCurrency(txData.summary.tips), icon: "volunteer_activism" },
+                { label: "Total Tax", value: fmtCurrency(txData.summary.tax), icon: "receipt_long" },
+                { label: "Total Collected", value: fmtCurrency(txData.summary.total), icon: "account_balance_wallet" },
+                { label: "# Transactions", value: String(txData.summary.count), icon: "receipt" },
+                { label: "Avg Ticket", value: fmtCurrency(txData.summary.avgTicket), icon: "analytics" },
+              ].map(c => (
+                <div key={c.label} style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.08)", borderRadius: "12px", padding: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "rgba(205,201,192,0.35)" }}>{c.icon}</span>
+                    <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)" }}>{c.label}</span>
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#CDC9C0", fontFamily: "'Fira Code', monospace" }}>{c.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Export button */}
+          {txData?.transactions && txData.transactions.length > 0 && !txLoading && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+              <button onClick={exportTxCsv} style={{
+                padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                borderRadius: "6px", border: "1px solid rgba(205,201,192,0.15)", backgroundColor: "transparent",
+                color: "rgba(205,201,192,0.6)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>download</span>
+                Export CSV
+              </button>
+            </div>
+          )}
+
+          {/* Loading skeleton */}
+          {txLoading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} style={{ height: "48px", backgroundColor: "rgba(205,201,192,0.04)", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite", opacity: 1 - i * 0.08 }} />
+              ))}
+              <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4 } 50% { opacity: 0.8 } }`}</style>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!txLoading && txData && txData.transactions.length === 0 && (
+            <div style={{ textAlign: "center", padding: "60px 20px", backgroundColor: "#1a2a32", borderRadius: "12px", border: "1px solid rgba(205,201,192,0.08)" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: "48px", display: "block", marginBottom: "12px", color: "rgba(205,201,192,0.2)" }}>receipt_long</span>
+              <div style={{ color: "rgba(205,201,192,0.4)", fontSize: "14px", fontWeight: 600 }}>No transactions found for this period.</div>
+            </div>
+          )}
+
+          {/* Transaction table */}
+          {!txLoading && txData && txData.transactions.length > 0 && (
+            <>
+              <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(205,201,192,0.08)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "rgba(205,201,192,0.04)" }}>
+                      {["Time", "Client", "Stylist", "Services", "Payment", "Subtotal", "Tips", "Tax", "Total"].map(h => (
+                        <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)", borderBottom: "1px solid rgba(205,201,192,0.08)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {txPageData.map(tx => (
+                      <tr key={tx.id} style={{ cursor: "pointer", transition: "background 0.1s" }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(205,201,192,0.04)")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                      >
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", fontWeight: 600, borderBottom: "1px solid rgba(205,201,192,0.04)", whiteSpace: "nowrap" }}>
+                          {new Date(tx.closedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "#fff", fontWeight: 600, borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.customerName}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.stylistName}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "11px", color: "rgba(205,201,192,0.55)", borderBottom: "1px solid rgba(205,201,192,0.04)", maxWidth: "200px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            {tx.services.map((s: string, i: number) => <span key={i}>{s}</span>)}
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{paymentBadge(tx.paymentMethod)}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.subtotal)}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: tx.tips > 0 ? "#10B981" : "rgba(205,201,192,0.3)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{tx.tips > 0 ? fmtCurrency(tx.tips) : "—"}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.5)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.tax)}</td>
+                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "#CDC9C0", fontWeight: 700, fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", padding: "0 4px" }}>
+                <span style={{ fontSize: "11px", color: "rgba(205,201,192,0.4)" }}>
+                  Showing {txPage * TX_PER_PAGE + 1}–{Math.min((txPage + 1) * TX_PER_PAGE, txData.transactions.length)} of {txData.transactions.length}
+                </span>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button onClick={() => setTxPage(p => Math.max(0, p - 1))} disabled={txPage === 0} style={{
+                    padding: "6px 12px", fontSize: "10px", fontWeight: 700, borderRadius: "6px",
+                    border: "1px solid rgba(205,201,192,0.15)", backgroundColor: "transparent",
+                    color: txPage === 0 ? "rgba(205,201,192,0.2)" : "rgba(205,201,192,0.6)",
+                    cursor: txPage === 0 ? "default" : "pointer",
+                  }}>Prev</button>
+                  <button onClick={() => setTxPage(p => Math.min(txTotalPages - 1, p + 1))} disabled={txPage >= txTotalPages - 1} style={{
+                    padding: "6px 12px", fontSize: "10px", fontWeight: 700, borderRadius: "6px",
+                    border: "1px solid rgba(205,201,192,0.15)", backgroundColor: "transparent",
+                    color: txPage >= txTotalPages - 1 ? "rgba(205,201,192,0.2)" : "rgba(205,201,192,0.6)",
+                    cursor: txPage >= txTotalPages - 1 ? "default" : "pointer",
+                  }}>Next</button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
