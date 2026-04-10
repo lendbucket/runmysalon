@@ -961,7 +961,7 @@ export default function POSPage() {
             )}
             {paymentMethod === "card" && !process.env.NEXT_PUBLIC_SQUARE_APP_ID && (
               <div style={{ fontSize: "12px", color: "#FCA5A5", padding: "12px", backgroundColor: "rgba(239,68,68,0.06)", borderRadius: "8px" }}>
-                Square App ID not configured. Set NEXT_PUBLIC_SQUARE_APP_ID in environment.
+                SalonTransact App ID not configured. Set NEXT_PUBLIC_SQUARE_APP_ID in environment.
               </div>
             )}
 

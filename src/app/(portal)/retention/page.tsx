@@ -276,7 +276,7 @@ export default function RetentionPage() {
             favorite
           </span>
           <p style={{ color: "rgba(205,201,192,0.5)", fontSize: "14px", margin: 0 }}>
-            Click &quot;Run Analysis&quot; to pull 3 years of Square booking data and calculate retention metrics
+            Click &quot;Run Analysis&quot; to pull 3 years of SalonTransact booking data and calculate retention metrics
           </p>
         </div>
       )}
@@ -290,7 +290,7 @@ export default function RetentionPage() {
             sync
           </span>
           <p style={{ color: "#CDC9C0", fontSize: "14px", margin: 0 }}>
-            Pulling booking &amp; order data from Square... This may take up to 60 seconds.
+            Pulling booking &amp; order data from SalonTransact... This may take up to 60 seconds.
           </p>
         </div>
       )}

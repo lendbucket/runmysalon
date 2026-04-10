@@ -583,7 +583,7 @@ export default function StyleTaxPage() {
             {/* KPI row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "14px", marginBottom: "20px" }}>
               {[
-                { label: "YTD (Square Est.)", value: `$${estimatedIncome.toLocaleString()}`, color: "#FFFFFF" },
+                { label: "YTD (SalonTransact)", value: `$${estimatedIncome.toLocaleString()}`, color: "#FFFFFF" },
                 { label: "Other Income", value: `$${otherIncomeTotal.toLocaleString()}`, color: C.purple },
                 { label: "Total Income", value: `$${totalIncome.toLocaleString()}`, color: C.amber },
                 { label: "Projected Annual", value: `$${Math.round(totalIncome / Math.max(now.getMonth() + 1, 1) * 12).toLocaleString()}`, color: C.blue },

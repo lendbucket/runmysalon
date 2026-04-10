@@ -95,7 +95,7 @@ Months of Income History: ${incomeMonths}
 EMPLOYMENT STATUS:
 ${user?.name || "This individual"} operates as an independent contractor (1099) with Salon Envy USA LLC, a licensed cosmetology business operating in the State of Texas. Income is commission-based and derived from professional cosmetology services.
 
-This letter is provided for ${purpose || "income verification"} purposes only. Income figures are derived from verified payment records and represent actual earnings processed through Square payment systems.
+This letter is provided for ${purpose || "income verification"} purposes only. Income figures are derived from verified payment records and represent actual earnings processed through SalonTransact payment systems.
 
 For questions or additional verification, contact:
 Robert R. Reyna

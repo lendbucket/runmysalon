@@ -161,7 +161,7 @@ export default function PayrollPage() {
           <div style={{ background: S1, border: `1px solid ${BORDER2}`, borderRadius: "12px", padding: "60px 24px", textAlign: "center" }}>
             <div style={{ ...mono, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: MUTED, marginBottom: "12px" }}>No payroll data</div>
             <div style={{ fontSize: "15px", fontWeight: 500, color: MID, marginBottom: "6px" }}>No payroll calculated for {label}</div>
-            <div style={{ fontSize: "12px", color: MUTED, marginBottom: "24px" }}>Click Calculate to pull Square data and compute commissions</div>
+            <div style={{ fontSize: "12px", color: MUTED, marginBottom: "24px" }}>Click Calculate to pull SalonTransact data and compute commissions</div>
             <button onClick={calculate} disabled={calcing} style={{ padding: "12px 28px", background: calcing ? "rgba(96,110,116,0.3)" : `linear-gradient(135deg, ${ACC_B}, ${ACC})`, border: "none", borderRadius: "9px", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: calcing ? "default" : "pointer", ...jakarta }}>
               {calcing ? <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><span style={{ display: "inline-block", width: "12px", height: "12px", border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Calculating...</span> : "Calculate Payroll"}
             </button>

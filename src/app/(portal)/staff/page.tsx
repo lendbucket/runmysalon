@@ -304,7 +304,7 @@ export default function StaffPage() {
               </span>
               {m.squareTeamMemberId && (
                 <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400 ring-1 ring-blue-500/30">
-                  Square
+                  SalonTransact
                 </span>
               )}
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${badgeFor(m.inviteStatus)}`}>

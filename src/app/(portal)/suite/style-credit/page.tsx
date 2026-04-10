@@ -1344,7 +1344,7 @@ export default function StyleCreditPage() {
                     }}
                   >
                     Generate a professional income verification letter using your
-                    real earnings from Square. Use it for apartment applications,
+                    real earnings from SalonTransact. Use it for apartment applications,
                     car loans, personal loans, or any situation where you need to
                     prove income as a 1099 contractor.
                   </p>
@@ -1409,7 +1409,7 @@ export default function StyleCreditPage() {
                     <strong style={{ color: ACC_BRIGHT }}>
                       What&apos;s included:
                     </strong>{" "}
-                    Your full name, average monthly income from Square, income
+                    Your full name, average monthly income from SalonTransact, income
                     consistency rating, employment status at Salon Envy, and a
                     verification reference number. Signed by Robert R. Reyna as
                     Authorized Signor.
@@ -1447,7 +1447,7 @@ export default function StyleCreditPage() {
                     {[
                       {
                         label: "Income Source",
-                        value: "Square Payments",
+                        value: "SalonTransact Payments",
                       },
                       {
                         label: "Employment Type",
@@ -1499,7 +1499,7 @@ export default function StyleCreditPage() {
                       lineHeight: 1.6,
                     }}
                   >
-                    Income data is pulled from your verified Square payroll
+                    Income data is pulled from your verified SalonTransact payroll
                     records. The letter is professionally formatted and signed by
                     the salon owner.
                   </p>

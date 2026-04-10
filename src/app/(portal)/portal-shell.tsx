@@ -19,7 +19,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/staff", icon: "group", label: "Staff" },
   { href: "/inventory", icon: "inventory_2", label: "Inventory" },
-  { href: "/pos", icon: "point_of_sale", label: "POS Terminal" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
   { href: "/reviews", icon: "star", label: "Reviews" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
   { href: "/payroll", icon: "account_balance_wallet", label: "Payroll" },
@@ -39,7 +39,7 @@ const MANAGER_NAV: NavItem[] = [
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/staff", icon: "group", label: "Staff" },
   { href: "/inventory", icon: "inventory_2", label: "Inventory" },
-  { href: "/pos", icon: "point_of_sale", label: "POS Terminal" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
   { href: "/cancellations", icon: "event_busy", label: "Cancellations" },
   { href: "/retention", icon: "favorite", label: "Retention" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
@@ -52,7 +52,7 @@ const MANAGER_NAV: NavItem[] = [
 const STYLIST_NAV: NavItem[] = [
   { href: "/my-schedule", icon: "calendar_month", label: "My Schedule" },
   { href: "/appointments", icon: "event", label: "My Appts" },
-  { href: "/pos", icon: "point_of_sale", label: "POS Terminal" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
   { href: "/submit-complaint", icon: "report", label: "Report Issue" },
   { href: "/conduct", icon: "gavel", label: "My Record" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
@@ -63,14 +63,14 @@ const STYLIST_NAV: NavItem[] = [
 const OWNER_BOTTOM: NavItem[] = [
   { href: "/dashboard", icon: "grid_view", label: "Home" },
   { href: "/metrics", icon: "insights", label: "Metrics" },
-  { href: "/pos", icon: "point_of_sale", label: "POS" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse" },
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna" },
 ]
 
 const STYLIST_BOTTOM: NavItem[] = [
   { href: "/my-schedule", icon: "calendar_month", label: "Schedule" },
-  { href: "/pos", icon: "point_of_sale", label: "POS" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna" },
 ]
 

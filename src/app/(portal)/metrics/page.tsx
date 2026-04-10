@@ -168,10 +168,10 @@ export default function MetricsPage() {
             Business Intelligence
           </h1>
           <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 4px" }}>
-            Live Square data · {periodLabel?.compareLabel} · Net sales via booking matching
+            Live SalonTransact data · {periodLabel?.compareLabel} · Net sales via booking matching
           </p>
           <p style={{ fontSize: "11px", color: "rgba(148,163,184,0.5)", margin: 0, maxWidth: "550px", lineHeight: 1.5 }}>
-            Net sales (excluding tax and tips) estimated via booking-to-order time-proximity matching. Walk-ins not booked through Square Appointments may not be attributed to individual stylists.
+            Net sales (excluding tax and tips) estimated via booking-to-order time-proximity matching. Walk-ins not booked through Kasse Scheduling may not be attributed to individual stylists.
           </p>
         </div>
         <button onClick={fetchData} style={{ padding: "8px 16px", fontSize: "10px", fontWeight: 700, borderRadius: "8px", border: "1px solid rgba(205,201,192,0.2)", backgroundColor: "transparent", color: "rgba(205,201,192,0.6)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", letterSpacing: "0.08em", textTransform: "uppercase" }}>
