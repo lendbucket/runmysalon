@@ -182,6 +182,84 @@ async function main() {
     });
   }
 
+  // ── Test logins: managers + stylists ──
+  const testPassword = await bcrypt.hash("SalonEnvy2026!", 12);
+
+  // SA Manager
+  const saManager = await prisma.user.upsert({
+    where: { email: "manager.sa@salonenvyusa.com" },
+    update: { passwordHash: testPassword, role: "MANAGER", locationId: sa.id, inviteStatus: "ACCEPTED" },
+    create: {
+      email: "manager.sa@salonenvyusa.com",
+      name: "SA Manager",
+      passwordHash: testPassword,
+      role: "MANAGER",
+      locationId: sa.id,
+      inviteStatus: "ACCEPTED",
+    },
+  });
+
+  // CC Manager
+  const ccManager = await prisma.user.upsert({
+    where: { email: "manager.cc@salonenvyusa.com" },
+    update: { passwordHash: testPassword, role: "MANAGER", locationId: cc.id, inviteStatus: "ACCEPTED" },
+    create: {
+      email: "manager.cc@salonenvyusa.com",
+      name: "CC Manager",
+      passwordHash: testPassword,
+      role: "MANAGER",
+      locationId: cc.id,
+      inviteStatus: "ACCEPTED",
+    },
+  });
+
+  // Stylist: Melissa Cruz (SA)
+  const melissaUser = await prisma.user.upsert({
+    where: { email: "melissa@salonenvyusa.com" },
+    update: { passwordHash: testPassword, role: "STYLIST", locationId: sa.id, inviteStatus: "ACCEPTED" },
+    create: {
+      email: "melissa@salonenvyusa.com",
+      name: "Melissa Cruz",
+      passwordHash: testPassword,
+      role: "STYLIST",
+      locationId: sa.id,
+      inviteStatus: "ACCEPTED",
+    },
+  });
+  // Link Melissa's user to her StaffMember
+  await prisma.staffMember.updateMany({
+    where: { squareTeamMemberId: "TMMJKxeQuMlMW1Dw" },
+    data: { userId: melissaUser.id },
+  });
+
+  // Stylist: Clarissa Reyna (CC)
+  const clarissaUser = await prisma.user.upsert({
+    where: { email: "clarissa@salonenvyusa.com" },
+    update: { passwordHash: testPassword, role: "STYLIST", locationId: cc.id, inviteStatus: "ACCEPTED" },
+    create: {
+      email: "clarissa@salonenvyusa.com",
+      name: "Clarissa Reyna",
+      passwordHash: testPassword,
+      role: "STYLIST",
+      locationId: cc.id,
+      inviteStatus: "ACCEPTED",
+    },
+  });
+  // Link Clarissa's user to her StaffMember
+  await prisma.staffMember.updateMany({
+    where: { squareTeamMemberId: "TMbc13IBzS8Z43AO" },
+    data: { userId: clarissaUser.id },
+  });
+
+  console.log("✅ Seeded test logins:");
+  console.log("   Manager SA: manager.sa@salonenvyusa.com / SalonEnvy2026!");
+  console.log("   Manager CC: manager.cc@salonenvyusa.com / SalonEnvy2026!");
+  console.log("   Stylist SA: melissa@salonenvyusa.com / SalonEnvy2026!");
+  console.log("   Stylist CC: clarissa@salonenvyusa.com / SalonEnvy2026!");
+
+  // Suppress unused variable warnings
+  void saManager; void ccManager;
+
   console.log("✅ Seeded locations, owner, staff, sample alert");
 }
 

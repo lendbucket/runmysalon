@@ -36,13 +36,16 @@ const MANAGER_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
   { href: "/appointments", icon: "event", label: "Appointments" },
   { href: "/metrics", icon: "insights", label: "Metrics" },
+  { href: "/retention", icon: "favorite", label: "Retention" },
+  { href: "/cancellations", icon: "event_busy", label: "Cancellations" },
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/staff", icon: "group", label: "Staff" },
   { href: "/inventory", icon: "inventory_2", label: "Inventory" },
-  { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
-  { href: "/cancellations", icon: "event_busy", label: "Cancellations" },
-  { href: "/retention", icon: "favorite", label: "Retention" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
+  { href: "/payroll", icon: "account_balance_wallet", label: "Payroll" },
+  { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
+  { href: "/reviews", icon: "star", label: "Reviews" },
+  { href: "/complaints", icon: "report", label: "Complaints" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
@@ -50,8 +53,10 @@ const MANAGER_NAV: NavItem[] = [
 ]
 
 const STYLIST_NAV: NavItem[] = [
+  { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
   { href: "/my-schedule", icon: "calendar_month", label: "My Schedule" },
   { href: "/appointments", icon: "event", label: "My Appts" },
+  { href: "/reviews", icon: "star", label: "My Reviews" },
   { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
   { href: "/submit-complaint", icon: "report", label: "Report Issue" },
   { href: "/conduct", icon: "gavel", label: "My Record" },
@@ -69,13 +74,15 @@ const OWNER_BOTTOM: NavItem[] = [
 ]
 
 const STYLIST_BOTTOM: NavItem[] = [
+  { href: "/dashboard", icon: "grid_view", label: "Home" },
   { href: "/my-schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/pos", icon: "point_of_sale", label: "Kasse" },
+  { href: "/reviews", icon: "star", label: "Reviews" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna" },
 ]
 
 /* ── Allowed pages per role for stylist redirect ── */
-const STYLIST_ALLOWED = ["/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/suite"]
+const STYLIST_ALLOWED = ["/dashboard", "/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/reviews", "/suite"]
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
