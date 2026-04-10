@@ -55,7 +55,6 @@ export async function fetchVariationDirect(variationId: string): Promise<{ name:
     const vData = obj.itemVariationData
     if (!vData) return { name: "Service", price: 0, durationMinutes: 0 }
 
-    // Try to get the parent item name
     let itemName = vData.name || "Service"
     if (vData.itemId) {
       try {
@@ -71,9 +70,7 @@ export async function fetchVariationDirect(variationId: string): Promise<{ name:
     const durationMs = vData.serviceDuration ? Number(vData.serviceDuration) : 0
     const durationMinutes = durationMs > 0 ? Math.round(durationMs / 60000) : 0
 
-    // Store in cache for future lookups
     catalogCache[variationId] = { name: itemName, price, durationMinutes }
-
     return { name: itemName, price, durationMinutes }
   } catch {
     return { name: "Service", price: 0, durationMinutes: 0 }
@@ -85,88 +82,60 @@ export async function refreshCatalogCache() {
     const square = getSquare()
     const newCache: Record<string, { name: string; price: number; durationMinutes: number }> = {}
 
-    // Map of item_id → item_name for parent name lookups
-    const itemNameMap: Record<string, string> = {}
+    // Use catalog.search with objectTypes: ["ITEM"] to get all items
+    // with full nested variation data including prices in one pass
+    let cursor: string | undefined
+    do {
+      const response = await square.catalog.search({
+        objectTypes: ["ITEM"],
+        limit: 100,
+        ...(cursor ? { cursor } : {}),
+      })
 
-    // Step 1: Fetch all ITEM types — get item names + embedded variations
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function processItems(items: any[]) {
-      for (const obj of items) {
-        if (obj.type !== "ITEM") continue
-        const itemData = obj.itemData
+      cursor = response.cursor || undefined
+      const objects = response.objects || []
+
+      for (const item of objects) {
+        if (item.type !== "ITEM") continue
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const itemData = (item as any).itemData
         if (!itemData) continue
         const itemName = itemData.name || "Service"
-        if (obj.id) itemNameMap[obj.id] = itemName
 
-        for (const v of itemData.variations || []) {
+        for (const variation of itemData.variations || []) {
+          if (!variation.id) continue
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const vData = (v as any).itemVariationData
-          if (!vData || !v.id) continue
+          const vData = (variation as any).itemVariationData
+          if (!vData) continue
 
-          const price = vData.priceMoney?.amount ? Number(vData.priceMoney.amount) : 0
+          // Price in cents (callers divide by 100)
+          const priceAmount = vData.priceMoney?.amount
+          const price = priceAmount ? Number(priceAmount) : 0
+
+          // Duration: Square stores as milliseconds in serviceDuration
           const durationMs = vData.serviceDuration ? Number(vData.serviceDuration) : 0
           const durationMinutes = durationMs > 0 ? Math.round(durationMs / 60000) : 0
 
           // Use ITEM name (e.g. "Envy Cut®") not variation name (e.g. "Regular")
-          newCache[v.id] = {
-            name: itemName,
-            price,
-            durationMinutes,
-          }
+          newCache[variation.id] = { name: itemName, price, durationMinutes }
         }
       }
-    }
-
-    let page = await square.catalog.list({ types: "ITEM" })
-    processItems(page.data || [])
-    while (page.hasNextPage()) {
-      page = await page.getNextPage()
-      processItems(page.data || [])
-    }
-
-    // Step 2: Fetch ITEM_VARIATION types directly to catch any missed variations
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function processVariations(items: any[]) {
-      for (const obj of items) {
-        if (obj.type !== "ITEM_VARIATION") continue
-        if (!obj.id) continue
-
-        // Only add if not already in cache from Step 1
-        const vData = obj.itemVariationData
-        if (!vData) continue
-
-        const price = vData.priceMoney?.amount ? Number(vData.priceMoney.amount) : 0
-        const durationMs = vData.serviceDuration ? Number(vData.serviceDuration) : 0
-        const durationMinutes = durationMs > 0 ? Math.round(durationMs / 60000) : 0
-
-        if (!newCache[obj.id]) {
-          // Use parent item name if we fetched it, otherwise fall back to variation name
-          const parentId = vData.itemId || ""
-          const name = itemNameMap[parentId] || vData.name || "Service"
-          newCache[obj.id] = { name, price, durationMinutes }
-        } else {
-          // Update price/duration if we got better data
-          if (price > 0 && newCache[obj.id].price === 0) {
-            newCache[obj.id].price = price
-          }
-          if (durationMinutes > 0 && newCache[obj.id].durationMinutes === 0) {
-            newCache[obj.id].durationMinutes = durationMinutes
-          }
-        }
-      }
-    }
-
-    let varPage = await square.catalog.list({ types: "ITEM_VARIATION" })
-    processVariations(varPage.data || [])
-    while (varPage.hasNextPage()) {
-      varPage = await varPage.getNextPage()
-      processVariations(varPage.data || [])
-    }
+    } while (cursor)
 
     catalogCache = newCache
     cacheExpiry = Date.now() + 30 * 60 * 1000 // 30 min TTL
-    console.log(`[CatalogCache] Loaded ${Object.keys(newCache).length} variations`)
+
+    const entries = Object.entries(newCache)
+    const withPrice = entries.filter(([, v]) => v.price > 0)
+    console.log(`[CatalogCache] Loaded ${entries.length} variations, ${withPrice.length} with price > 0`)
+
+    // Log known service IDs to verify prices in Vercel logs
+    const check = ["POE6SDZB3ISP2MPUO6TV2K3T", "QMPSENCSASW4UIOPTQFJPUED", "KIEQ7NE6EKITICOUCKGVAO3K"]
+    for (const id of check) {
+      console.log(`[CatalogCache] ${id}:`, newCache[id] || "NOT FOUND")
+    }
   } catch (e) {
-    console.error("Catalog cache refresh failed:", e)
+    console.error("[CatalogCache] refresh failed:", e)
   }
 }
