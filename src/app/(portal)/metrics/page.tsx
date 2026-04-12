@@ -27,16 +27,31 @@ interface ComparisonData {
   prevEndAt: string
 }
 
-const PERIODS = [
-  { value: "today", label: "Today", compareLabel: "vs yesterday" },
-  { value: "yesterday", label: "Yesterday", compareLabel: "vs day before" },
-  { value: "7days", label: "7 Days", compareLabel: "vs prev 7 days" },
-  { value: "30days", label: "30 Days", compareLabel: "vs prev 30 days" },
-  { value: "90days", label: "90 Days", compareLabel: "vs prev 90 days" },
-  { value: "week", label: "This Week", compareLabel: "vs last week" },
-  { value: "month", label: "This Month", compareLabel: "vs last month" },
-  { value: "year", label: "This Year", compareLabel: "vs last year" },
+const PERIOD_DEFS = [
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "7days", label: "7 Days" },
+  { value: "30days", label: "30 Days" },
+  { value: "90days", label: "90 Days" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "year", label: "This Year" },
 ]
+
+function getCompareLabel(periodValue: string): string {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  switch (periodValue) {
+    case "today": return `vs last ${days[new Date().getDay()]}`
+    case "yesterday": { const d = new Date(); d.setDate(d.getDate() - 1); return `vs last ${days[d.getDay()]}` }
+    case "7days": return "vs prev 7 days"
+    case "30days": return "vs prev 30 days"
+    case "90days": return "vs prev 90 days"
+    case "week": return "vs last week"
+    case "month": return "vs last month"
+    case "year": return "vs last year"
+    default: return ""
+  }
+}
 
 const SUGGESTED_QUESTIONS = [
   "Who are my top performers and what makes them successful?",
@@ -121,7 +136,8 @@ export default function MetricsPage() {
     setAiLoading(false)
   }
 
-  const periodLabel = PERIODS.find(p => p.value === period)
+  const periodLabel = PERIOD_DEFS.find(p => p.value === period)
+  const compareLabel = getCompareLabel(period)
 
   const currentTotal = {
     revenue: data?.currentMetrics.reduce((s, m) => s + m.revenue, 0) || 0,
@@ -172,7 +188,7 @@ export default function MetricsPage() {
             Business Intelligence
           </h1>
           <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 4px" }}>
-            Live SalonTransact data · {periodLabel?.compareLabel} · Net sales via booking matching
+            Live SalonTransact data · {compareLabel} · Net sales via booking matching
           </p>
           <p style={{ fontSize: "11px", color: "rgba(148,163,184,0.5)", margin: 0, maxWidth: "550px", lineHeight: 1.5 }}>
             Net sales (excluding tax and tips) estimated via booking-to-order time-proximity matching. Walk-ins not booked through Kasse Scheduling may not be attributed to individual stylists.
@@ -187,7 +203,7 @@ export default function MetricsPage() {
       {/* Selectors */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "nowrap" as const, overflowX: "auto" }}>
         <div style={{ display: "inline-flex", gap: "2px", backgroundColor: "#0d1117", padding: "3px", borderRadius: "8px", border: "1px solid rgba(205,201,192,0.1)" }}>
-          {PERIODS.map(p => (
+          {PERIOD_DEFS.map(p => (
             <button key={p.value} onClick={() => setPeriod(p.value)} style={pill(period === p.value)}>{p.label}</button>
           ))}
         </div>
@@ -233,7 +249,7 @@ export default function MetricsPage() {
                   <span style={{ fontSize: "28px", fontWeight: 800, color: "#FFFFFF", letterSpacing: "-0.02em" }}>{card.current}</span>
                   <ChangeIndicator change={card.change} />
                 </div>
-                <div style={{ fontSize: "11px", color: "#94A3B8" }}>Prev: {card.prev}</div>
+                <div style={{ fontSize: "11px", color: "#94A3B8" }}>Prev: {card.prev} · {compareLabel}</div>
               </div>
             ))}
           </div>

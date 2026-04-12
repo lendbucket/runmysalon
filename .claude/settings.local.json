@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(wc -l /c/Users/Salon/salonenvyportal/src/app/'\\(portal\\)'/*/page.tsx)",
+      "Bash(npx prisma:*)",
+      "Bash(./node_modules/.bin/prisma generate:*)",
+      "Bash(ls node_modules/.bin/prisma*)",
+      "Bash(npx --package prisma@5 prisma generate)",
+      "Bash(npx next:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

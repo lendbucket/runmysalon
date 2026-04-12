@@ -62,11 +62,6 @@ interface BookingEntry {
   locationId: string
 }
 
-interface OrderEntry {
-  total: number
-  createdAt: Date
-  locationId: string
-}
 
 function getCSTMidnight(date: Date): { start: string; end: string } {
   const cst = date.toLocaleDateString("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" })
@@ -175,7 +170,6 @@ export async function getMetricsByPeriodWithDates(
     // Step 2: Get ALL completed orders in period (closed_at for accuracy)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawOrders: any[] = []
-    const orders: OrderEntry[] = []
 
     const ordersRes = await square.orders.search({
       locationIds: [...LOCATION_IDS],
@@ -191,54 +185,26 @@ export async function getMetricsByPeriodWithDates(
 
     for (const o of (ordersRes.orders || [])) {
       rawOrders.push(o)
-      const totalAmt = Number(o.totalMoney?.amount || 0)
-      const taxAmt = Number(o.totalTaxMoney?.amount || 0)
-      const tipAmt = Number(o.totalTipMoney?.amount || 0)
-      // Net revenue = total - tax - tip (all in cents, /100)
-      const amount = (totalAmt - taxAmt - tipAmt) / 100
-      if (amount > 0 && o.closedAt) {
-        orders.push({ total: amount, createdAt: new Date(o.closedAt), locationId: o.locationId || "" })
-      }
     }
 
-    // Step 2b: Count checkouts (unique completed orders) per stylist
-    // Each order = 1 checkout, not counting individual line items
+    // Step 2b + 3: Unified attribution — checkout count AND revenue from the same orders
+    // Each completed order with net > 0 = 1 checkout + its net revenue, attributed together
+    const usedBookings = new Set<number>()
     for (const o of rawOrders) {
       const totalAmt = Number(o.totalMoney?.amount || 0)
       const taxAmt = Number(o.totalTaxMoney?.amount || 0)
       const tipAmt = Number(o.totalTipMoney?.amount || 0)
       const netAmount = (totalAmt - taxAmt - tipAmt) / 100
-      if (netAmount <= 0) continue // Skip zero-revenue orders
+      if (netAmount <= 0) continue
 
-      // Attribute checkout to stylist via booking match
       const orderTime = new Date(o.closedAt || o.createdAt || "")
-      let matched = false
-      for (let i = 0; i < bookings.length; i++) {
-        const diffMs = orderTime.getTime() - bookings[i].startAt.getTime()
-        const diffHours = diffMs / (1000 * 60 * 60)
-        if (diffHours >= -0.5 && diffHours <= 5 && bookings[i].locationId === (o.locationId || "")) {
-          stylistMetrics[bookings[i].teamMemberId].checkoutCount += 1
-          matched = true
-          break
-        }
-      }
-      // If no booking match, attribute to location but not stylist
-      if (!matched) {
-        const locName = o.locationId === "LTJSA6QR1HGW6" ? "Corpus Christi" : "San Antonio"
-        const locStylists = Object.entries(TEAM_MEMBER_LOCATIONS).filter(([, l]) => l === locName)
-        if (locStylists.length > 0) {
-          stylistMetrics[locStylists[0][0]].checkoutCount += 1
-        }
-      }
-    }
 
-    // Step 3: Match orders to bookings by time proximity for REVENUE attribution
-    const usedBookings = new Set<number>()
-    for (const order of orders) {
+      // Find best matching booking (closest time, same location, not already used)
       let bestMatch: { index: number; diff: number } | null = null
       for (let i = 0; i < bookings.length; i++) {
         if (usedBookings.has(i)) continue
-        const diffMs = order.createdAt.getTime() - bookings[i].startAt.getTime()
+        if (bookings[i].locationId !== (o.locationId || "")) continue
+        const diffMs = orderTime.getTime() - bookings[i].startAt.getTime()
         const diffHours = diffMs / (1000 * 60 * 60)
         if (diffHours >= -0.5 && diffHours <= 5) {
           if (!bestMatch || Math.abs(diffMs) < Math.abs(bestMatch.diff)) {
@@ -246,9 +212,20 @@ export async function getMetricsByPeriodWithDates(
           }
         }
       }
+
       if (bestMatch) {
         usedBookings.add(bestMatch.index)
-        stylistMetrics[bookings[bestMatch.index].teamMemberId].revenue += order.total
+        const tmId = bookings[bestMatch.index].teamMemberId
+        stylistMetrics[tmId].checkoutCount += 1
+        stylistMetrics[tmId].revenue += netAmount
+      } else {
+        // No booking match — attribute to first available stylist at this location
+        const locName = o.locationId === "LTJSA6QR1HGW6" ? "Corpus Christi" : "San Antonio"
+        const locStylists = Object.entries(TEAM_MEMBER_LOCATIONS).filter(([, l]) => l === locName)
+        if (locStylists.length > 0) {
+          stylistMetrics[locStylists[0][0]].checkoutCount += 1
+          stylistMetrics[locStylists[0][0]].revenue += netAmount
+        }
       }
     }
 
@@ -304,24 +281,21 @@ export async function getComparisonMetrics(
 
   switch (periodType) {
     case "today": {
-      const todayStart = new Date(now)
-      todayStart.setHours(0, 0, 0, 0)
+      // Compare to same day last week (7 days ago)
       const prevDay = new Date(now)
-      prevDay.setDate(now.getDate() - 1)
-      prevDay.setHours(0, 0, 0, 0)
-      prevStartAt = prevDay.toISOString()
-      prevEndAt = todayStart.toISOString()
+      prevDay.setDate(now.getDate() - 7)
+      const { start, end } = getCSTMidnight(prevDay)
+      prevStartAt = start
+      prevEndAt = end
       break
     }
     case "yesterday": {
-      const yStart = new Date(now)
-      yStart.setDate(now.getDate() - 1)
-      yStart.setHours(0, 0, 0, 0)
-      const dayBefore = new Date(now)
-      dayBefore.setDate(now.getDate() - 2)
-      dayBefore.setHours(0, 0, 0, 0)
-      prevStartAt = dayBefore.toISOString()
-      prevEndAt = yStart.toISOString()
+      // Compare to same day last week (yesterday - 7 = 8 days ago)
+      const prevDay = new Date(now)
+      prevDay.setDate(now.getDate() - 8)
+      const { start, end } = getCSTMidnight(prevDay)
+      prevStartAt = start
+      prevEndAt = end
       break
     }
     case "7days":
