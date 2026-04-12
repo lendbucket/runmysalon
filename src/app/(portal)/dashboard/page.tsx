@@ -9,14 +9,14 @@ interface StylistMetrics {
   name: string
   homeLocation: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
 }
 
 interface LocationMetrics {
   location: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
   stylistBreakdown: StylistMetrics[]
 }
@@ -82,11 +82,11 @@ function generateAlerts(
     alerts.push({ priority: "HIGH", color: "#F59E0B", icon: "warning", text: `${cancellations.cancelledByCustomer} client-initiated cancellations ${pLabel}. Review booking flow.` })
   }
 
-  // Zero-service stylists
+  // Zero-checkout stylists (exclude any stylist with revenue > $0)
   const allStylists = metrics.flatMap((m) => m.stylistBreakdown || [])
-  const zeroServiceStylists = allStylists.filter((s) => s.serviceCount === 0)
-  if (zeroServiceStylists.length > 0) {
-    alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `${zeroServiceStylists.length} stylist(s) with 0 services ${pLabel}: ${zeroServiceStylists.map((s) => s.name.split(" ")[0]).join(", ")}.` })
+  const zeroCheckoutStylists = allStylists.filter((s) => s.checkoutCount === 0 && s.revenue === 0)
+  if (zeroCheckoutStylists.length > 0) {
+    alerts.push({ priority: "MEDIUM", color: "#CDC9C0", icon: "info", text: `${zeroCheckoutStylists.length} stylist(s) with 0 checkouts ${pLabel}: ${zeroCheckoutStylists.map((s) => s.name.split(" ")[0]).join(", ")}.` })
   }
 
   // No revenue
@@ -138,6 +138,8 @@ export default function DashboardPage() {
   const [metricsData, setMetricsData] = useState<LocationMetrics[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [cancellations, setCancellations] = useState<CancellationStats | null>(null)
+  const [retention, setRetention] = useState<{ retentionRate: number; retentionGrade: string } | null>(null)
+  const [retentionLoading, setRetentionLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
@@ -157,10 +159,13 @@ export default function DashboardPage() {
       const params = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") params.set("location", activeLocation)
 
+      const cancelParams = new URLSearchParams({ period: activePeriod })
+      if (activeLocation !== "Both") cancelParams.set("location", activeLocation)
+
       const [metricsRes, approvalsRes, cancellationsRes] = await Promise.all([
         fetch(`/api/metrics/live?${params}`),
         fetch("/api/approvals/pending"),
-        fetch(`/api/cancellations?period=${activePeriod}`),
+        fetch(`/api/cancellations?${cancelParams}`),
       ])
       const metricsJson = await metricsRes.json()
       const approvalsJson = await approvalsRes.json()
@@ -187,8 +192,8 @@ export default function DashboardPage() {
 
   // Compute totals from fetched data
   const totalRevenue = metricsData.reduce((s, d) => s + d.revenue, 0)
-  const totalServices = metricsData.reduce((s, d) => s + d.serviceCount, 0)
-  const totalAvg = totalServices > 0 ? totalRevenue / totalServices : 0
+  const totalCheckouts = metricsData.reduce((s, d) => s + d.checkoutCount, 0)
+  const totalAvg = totalCheckouts > 0 ? totalRevenue / totalCheckouts : 0
 
   // Auto-refresh when viewing today
   useEffect(() => {
@@ -197,13 +202,40 @@ export default function DashboardPage() {
     return () => clearInterval(id)
   }, [activePeriod, fetchData])
 
+  // Retention auto-fetch on mount + every 60s
+  useEffect(() => {
+    const fetchRetention = async () => {
+      setRetentionLoading(true)
+      try {
+        const rParams = new URLSearchParams()
+        if (activeLocation !== "Both") rParams.set("location", activeLocation)
+        const res = await fetch(`/api/retention?${rParams}`)
+        if (res.ok) {
+          const data = await res.json()
+          setRetention({ retentionRate: data.retentionRate, retentionGrade: data.retentionGrade })
+        } else {
+          setRetention(null)
+        }
+      } catch {
+        setRetention(null)
+      } finally {
+        setRetentionLoading(false)
+      }
+    }
+    fetchRetention()
+    const id = setInterval(fetchRetention, 60000)
+    return () => clearInterval(id)
+  }, [activeLocation])
+
   const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
   const pLabel = periodLabel[activePeriod] || activePeriod
+  const summaryPeriodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "Last 7 days", "30days": "Last 30 days", "90days": "Last 90 days", week: "This week", month: "This month", year: "This year" }
+  const summaryLabel = summaryPeriodLabel[activePeriod] || activePeriod
 
   const metrics = [
     { label: `Net Sales · ${pLabel}`, value: loading ? null : fmt(totalRevenue), icon: "payments", sub: activeLocation === "Both" ? "Both locations" : activeLocation },
-    { label: `Services · ${pLabel}`, value: loading ? null : String(totalServices), icon: "content_cut", sub: "Across all stylists" },
-    { label: "Avg Ticket", value: loading ? null : fmt(totalAvg), icon: "receipt_long", sub: "Per service" },
+    { label: `Checkouts · ${pLabel}`, value: loading ? null : String(totalCheckouts), icon: "content_cut", sub: "Unique customers checked out" },
+    { label: "Avg Ticket", value: loading ? null : fmt(totalAvg), icon: "receipt_long", sub: "Per checkout" },
     { label: "Pending Approvals", value: loading ? null : String(pendingCount), icon: "rule", sub: "Needs attention", alert: pendingCount > 0 },
   ]
 
@@ -269,7 +301,7 @@ export default function DashboardPage() {
       {/* QUICK STATS BAR */}
       {!loading && (
         <div style={{ marginBottom: "16px", fontSize: "12px", color: "rgba(205,201,192,0.45)", fontWeight: 500 }}>
-          This week: {fmt(totalRevenue)} net sales &middot; {totalServices} services{cancellations ? ` \u00b7 ${cancellations.totalCancellations} cancellations` : ""} &middot; Avg ticket {fmt(totalAvg)}
+          {summaryLabel}{activeLocation === "Both" ? " · Both locations" : ` · ${activeLocation}`}: {fmt(totalRevenue)} net sales &middot; {totalCheckouts} checkouts{cancellations ? ` \u00b7 ${cancellations.totalCancellations} cancellations` : ""} &middot; Avg ticket {fmt(totalAvg)}
         </div>
       )}
 
@@ -460,7 +492,7 @@ export default function DashboardPage() {
               {topStylist ? topStylist.name.split(" ")[0] : "\u2014"}
             </div>
             <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 500 }}>
-              {topStylist ? `${topStylist.homeLocation === "Corpus Christi" ? "CC" : "SA"} \u00b7 ${topStylist.serviceCount} services` : "No data yet"}
+              {topStylist ? `${topStylist.homeLocation === "Corpus Christi" ? "CC" : "SA"} \u00b7 ${topStylist.checkoutCount} checkouts` : "No data yet"}
             </div>
           </div>
         </Link>
@@ -480,10 +512,10 @@ export default function DashboardPage() {
               <span style={{ fontSize: "9px", fontWeight: 700, color: "#CDC9C0", letterSpacing: "0.12em", textTransform: "uppercase" as const }}>Retention</span>
             </div>
             <div style={{ fontSize: "32px", fontWeight: 800, color: "#FFFFFF", lineHeight: 1, marginBottom: "6px", letterSpacing: "-0.02em" }}>
-              Run
+              {retentionLoading ? <Skeleton /> : retention ? `${retention.retentionRate}%` : "\u2014"}
             </div>
             <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 500 }}>
-              Full analysis available
+              {retentionLoading ? "Loading retention..." : retention ? `${retention.retentionGrade} · Active clients returning` : "Retention unavailable"}
             </div>
           </div>
         </Link>
@@ -580,7 +612,7 @@ export default function DashboardPage() {
           </div>
           {allStylists.length > 0 ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-              {[...allStylists].sort((a, b) => b.serviceCount - a.serviceCount).slice(0, 5).map((s, i) => (
+              {[...allStylists].sort((a, b) => b.checkoutCount - a.checkoutCount).slice(0, 5).map((s, i) => (
                 <div key={s.teamMemberId} style={{
                   display: "flex",
                   alignItems: "center",
@@ -620,7 +652,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.4)", marginTop: "2px" }}>
-                      {s.serviceCount} services
+                      {s.checkoutCount} checkouts
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>

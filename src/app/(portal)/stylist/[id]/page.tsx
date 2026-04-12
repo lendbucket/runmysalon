@@ -9,14 +9,14 @@ interface StylistMetric {
   name: string
   homeLocation: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
 }
 
 interface LocationMetric {
   location: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
   stylistBreakdown: StylistMetric[]
 }
@@ -92,14 +92,14 @@ export default function StylistProfilePage() {
       const metricsContext = periodData.map(p => ({
         period: p.label,
         revenue: p.metrics?.revenue || 0,
-        services: p.metrics?.serviceCount || 0,
+        services: p.metrics?.checkoutCount || 0,
         avgTicket: p.metrics?.avgTicket || 0,
       }))
       const res = await fetch("/api/metrics/ai-insights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentMetrics: [{ location, revenue: active?.revenue || 0, serviceCount: active?.serviceCount || 0, avgTicket: active?.avgTicket || 0, stylistBreakdown: active ? [active] : [] }],
+          currentMetrics: [{ location, revenue: active?.revenue || 0, checkoutCount: active?.checkoutCount || 0, avgTicket: active?.avgTicket || 0, stylistBreakdown: active ? [active] : [] }],
           previousMetrics: [],
           period: activePeriod,
           question: `Provide a coaching assessment for ${name} at ${location}. Their performance across periods: ${JSON.stringify(metricsContext)}. Revenue goal: ${fmt(revenueGoal)}. What should they focus on to improve?`,
@@ -190,7 +190,7 @@ export default function StylistProfilePage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px", marginBottom: "24px" }}>
             {[
               { label: "Net Sales", value: fmt(active?.revenue || 0), icon: "payments" },
-              { label: "Services", value: String(active?.serviceCount || 0), icon: "content_cut" },
+              { label: "Checkouts", value: String(active?.checkoutCount || 0), icon: "content_cut" },
               { label: "Avg Ticket", value: fmt(active?.avgTicket || 0), icon: "receipt_long" },
             ].map(card => (
               <div key={card.label} style={{
@@ -219,7 +219,7 @@ export default function StylistProfilePage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(205,201,192,0.04)" }}>
-                    {["Period", "Net Sales", "Services", "Avg Ticket"].map(h => (
+                    {["Period", "Net Sales", "Checkouts", "Avg Ticket"].map(h => (
                       <th key={h} style={{ padding: "10px 14px", fontSize: "9px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", textAlign: h === "Period" ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -232,7 +232,7 @@ export default function StylistProfilePage() {
                     }}>
                       <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>{p.label}</td>
                       <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 800, color: "#CDC9C0" }}>{p.metrics ? fmt(p.metrics.revenue) : "\u2014"}</td>
-                      <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>{p.metrics?.serviceCount ?? "\u2014"}</td>
+                      <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>{p.metrics?.checkoutCount ?? "\u2014"}</td>
                       <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "13px", fontWeight: 700, color: "#FFFFFF" }}>{p.metrics && p.metrics.avgTicket > 0 ? fmt(p.metrics.avgTicket) : "\u2014"}</td>
                     </tr>
                   ))}

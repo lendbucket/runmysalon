@@ -17,18 +17,18 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `You are a salon business analyst for Salon Envy\u00ae, a premium hair salon with two locations in Texas (Corpus Christi and San Antonio). You analyze Square POS data and provide actionable business insights. Be specific, data-driven, and practical. Keep responses concise \u2014 3-5 bullet points max unless asked for more detail.`
 
-    interface MetricSummary { location: string; revenue: number; serviceCount: number; avgTicket: number; stylistBreakdown: Array<{ name: string; revenue: number; serviceCount: number }> }
+    interface MetricSummary { location: string; revenue: number; checkoutCount: number; avgTicket: number; stylistBreakdown: Array<{ name: string; revenue: number; checkoutCount: number }> }
 
     const dataContext = `
 CURRENT PERIOD (${period}):
 ${(currentMetrics as MetricSummary[]).map((m) => `
-${m.location}: $${m.revenue.toFixed(0)} revenue, ${m.serviceCount} services, $${m.avgTicket.toFixed(0)} avg ticket
-Top stylists: ${m.stylistBreakdown.slice(0, 3).map((s) => `${s.name} ($${s.revenue.toFixed(0)}, ${s.serviceCount} svcs)`).join(", ")}
+${m.location}: $${m.revenue.toFixed(0)} revenue, ${m.checkoutCount} checkouts, $${m.avgTicket.toFixed(0)} avg ticket
+Top stylists: ${m.stylistBreakdown.slice(0, 3).map((s) => `${s.name} ($${s.revenue.toFixed(0)}, ${s.checkoutCount} checkouts)`).join(", ")}
 `).join("")}
 
 PREVIOUS PERIOD:
 ${(previousMetrics as MetricSummary[]).map((m) => `
-${m.location}: $${m.revenue.toFixed(0)} revenue, ${m.serviceCount} services, $${m.avgTicket.toFixed(0)} avg ticket
+${m.location}: $${m.revenue.toFixed(0)} revenue, ${m.checkoutCount} checkouts, $${m.avgTicket.toFixed(0)} avg ticket
 `).join("")}
 
 REVENUE CHANGES:

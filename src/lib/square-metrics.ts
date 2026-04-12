@@ -42,14 +42,14 @@ export interface StylistMetrics {
   name: string
   homeLocation: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
 }
 
 export interface LocationMetrics {
   location: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
   stylistBreakdown: StylistMetrics[]
   periodStart: string
@@ -140,7 +140,7 @@ export async function getMetricsByPeriodWithDates(
       name: TEAM_MEMBER_NAMES[id],
       homeLocation: loc,
       revenue: 0,
-      serviceCount: 0,
+      checkoutCount: 0,
       avgTicket: 0,
     }
   }
@@ -201,40 +201,33 @@ export async function getMetricsByPeriodWithDates(
       }
     }
 
-    // Step 2b: Count services from order line items (not bookings)
-    // Only count real service line items, exclude cancellation/no-show fees
+    // Step 2b: Count checkouts (unique completed orders) per stylist
+    // Each order = 1 checkout, not counting individual line items
     for (const o of rawOrders) {
-      const lineItems = o.lineItems || []
-      let orderServiceCount = 0
-      for (const li of lineItems) {
-        const name = (li.name || "").toLowerCase()
-        const amt = Number(li.grossSalesMoney?.amount || li.totalMoney?.amount || 0)
-        // Skip $0 items, cancellation fees, and no-show fees
-        if (amt <= 0) continue
-        if (name.includes("cancellation") || name.includes("no-show") || name.includes("no show")) continue
-        orderServiceCount++
-      }
+      const totalAmt = Number(o.totalMoney?.amount || 0)
+      const taxAmt = Number(o.totalTaxMoney?.amount || 0)
+      const tipAmt = Number(o.totalTipMoney?.amount || 0)
+      const netAmount = (totalAmt - taxAmt - tipAmt) / 100
+      if (netAmount <= 0) continue // Skip zero-revenue orders
 
-      // Attribute service count to stylist via booking match
+      // Attribute checkout to stylist via booking match
       const orderTime = new Date(o.closedAt || o.createdAt || "")
       let matched = false
       for (let i = 0; i < bookings.length; i++) {
         const diffMs = orderTime.getTime() - bookings[i].startAt.getTime()
         const diffHours = diffMs / (1000 * 60 * 60)
         if (diffHours >= -0.5 && diffHours <= 5 && bookings[i].locationId === (o.locationId || "")) {
-          stylistMetrics[bookings[i].teamMemberId].serviceCount += Math.max(orderServiceCount, 1)
+          stylistMetrics[bookings[i].teamMemberId].checkoutCount += 1
           matched = true
           break
         }
       }
       // If no booking match, attribute to location but not stylist
-      if (!matched && orderServiceCount > 0) {
-        // Find any stylist at this location to attribute
+      if (!matched) {
         const locName = o.locationId === "LTJSA6QR1HGW6" ? "Corpus Christi" : "San Antonio"
         const locStylists = Object.entries(TEAM_MEMBER_LOCATIONS).filter(([, l]) => l === locName)
         if (locStylists.length > 0) {
-          // Distribute to first available stylist at location (walk-in attribution)
-          stylistMetrics[locStylists[0][0]].serviceCount += orderServiceCount
+          stylistMetrics[locStylists[0][0]].checkoutCount += 1
         }
       }
     }
@@ -259,32 +252,32 @@ export async function getMetricsByPeriodWithDates(
       }
     }
 
-    // Step 4: Calculate avg tickets
+    // Step 4: Calculate avg tickets (revenue / checkouts)
     for (const m of Object.values(stylistMetrics)) {
-      if (m.serviceCount > 0 && m.revenue > 0) {
-        m.avgTicket = Math.round((m.revenue / m.serviceCount) * 100) / 100
+      if (m.checkoutCount > 0 && m.revenue > 0) {
+        m.avgTicket = Math.round((m.revenue / m.checkoutCount) * 100) / 100
       }
     }
 
     // Step 5: Aggregate by location
     const ccMetrics: LocationMetrics = {
-      location: "Corpus Christi", revenue: 0, serviceCount: 0, avgTicket: 0,
+      location: "Corpus Christi", revenue: 0, checkoutCount: 0, avgTicket: 0,
       stylistBreakdown: [], periodStart: startAt, periodEnd: endAt,
     }
     const saMetrics: LocationMetrics = {
-      location: "San Antonio", revenue: 0, serviceCount: 0, avgTicket: 0,
+      location: "San Antonio", revenue: 0, checkoutCount: 0, avgTicket: 0,
       stylistBreakdown: [], periodStart: startAt, periodEnd: endAt,
     }
 
     for (const m of Object.values(stylistMetrics)) {
       const target = m.homeLocation === "Corpus Christi" ? ccMetrics : saMetrics
       target.revenue += m.revenue
-      target.serviceCount += m.serviceCount
+      target.checkoutCount += m.checkoutCount
       target.stylistBreakdown.push(m)
     }
 
-    if (ccMetrics.serviceCount > 0) ccMetrics.avgTicket = Math.round((ccMetrics.revenue / ccMetrics.serviceCount) * 100) / 100
-    if (saMetrics.serviceCount > 0) saMetrics.avgTicket = Math.round((saMetrics.revenue / saMetrics.serviceCount) * 100) / 100
+    if (ccMetrics.checkoutCount > 0) ccMetrics.avgTicket = Math.round((ccMetrics.revenue / ccMetrics.checkoutCount) * 100) / 100
+    if (saMetrics.checkoutCount > 0) saMetrics.avgTicket = Math.round((saMetrics.revenue / saMetrics.checkoutCount) * 100) / 100
 
     ccMetrics.stylistBreakdown.sort((a, b) => b.revenue - a.revenue)
     saMetrics.stylistBreakdown.sort((a, b) => b.revenue - a.revenue)

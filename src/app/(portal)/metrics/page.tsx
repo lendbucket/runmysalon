@@ -8,14 +8,14 @@ interface StylistMetric {
   name: string
   homeLocation: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
 }
 
 interface LocationMetric {
   location: string
   revenue: number
-  serviceCount: number
+  checkoutCount: number
   avgTicket: number
   stylistBreakdown: StylistMetric[]
 }
@@ -125,20 +125,20 @@ export default function MetricsPage() {
 
   const currentTotal = {
     revenue: data?.currentMetrics.reduce((s, m) => s + m.revenue, 0) || 0,
-    serviceCount: data?.currentMetrics.reduce((s, m) => s + m.serviceCount, 0) || 0,
+    checkoutCount: data?.currentMetrics.reduce((s, m) => s + m.checkoutCount, 0) || 0,
     avgTicket: 0,
   }
-  currentTotal.avgTicket = currentTotal.serviceCount > 0 ? currentTotal.revenue / currentTotal.serviceCount : 0
+  currentTotal.avgTicket = currentTotal.checkoutCount > 0 ? currentTotal.revenue / currentTotal.checkoutCount : 0
 
   const prevTotal = {
     revenue: data?.previousMetrics.reduce((s, m) => s + m.revenue, 0) || 0,
-    serviceCount: data?.previousMetrics.reduce((s, m) => s + m.serviceCount, 0) || 0,
+    checkoutCount: data?.previousMetrics.reduce((s, m) => s + m.checkoutCount, 0) || 0,
     avgTicket: 0,
   }
-  prevTotal.avgTicket = prevTotal.serviceCount > 0 ? prevTotal.revenue / prevTotal.serviceCount : 0
+  prevTotal.avgTicket = prevTotal.checkoutCount > 0 ? prevTotal.revenue / prevTotal.checkoutCount : 0
 
   const revenueChange = getChange(currentTotal.revenue, prevTotal.revenue)
-  const servicesChange = getChange(currentTotal.serviceCount, prevTotal.serviceCount)
+  const checkoutsChange = getChange(currentTotal.checkoutCount, prevTotal.checkoutCount)
   const ticketChange = getChange(currentTotal.avgTicket, prevTotal.avgTicket)
   const annualGoalProgress = period === "year" && prevTotal.revenue > 0 ? (currentTotal.revenue / (prevTotal.revenue * 1.1) * 100) : null
 
@@ -220,9 +220,9 @@ export default function MetricsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "14px", marginBottom: "24px" }}>
             {[
               { label: "Total Net Sales", current: fmt(currentTotal.revenue), change: revenueChange, prev: fmt(prevTotal.revenue), icon: "payments" },
-              { label: "Total Services", current: String(currentTotal.serviceCount), change: servicesChange, prev: String(prevTotal.serviceCount), icon: "content_cut" },
+              { label: "Total Checkouts", current: String(currentTotal.checkoutCount), change: checkoutsChange, prev: String(prevTotal.checkoutCount), icon: "content_cut" },
               { label: "Avg Ticket", current: fmt(currentTotal.avgTicket), change: ticketChange, prev: fmt(prevTotal.avgTicket), icon: "receipt" },
-              { label: "Locations Active", current: String(data?.currentMetrics.filter(m => m.serviceCount > 0).length || 0), change: null, prev: "2 total", icon: "location_on" },
+              { label: "Locations Active", current: String(data?.currentMetrics.filter(m => m.checkoutCount > 0).length || 0), change: null, prev: "2 total", icon: "location_on" },
             ].map(card => (
               <div key={card.label} style={{ backgroundColor: "#0d1117", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", padding: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
@@ -273,7 +273,7 @@ export default function MetricsPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                       {[
                         { label: "Net Sales", value: fmt(loc.revenue) },
-                        { label: "Services", value: String(loc.serviceCount) },
+                        { label: "Checkouts", value: String(loc.checkoutCount) },
                         { label: "Avg Ticket", value: fmt(loc.avgTicket) },
                       ].map(stat => (
                         <div key={stat.label}>
@@ -291,7 +291,7 @@ export default function MetricsPage() {
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <span style={{ fontSize: "12px", fontWeight: 700, color: "#CDC9C0" }}>{fmt(s.revenue)}</span>
-                            <span style={{ fontSize: "10px", color: "#94A3B8", marginLeft: "6px" }}>{s.serviceCount} svcs</span>
+                            <span style={{ fontSize: "10px", color: "#94A3B8", marginLeft: "6px" }}>{s.checkoutCount} checkouts</span>
                           </div>
                         </div>
                       ))}
@@ -313,7 +313,7 @@ export default function MetricsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(205,201,192,0.04)" }}>
-                    {["Stylist", "Loc", "Services", "vs Prev", "Net Sales", "vs Prev", "Avg Ticket", "vs Prev"].map(h => (
+                    {["Stylist", "Loc", "Checkouts", "vs Prev", "Net Sales", "vs Prev", "Avg Ticket", "vs Prev"].map(h => (
                       <th key={h} style={{ padding: "10px 14px", fontSize: "9px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", textAlign: h === "Stylist" || h === "Loc" ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -324,7 +324,7 @@ export default function MetricsPage() {
                       const prevLoc = data.previousMetrics.find(p => p.location === loc.location)
                       const prevStylist = prevLoc?.stylistBreakdown.find(s => s.teamMemberId === stylist.teamMemberId)
                       const revCh = prevStylist ? getChange(stylist.revenue, prevStylist.revenue) : null
-                      const svcCh = prevStylist ? getChange(stylist.serviceCount, prevStylist.serviceCount) : null
+                      const svcCh = prevStylist ? getChange(stylist.checkoutCount, prevStylist.checkoutCount) : null
                       const tktCh = prevStylist && prevStylist.avgTicket > 0 ? getChange(stylist.avgTicket, prevStylist.avgTicket) : null
 
                       return (
@@ -342,7 +342,7 @@ export default function MetricsPage() {
                               {stylist.homeLocation === "Corpus Christi" ? "CC" : "SA"}
                             </span>
                           </td>
-                          <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>{stylist.serviceCount}</td>
+                          <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>{stylist.checkoutCount}</td>
                           <td style={{ padding: "12px 14px", textAlign: "right" }}><ChangeIndicator change={svcCh} /></td>
                           <td style={{ padding: "12px 14px", textAlign: "right", fontSize: "14px", fontWeight: 800, color: "#CDC9C0" }}>{stylist.revenue > 0 ? fmt(stylist.revenue) : "\u2014"}</td>
                           <td style={{ padding: "12px 14px", textAlign: "right" }}><ChangeIndicator change={revCh} /></td>

@@ -125,8 +125,8 @@ export async function getCancellations(
   // Step 3: Filter by location using stylist maps
   let filtered = cancelled
   if (locationFilter && locationFilter !== "Both") {
-    const stylistMap = locationFilter === "CC" ? CC_STYLISTS_MAP
-      : locationFilter === "SA" ? SA_STYLISTS_MAP
+    const stylistMap = (locationFilter === "CC" || locationFilter === "Corpus Christi") ? CC_STYLISTS_MAP
+      : (locationFilter === "SA" || locationFilter === "San Antonio") ? SA_STYLISTS_MAP
       : null
     if (stylistMap) {
       filtered = cancelled.filter((b) => {
