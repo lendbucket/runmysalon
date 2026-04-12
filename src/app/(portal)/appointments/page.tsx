@@ -212,15 +212,21 @@ export default function AppointmentsPage() {
   useEffect(() => {
     if (viewMode !== "month") return
     const d = new Date(date + "T12:00:00")
-    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1)
-    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-    const calStart = new Date(monthStart)
-    calStart.setDate(1 - monthStart.getDay())
-    const calEnd = new Date(monthEnd)
-    calEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()))
+    const year = d.getFullYear()
+    const mo = d.getMonth()
 
-    const startDateStr = formatDateStr(calStart)
-    const endDateStr = formatDateStr(calEnd)
+    // Full calendar grid range — first Sunday through last Saturday
+    const firstOfMonth = new Date(year, mo, 1)
+    const lastOfMonth = new Date(year, mo + 1, 0)
+    const gridStart = new Date(firstOfMonth)
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay()) // first Sunday
+    const gridEnd = new Date(lastOfMonth)
+    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())) // last Saturday
+
+    // Use getCSTDateStr for consistency with cell date comparison
+    const startDateStr = getCSTDateStr(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate(), 12))
+    const endDateStr = getCSTDateStr(new Date(gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 12))
+    console.log("[Month range]", { startDateStr, endDateStr, year, mo })
 
     const fetchMonth = async () => {
       setLoadingMonth(true)
@@ -1045,18 +1051,20 @@ export default function AppointmentsPage() {
           const weeks = Math.ceil(totalDays / 7)
           const cells: Date[] = []
           for (let i = 0; i < weeks * 7; i++) {
-            const day = new Date(calStart)
-            day.setDate(calStart.getDate() + i)
+            // Use noon to avoid midnight timezone boundary issues
+            const day = new Date(calStart.getFullYear(), calStart.getMonth(), calStart.getDate() + i, 12)
             cells.push(day)
           }
           const todayStr = getCSTDateStr(new Date())
           // Use dedicated monthAppointments data (not single-day appointments)
           const monthData = monthAppointments.length > 0 ? monthAppointments : appointments
           console.log("[Month render] monthAppointments:", monthAppointments.length, "monthData:", monthData.length)
+          const monthFirstStr = getCSTDateStr(new Date(year, month, 1, 12))
+          const monthLastStr = getCSTDateStr(new Date(year, month + 1, 0, 12))
           const totalMonthAppts = monthData.filter(a => {
             if (!a.startTime || isBlockedTime(a)) return false
             const ad = getCSTDateStr(new Date(a.startTime))
-            return ad.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)
+            return ad >= monthFirstStr && ad <= monthLastStr
           }).length
 
           return (
