@@ -55,6 +55,12 @@ function formatDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+function clientShortName(name: string): string {
+  const parts = name.trim().split(" ")
+  if (parts.length <= 1) return name
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`
+}
+
 export default function AppointmentsPage() {
   const { isOwner, isManager, locationName } = useUserRole()
 
@@ -760,44 +766,54 @@ export default function AppointmentsPage() {
           overflowX: "auto",
           paddingBottom: "4px",
           WebkitOverflowScrolling: "touch",
+          alignItems: "center",
         }}>
-          <button
-            onClick={() => setStylistFilter("all")}
-            style={{
-              padding: "6px 12px",
-              fontSize: "10px",
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              borderRadius: "20px",
-              border: "none",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              backgroundColor: stylistFilter === "all" ? "#CDC9C0" : "rgba(205,201,192,0.06)",
-              color: stylistFilter === "all" ? "#0f1d24" : "rgba(205,201,192,0.45)",
-            }}
-          >
-            All Stylists
-          </button>
-          {getLocationStylists(location).map(s => (
-            <button
-              key={s.id}
-              onClick={() => setStylistFilter(s.id)}
-              style={{
-                padding: "6px 12px",
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                borderRadius: "20px",
-                border: "none",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                backgroundColor: stylistFilter === s.id ? "#CDC9C0" : "rgba(205,201,192,0.06)",
-                color: stylistFilter === s.id ? "#0f1d24" : "rgba(205,201,192,0.45)",
-              }}
-            >
-              {s.name}
-            </button>
-          ))}
+          {(() => {
+            const allCount = appointments.filter(a => !isBlockedTime(a)).length
+            const stylistCounts: Record<string, number> = {}
+            for (const a of appointments) {
+              if (a.teamMemberId && !isBlockedTime(a)) {
+                stylistCounts[a.teamMemberId] = (stylistCounts[a.teamMemberId] || 0) + 1
+              }
+            }
+            return (
+              <>
+                <button
+                  onClick={() => setStylistFilter("all")}
+                  style={{
+                    padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
+                    borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap",
+                    border: stylistFilter === "all" ? "1px solid rgba(122,143,150,0.3)" : "1px solid rgba(255,255,255,0.06)",
+                    backgroundColor: stylistFilter === "all" ? "rgba(122,143,150,0.1)" : "transparent",
+                    color: stylistFilter === "all" ? "#ffffff" : "rgba(205,201,192,0.45)",
+                  }}
+                >
+                  All ({allCount})
+                </button>
+                {getLocationStylists(location).map(s => {
+                  const cnt = stylistCounts[s.id] || 0
+                  const clr = stylistColorMap[s.id] || "#607D8B"
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setStylistFilter(s.id)}
+                      style={{
+                        padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
+                        borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap",
+                        display: "flex", alignItems: "center", gap: "5px",
+                        border: stylistFilter === s.id ? `1px solid ${clr}50` : "1px solid rgba(255,255,255,0.06)",
+                        backgroundColor: stylistFilter === s.id ? `${clr}1A` : "transparent",
+                        color: stylistFilter === s.id ? "#ffffff" : "rgba(205,201,192,0.45)",
+                      }}
+                    >
+                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: clr, flexShrink: 0 }} />
+                      {s.name.split(" ")[0]} ({cnt})
+                    </button>
+                  )
+                })}
+              </>
+            )
+          })()}
         </div>
 
         {/* Analytics strip */}
@@ -860,12 +876,13 @@ export default function AppointmentsPage() {
           const nowMin = now.getHours() * 60 + now.getMinutes()
           const nowOffset = (nowMin - WEEK_START * 60) * (WEEK_HOUR_PX / 60)
           const showNowLine = nowMin >= WEEK_START * 60 && nowMin <= WEEK_END * 60
+          const todayDayStr = formatDateStr(now)
 
           return (
             <div style={{ marginTop: "8px", overflowX: "auto" }}>
               <div style={{ display: "flex", minWidth: "800px" }}>
                 {/* Time column */}
-                <div style={{ width: "56px", flexShrink: 0, paddingTop: "36px", position: "relative" }}>
+                <div style={{ width: "56px", flexShrink: 0, paddingTop: "52px", position: "relative" }}>
                   {Array.from({ length: totalHours + 1 }, (_, i) => {
                     const hour = WEEK_START + i
                     return (
@@ -883,25 +900,38 @@ export default function AppointmentsPage() {
                   const isCurrentDay = dayStr === todayStr
                   const dayAppts = sorted.filter(a => {
                     if (!a.startTime) return false
-                    const aDate = new Date(a.startTime)
-                    return formatDateStr(aDate) === dayStr
+                    return formatDateStr(new Date(a.startTime)) === dayStr
                   })
                   return (
-                    <div key={di} style={{ flex: 1, minWidth: "100px", borderLeft: "1px solid rgba(255,255,255,0.06)", position: "relative", backgroundColor: isCurrentDay ? "rgba(122,143,150,0.06)" : "transparent" }}>
-                      {/* Day header */}
-                      <div style={{ padding: "8px 4px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, color: isCurrentDay ? "#7a8f96" : "#606E74", letterSpacing: "0.06em" }}>
-                          {day.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()} {day.getDate()}
+                    <div key={di} style={{ flex: 1, minWidth: "100px", borderLeft: "1px solid rgba(255,255,255,0.06)", position: "relative", backgroundColor: isCurrentDay ? "rgba(122,143,150,0.04)" : "transparent" }}>
+                      {/* Day header — name + number */}
+                      <div style={{ padding: "6px 4px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "52px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 600, color: isCurrentDay ? "#7a8f96" : "#606E74", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                          {day.toLocaleDateString("en-US", { weekday: "short" })}
+                        </span>
+                        <span style={{
+                          fontSize: "18px", fontWeight: 700, fontFamily: "'Fira Code', monospace",
+                          color: isCurrentDay ? "#0d1117" : "#7a8f96",
+                          ...(isCurrentDay ? { backgroundColor: "#7a8f96", width: "28px", height: "28px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}),
+                        }}>
+                          {day.getDate()}
                         </span>
                       </div>
                       {/* Hour grid */}
                       <div style={{ position: "relative", height: `${totalHours * WEEK_HOUR_PX}px` }}>
                         {Array.from({ length: totalHours + 1 }, (_, i) => (
-                          <div key={i} style={{ position: "absolute", top: `${i * WEEK_HOUR_PX}px`, left: 0, right: 0, height: "1px", backgroundColor: "rgba(255,255,255,0.04)" }} />
+                          <div key={i} style={{ position: "absolute", top: `${i * WEEK_HOUR_PX}px`, left: 0, right: 0, height: "1px", backgroundColor: "rgba(255,255,255,0.05)" }} />
                         ))}
-                        {/* Now line */}
+                        {/* Half-hour lines */}
+                        {Array.from({ length: totalHours }, (_, i) => (
+                          <div key={`hh${i}`} style={{ position: "absolute", top: `${i * WEEK_HOUR_PX + WEEK_HOUR_PX / 2}px`, left: 0, right: 0, height: "1px", backgroundColor: "rgba(255,255,255,0.02)" }} />
+                        ))}
+                        {/* Current time line */}
                         {isCurrentDay && showNowLine && (
-                          <div style={{ position: "absolute", top: `${nowOffset}px`, left: 0, right: 0, height: "2px", backgroundColor: "#7a8f96", boxShadow: "0 0 8px rgba(122,143,150,0.5)", zIndex: 10 }} />
+                          <div style={{ position: "absolute", top: `${nowOffset}px`, left: "-4px", right: 0, zIndex: 10, display: "flex", alignItems: "center" }}>
+                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#ef4444", flexShrink: 0, boxShadow: "0 0 6px rgba(239,68,68,0.5)" }} />
+                            <div style={{ flex: 1, height: "2px", backgroundColor: "#ef4444", boxShadow: "0 0 6px rgba(239,68,68,0.5)" }} />
+                          </div>
                         )}
                         {/* Appointment blocks */}
                         {dayAppts.filter(a => !isBlockedTime(a)).map(appt => {
@@ -909,7 +939,7 @@ export default function AppointmentsPage() {
                           const startMin = s.getHours() * 60 + s.getMinutes()
                           const dur = appt.totalDurationMinutes || 60
                           const top = (startMin - WEEK_START * 60) * (WEEK_HOUR_PX / 60)
-                          const height = Math.max(dur * (WEEK_HOUR_PX / 60), 20)
+                          const height = Math.max(dur * (WEEK_HOUR_PX / 60), 40)
                           const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
                           const isCancelled = appt.status?.startsWith("CANCELLED")
                           return (
@@ -919,25 +949,32 @@ export default function AppointmentsPage() {
                               style={{
                                 position: "absolute", top: `${top}px`, left: "4px", right: "4px", height: `${height}px`,
                                 backgroundColor: `${color}33`, borderLeft: `3px solid ${appt.isCheckedOut ? "#22c55e" : color}`,
-                                borderRadius: "6px", padding: "3px 6px", cursor: "pointer", overflow: "hidden",
-                                opacity: isCancelled ? 0.4 : appt.isCheckedOut ? 0.7 : 1, zIndex: 2,
+                                borderRadius: "6px", padding: "6px 8px", cursor: "pointer", overflow: "hidden",
+                                opacity: isCancelled ? 0.4 : 1, zIndex: 2,
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                               }}
                             >
-                              <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: isCancelled ? "line-through" : "none" }}>
+                              <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: isCancelled ? "line-through" : "none" }}>
                                 {appt.customerName}
                               </div>
-                              {height > 30 && appt.services?.[0] && (
-                                <div style={{ fontSize: "11px", color: "#7a8f96", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {appt.services[0].serviceName}
+                              {height >= 60 && appt.services?.[0] && (
+                                <div style={{ fontSize: "11px", color: "#7a8f96", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: "1px" }}>
+                                  {appt.services.map(sv => sv.serviceName).join(", ")}
                                 </div>
                               )}
-                              {height > 44 && (
-                                <div style={{ fontSize: "10px", color: "#606E74", fontFamily: "'Fira Code', monospace" }}>
-                                  {fmtTime(appt.startTime)}
+                              {height >= 60 && (
+                                <div style={{ fontSize: "10px", color: "#606E74", fontFamily: "'Fira Code', monospace", marginTop: "1px" }}>
+                                  {fmtTime(appt.startTime)}{appt.endTime ? ` – ${fmtTime(appt.endTime)}` : ""}
                                 </div>
                               )}
-                              {appt.isCheckedOut && (
-                                <div style={{ position: "absolute", top: "3px", right: "4px", fontSize: "10px", color: "#22c55e" }}>&#10003;</div>
+                              {appt.isCheckedOut && height >= 60 && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "3px", marginTop: "2px" }}>
+                                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#22c55e" }} />
+                                  <span style={{ fontSize: "10px", color: "#22c55e" }}>Checked out</span>
+                                </div>
+                              )}
+                              {appt.isCheckedOut && height < 60 && (
+                                <div style={{ position: "absolute", top: "4px", right: "4px", width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#22c55e" }} />
                               )}
                             </div>
                           )
@@ -969,13 +1006,21 @@ export default function AppointmentsPage() {
             cells.push(day)
           }
           const todayStr = (() => { const n = new Date(); return formatDateStr(n) })()
+          const totalMonthAppts = appointments.filter(a => {
+            if (!a.startTime || isBlockedTime(a)) return false
+            const ad = new Date(a.startTime)
+            return ad.getMonth() === month && ad.getFullYear() === year
+          }).length
 
           return (
             <div style={{ marginTop: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <span style={{ fontSize: "13px", color: "#7a8f96", fontWeight: 500 }}>{totalMonthAppts} appointment{totalMonthAppts !== 1 ? "s" : ""} this month</span>
+              </div>
               {/* Day of week headers */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", marginBottom: "1px" }}>
-                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map(d => (
-                  <div key={d} style={{ padding: "8px", textAlign: "center", fontSize: "10px", fontWeight: 700, color: "#606E74", letterSpacing: "0.1em" }}>{d}</div>
+                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map(dn => (
+                  <div key={dn} style={{ padding: "8px 0", textAlign: "center", fontSize: "11px", fontWeight: 600, color: "#606E74", letterSpacing: "0.1em", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{dn}</div>
                 ))}
               </div>
               {/* Calendar grid */}
@@ -983,52 +1028,69 @@ export default function AppointmentsPage() {
                 {cells.map((day, i) => {
                   const dayStr = formatDateStr(day)
                   const isCurrentMonth = day.getMonth() === month
-                  const isToday = dayStr === todayStr
-                  const dayAppts = appointments.filter(a => {
+                  const isDayToday = dayStr === todayStr
+                  const dayAppts = sorted.filter(a => {
                     if (!a.startTime || isBlockedTime(a)) return false
                     return formatDateStr(new Date(a.startTime)) === dayStr
                   })
+                  const MAX_PILLS = 4
                   return (
                     <div
                       key={i}
                       onClick={() => { setDate(dayStr); setViewMode("day") }}
                       style={{
-                        minHeight: "100px", padding: "6px",
-                        border: isToday ? "1px solid #7a8f96" : "1px solid rgba(255,255,255,0.04)",
+                        minHeight: isMobile ? "80px" : "110px", padding: "6px",
+                        border: isDayToday ? "1px solid #7a8f96" : "1px solid rgba(255,255,255,0.05)",
                         borderRadius: "4px",
-                        backgroundColor: isToday ? "rgba(122,143,150,0.04)" : "transparent",
+                        backgroundColor: isDayToday ? "rgba(122,143,150,0.05)" : isCurrentMonth ? "#0d1117" : "rgba(255,255,255,0.01)",
                         opacity: isCurrentMonth ? 1 : 0.3,
                         cursor: "pointer",
+                        transition: "background 0.15s",
                       }}
+                      onMouseEnter={e => { if (isCurrentMonth) e.currentTarget.style.backgroundColor = isDayToday ? "rgba(122,143,150,0.08)" : "rgba(255,255,255,0.02)" }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = isDayToday ? "rgba(122,143,150,0.05)" : isCurrentMonth ? "#0d1117" : "rgba(255,255,255,0.01)" }}
                     >
-                      {/* Day number */}
-                      <div style={{ textAlign: "right", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "12px", fontWeight: isToday ? 800 : 600, color: isToday ? "#ffffff" : isCurrentMonth ? "#7a8f96" : "#606E74", fontFamily: "'Fira Code', monospace" }}>
+                      {/* Day header row */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                        {dayAppts.length > 0 ? (
+                          <span style={{ fontSize: "10px", fontWeight: 700, fontFamily: "'Fira Code', monospace", padding: "1px 5px", borderRadius: "4px", backgroundColor: "rgba(96,110,116,0.15)", color: "#7a8f96" }}>{dayAppts.length}</span>
+                        ) : <span />}
+                        <span style={{
+                          fontSize: "13px", fontWeight: isDayToday ? 700 : 600, fontFamily: "'Fira Code', monospace",
+                          color: isDayToday ? "#ffffff" : isCurrentMonth ? "#7a8f96" : "rgba(255,255,255,0.2)",
+                          ...(isDayToday ? { backgroundColor: "#7a8f96", width: "22px", height: "22px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#0d1117" } : {}),
+                        }}>
                           {day.getDate()}
                         </span>
                       </div>
                       {/* Appointment pills */}
-                      {dayAppts.slice(0, 3).map(appt => {
+                      {dayAppts.slice(0, MAX_PILLS).map(appt => {
                         const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
+                        const isCancelled = appt.status?.startsWith("CANCELLED")
                         return (
                           <div
                             key={appt.id}
                             onClick={e => { e.stopPropagation(); setExpandedId(expandedId === appt.id ? null : appt.id) }}
                             style={{
-                              width: "100%", height: "20px", borderRadius: "4px", marginBottom: "2px",
-                              backgroundColor: `${color}26`, borderLeft: appt.isCheckedOut ? "2px solid #22c55e" : "none",
-                              display: "flex", alignItems: "center", paddingLeft: "4px", overflow: "hidden",
+                              width: "100%", height: "22px", borderRadius: "4px", marginBottom: "2px",
+                              backgroundColor: `${color}2E`, borderLeft: `2px solid ${color}`,
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              paddingLeft: "5px", paddingRight: "4px", overflow: "hidden",
+                              opacity: isCancelled ? 0.4 : 1,
                             }}
                           >
-                            <span style={{ fontSize: "11px", color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {appt.customerName}
+                            <span style={{ fontSize: "11px", color: isCancelled ? "#606E74" : "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: isCancelled ? "line-through" : "none" }}>
+                              {clientShortName(appt.customerName)}
                             </span>
+                            {appt.isCheckedOut && !isCancelled && (
+                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#22c55e", flexShrink: 0, marginLeft: "3px" }} />
+                            )}
                           </div>
                         )
                       })}
-                      {dayAppts.length > 3 && (
-                        <div style={{ fontSize: "10px", color: "#606E74", textAlign: "center", marginTop: "2px" }}>
-                          +{dayAppts.length - 3} more
+                      {dayAppts.length > MAX_PILLS && (
+                        <div onClick={e => { e.stopPropagation(); setDate(dayStr); setViewMode("day") }} style={{ fontSize: "11px", color: "#606E74", marginTop: "1px", cursor: "pointer" }}>
+                          +{dayAppts.length - MAX_PILLS} more
                         </div>
                       )}
                     </div>
@@ -1236,10 +1298,18 @@ export default function AppointmentsPage() {
       ) : (
         /* ── List View ── */
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "2px" }}>
-            {sorted.length} Appointment{sorted.length !== 1 ? "s" : ""}
-          </div>
-          {sorted.map((appt) => {
+          {(() => {
+            const timeGroups = [
+              { label: "Morning", items: sorted.filter(a => new Date(a.startTime).getHours() < 12) },
+              { label: "Afternoon", items: sorted.filter(a => { const h = new Date(a.startTime).getHours(); return h >= 12 && h < 17 }) },
+              { label: "Evening", items: sorted.filter(a => new Date(a.startTime).getHours() >= 17) },
+            ].filter(g => g.items.length > 0)
+            return timeGroups.map(group => (
+              <div key={group.label}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.08em", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", marginBottom: "8px" }}>
+                  {group.label} &middot; {group.items.length} appointment{group.items.length !== 1 ? "s" : ""}
+                </div>
+                {group.items.map((appt) => {
             const isExpanded = expandedId === appt.id
             const statusStyle = getStatusStyle(appt.status)
             const blocked = isBlockedTime(appt)
@@ -1324,11 +1394,10 @@ export default function AppointmentsPage() {
                   </div>
 
                   {/* Time + Stylist row */}
-                  <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "rgba(205,201,192,0.55)", fontWeight: 500, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "16px", fontSize: "13px", color: "rgba(205,201,192,0.55)", fontWeight: 500, alignItems: "center" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                       <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>schedule</span>
-                      {fmtTime(appt.startTime)}
-                      {appt.endTime && ` - ${fmtTime(appt.endTime)}`}
+                      <span style={{ fontFamily: "'Fira Code', monospace", color: "#ffffff", fontWeight: 600 }}>{fmtTime(appt.startTime)}{appt.endTime ? ` - ${fmtTime(appt.endTime)}` : ""}</span>
                     </span>
                     {appt.teamMemberId && (
                       <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1472,7 +1541,10 @@ export default function AppointmentsPage() {
                 )}
               </div>
             )
-          })}
+                })}
+              </div>
+            ))
+          })()}
         </div>
       )}
 
