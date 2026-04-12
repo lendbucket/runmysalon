@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getComparisonMetrics } from "@/lib/square-metrics"
+import { getComparisonMetrics, getMetricsByPeriodWithDates } from "@/lib/square-metrics"
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,9 +20,20 @@ export async function GET(req: NextRequest) {
       loc = req.nextUrl.searchParams.get("location")
     }
 
+    const startDate = req.nextUrl.searchParams.get("startDate")
+    const endDate = req.nextUrl.searchParams.get("endDate")
+    const locFilter = loc === "Corpus Christi" || loc === "San Antonio" ? loc : undefined
+
+    if (period === "custom" && startDate && endDate) {
+      const startAt = new Date(startDate).toISOString()
+      const endAt = new Date(endDate + "T23:59:59").toISOString()
+      const currentMetrics = await getMetricsByPeriodWithDates(startAt, endAt, locFilter)
+      return NextResponse.json({ currentMetrics, previousMetrics: [], prevStartAt: startAt, prevEndAt: endAt })
+    }
+
     const data = await getComparisonMetrics(
       period,
-      loc === "Corpus Christi" || loc === "San Antonio" ? loc : undefined
+      locFilter
     )
     return NextResponse.json(data)
   } catch (error: unknown) {

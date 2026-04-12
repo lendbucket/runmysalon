@@ -433,6 +433,13 @@ export default function AppointmentsPage() {
 
   const txTotalPages = txData?.transactions ? Math.ceil(txData.transactions.length / TX_PER_PAGE) : 0
 
+  function getTxFileDates(): string {
+    const { start, end } = getTxDateRange()
+    const s = new Date(start).toISOString().slice(0, 10)
+    const e = new Date(end).toISOString().slice(0, 10)
+    return `${s}_to_${e}`
+  }
+
   function exportTxCsv() {
     if (!txData?.transactions?.length) return
     const rows = [["Date", "Time", "Client", "Stylist", "Services", "Payment Method", "Subtotal", "Tips", "Tax", "Total"]]
@@ -454,7 +461,39 @@ export default function AppointmentsPage() {
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n")
     const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a"); a.href = url; a.download = `transactions_${txPeriod}_${Date.now()}.csv`; a.click()
+    const locLabel = location === "San Antonio" ? "SA" : "CC"
+    const a = document.createElement("a"); a.href = url; a.download = `transactions_${locLabel}_${getTxFileDates()}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadTxReport() {
+    if (!txData?.transactions?.length || !txData.summary) return
+    const locLabel = location === "Corpus Christi" ? "Salon Envy Corpus Christi" : "Salon Envy San Antonio"
+    const dateRange = getTxFileDates().replace(/_to_/, " to ")
+    const s = txData.summary
+    const rows = txData.transactions.map((tx: { closedAt: string; customerName: string; stylistName: string; services: string[]; paymentMethod: string; subtotal: number; tips: number; tax: number; total: number }) => {
+      const d = new Date(tx.closedAt)
+      return [
+        d.toLocaleDateString("en-US", { timeZone: "America/Chicago" }),
+        d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }),
+        tx.customerName, tx.stylistName, tx.services.join("; "), tx.paymentMethod,
+        tx.subtotal.toFixed(2), tx.tips.toFixed(2), tx.tax.toFixed(2), tx.total.toFixed(2),
+      ].map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")
+    })
+    const csv = [
+      `"${locLabel} — Transaction Report — ${dateRange}"`,
+      "",
+      `"Total Revenue","Total Tips","Total Tax","Total Collected","# Transactions","Avg Ticket"`,
+      `"$${s.revenue.toFixed(2)}","$${s.tips.toFixed(2)}","$${s.tax.toFixed(2)}","$${s.total.toFixed(2)}","${s.count}","$${s.avgTicket.toFixed(2)}"`,
+      "",
+      `"Date","Time","Client","Stylist","Services","Payment","Subtotal","Tips","Tax","Total"`,
+      ...rows,
+      "",
+      `"Generated ${new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })} CST"`,
+    ].join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a"); a.href = url; a.download = `report_${location === "San Antonio" ? "SA" : "CC"}_${getTxFileDates()}.csv`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -474,13 +513,17 @@ export default function AppointmentsPage() {
   }
 
   function paymentBadge(method: string) {
-    if (method === "Cash") return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(16,185,129,0.12)", color: "#10B981" }}>CASH</span>
-    if (method === "Apple Pay") return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(255,255,255,0.08)", color: "#fff" }}>Apple Pay</span>
+    const badgeBase = { fontFamily: "'Fira Code', monospace", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", whiteSpace: "nowrap" as const }
+    if (method === "Cash") return <span style={{ ...badgeBase, backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" }}>CASH</span>
+    if (method === "Apple Pay") return <span style={{ ...badgeBase, backgroundColor: "rgba(255,255,255,0.08)", color: "#fff" }}>Apple Pay</span>
     const parts = method.split(" ")
-    const brand = parts[0]?.toUpperCase() || ""
-    const info = CARD_BRANDS[brand]
-    if (info) return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: `${info.color}22`, color: info.color === "#1A1F71" ? "#4F8EF7" : info.color }}>{info.abbr} {parts.slice(1).join(" ")}</span>
-    return <span style={{ fontSize: "9px", fontWeight: 700, padding: "2px 6px", borderRadius: "3px", backgroundColor: "rgba(255,255,255,0.06)", color: "rgba(205,201,192,0.6)" }}>{method}</span>
+    const brand = parts[0]?.toUpperCase().replace(/ /g, "_") || ""
+    const last4 = parts.slice(1).join(" ")
+    if (brand.includes("VISA")) return <span style={{ ...badgeBase, backgroundColor: "rgba(26,115,232,0.1)", color: "#60a5fa" }}>VISA {last4}</span>
+    if (brand.includes("MASTER")) return <span style={{ ...badgeBase, backgroundColor: "rgba(235,95,52,0.1)", color: "#fb923c" }}>MC {last4}</span>
+    if (brand.includes("AMEX") || brand.includes("AMERICAN")) return <span style={{ ...badgeBase, backgroundColor: "rgba(0,114,206,0.1)", color: "#60a5fa" }}>AMEX {last4}</span>
+    if (brand.includes("DISCOVER")) return <span style={{ ...badgeBase, backgroundColor: "rgba(255,102,0,0.1)", color: "#fb923c" }}>DISC {last4}</span>
+    return <span style={{ ...badgeBase, backgroundColor: "rgba(96,110,116,0.1)", color: "#7a8f96" }}>{method}</span>
   }
 
   // Filter by stylist and sort by startTime
@@ -1730,27 +1773,35 @@ export default function AppointmentsPage() {
                 { label: "# Transactions", value: String(txData.summary.count), icon: "receipt" },
                 { label: "Avg Ticket", value: fmtCurrency(txData.summary.avgTicket), icon: "analytics" },
               ].map(c => (
-                <div key={c.label} style={{ backgroundColor: "#0d1117", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                <div key={c.label} style={{ backgroundColor: "#0d1117", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "20px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02), 0 0 0 1px rgba(0,0,0,0.25)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                     <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "rgba(205,201,192,0.35)" }}>{c.icon}</span>
-                    <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)" }}>{c.label}</span>
+                    <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#606E74" }}>{c.label}</span>
                   </div>
-                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#CDC9C0", fontFamily: "'Fira Code', monospace" }}>{c.value}</div>
+                  <div style={{ fontSize: "24px", fontWeight: 600, color: "#ffffff", fontFamily: "'Fira Code', monospace" }}>{c.value}</div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Export button */}
+          {/* Export buttons */}
           {txData?.transactions && txData.transactions.length > 0 && !txLoading && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginBottom: "12px" }}>
               <button onClick={exportTxCsv} style={{
-                padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-                borderRadius: "6px", border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "transparent",
-                color: "rgba(205,201,192,0.6)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 16px", fontSize: "13px", fontWeight: 600,
+                borderRadius: "8px", border: "1px solid #606E74", backgroundColor: "transparent",
+                color: "#7a8f96", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>download</span>
                 Export CSV
+              </button>
+              <button onClick={downloadTxReport} style={{
+                padding: "8px 16px", fontSize: "13px", fontWeight: 600,
+                borderRadius: "8px", border: "1px solid #606E74", backgroundColor: "transparent",
+                color: "#7a8f96", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>summarize</span>
+                Download Report
               </button>
             </div>
           )}
@@ -1781,31 +1832,32 @@ export default function AppointmentsPage() {
                   <thead>
                     <tr style={{ backgroundColor: "rgba(205,201,192,0.04)" }}>
                       {["Time", "Client", "Stylist", "Services", "Payment", "Subtotal", "Tips", "Tax", "Total"].map(h => (
-                        <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(205,201,192,0.4)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
+                        <th key={h} style={{ padding: "12px 14px", textAlign: h === "Subtotal" || h === "Tips" || h === "Tax" || h === "Total" ? "right" : "left", fontSize: "11px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#606E74", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {txPageData.map(tx => (
-                      <tr key={tx.id} style={{ cursor: "pointer", transition: "background 0.1s" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(205,201,192,0.04)")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                    {txPageData.map((tx, idx) => (
+                      <tr key={tx.id} style={{ cursor: "pointer", transition: "background 0.15s", backgroundColor: idx % 2 === 1 ? "rgba(255,255,255,0.01)" : "transparent" }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.02)")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = idx % 2 === 1 ? "rgba(255,255,255,0.01)" : "transparent")}
                       >
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", fontWeight: 600, borderBottom: "1px solid rgba(205,201,192,0.04)", whiteSpace: "nowrap" }}>
+                        <td style={{ padding: "14px", fontSize: "12px", color: "#606E74", fontWeight: 600, fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", whiteSpace: "nowrap" }}>
                           {new Date(tx.closedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })}
                         </td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "#fff", fontWeight: 600, borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.customerName}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.stylistName}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "11px", color: "rgba(205,201,192,0.55)", borderBottom: "1px solid rgba(205,201,192,0.04)", maxWidth: "200px" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {tx.services.map((s: string, i: number) => <span key={i}>{s}</span>)}
+                        <td style={{ padding: "14px", fontSize: "14px", color: "#ffffff", fontWeight: 600, borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.customerName}</td>
+                        <td style={{ padding: "14px", fontSize: "13px", color: "#7a8f96", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{tx.stylistName}</td>
+                        <td style={{ padding: "14px", fontSize: "12px", color: "#606E74", borderBottom: "1px solid rgba(205,201,192,0.04)", maxWidth: "200px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden", maxHeight: "36px" }}>
+                            {tx.services.slice(0, 2).map((s: string, i: number) => <span key={i} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</span>)}
+                            {tx.services.length > 2 && <span style={{ color: "rgba(96,110,116,0.6)" }}>+{tx.services.length - 2} more</span>}
                           </div>
                         </td>
-                        <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{paymentBadge(tx.paymentMethod)}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.7)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.subtotal)}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: tx.tips > 0 ? "#10B981" : "rgba(205,201,192,0.3)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{tx.tips > 0 ? fmtCurrency(tx.tips) : "—"}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "rgba(205,201,192,0.5)", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.tax)}</td>
-                        <td style={{ padding: "10px 12px", fontSize: "12px", color: "#CDC9C0", fontWeight: 700, fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.total)}</td>
+                        <td style={{ padding: "14px", borderBottom: "1px solid rgba(205,201,192,0.04)" }}>{paymentBadge(tx.paymentMethod)}</td>
+                        <td style={{ padding: "14px", fontSize: "12px", color: "#ffffff", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.subtotal)}</td>
+                        <td style={{ padding: "14px", fontSize: "12px", color: tx.tips > 0 ? "#22c55e" : "#606E74", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{tx.tips > 0 ? fmtCurrency(tx.tips) : "\u2014"}</td>
+                        <td style={{ padding: "14px", fontSize: "12px", color: "#606E74", fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.tax)}</td>
+                        <td style={{ padding: "14px", fontSize: "12px", color: "#ffffff", fontWeight: 700, fontFamily: "'Fira Code', monospace", borderBottom: "1px solid rgba(205,201,192,0.04)", textAlign: "right" }}>{fmtCurrency(tx.total)}</td>
                       </tr>
                     ))}
                   </tbody>

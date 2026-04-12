@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getMetricsByPeriod } from "@/lib/square-metrics"
+import { getMetricsByPeriod, getMetricsByPeriodWithDates } from "@/lib/square-metrics"
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -21,7 +21,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const metrics = await getMetricsByPeriod(period, loc || undefined)
+    const startDate = req.nextUrl.searchParams.get("startDate")
+    const endDate = req.nextUrl.searchParams.get("endDate")
+    const metrics = startDate && endDate
+      ? await getMetricsByPeriodWithDates(new Date(startDate).toISOString(), new Date(endDate + "T23:59:59").toISOString(), loc || undefined)
+      : await getMetricsByPeriod(period, loc || undefined)
     return NextResponse.json({ metrics })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)

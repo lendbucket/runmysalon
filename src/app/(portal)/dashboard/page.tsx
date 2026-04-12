@@ -144,6 +144,8 @@ export default function DashboardPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [now, setNow] = useState(Date.now()) // for re-rendering timeAgo
+  const [customStart, setCustomStart] = useState("")
+  const [customEnd, setCustomEnd] = useState("")
 
   const userName = session?.user?.name?.split(" ")[0] || "User"
   const hour = new Date().getHours()
@@ -158,6 +160,10 @@ export default function DashboardPage() {
     try {
       const params = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") params.set("location", activeLocation)
+      if (activePeriod === "custom" && customStart && customEnd) {
+        params.set("startDate", customStart)
+        params.set("endDate", customEnd)
+      }
 
       const cancelParams = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") cancelParams.set("location", activeLocation)
@@ -180,7 +186,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeLocation, activePeriod])
+  }, [activeLocation, activePeriod, customStart, customEnd])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -227,9 +233,10 @@ export default function DashboardPage() {
     return () => clearInterval(id)
   }, [activeLocation])
 
-  const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year" }
+  const customLabel = customStart && customEnd ? `${new Date(customStart + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(customEnd + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Custom"
+  const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year", custom: customLabel }
   const pLabel = periodLabel[activePeriod] || activePeriod
-  const summaryPeriodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "Last 7 days", "30days": "Last 30 days", "90days": "Last 90 days", week: "This week", month: "This month", year: "This year" }
+  const summaryPeriodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "Last 7 days", "30days": "Last 30 days", "90days": "Last 90 days", week: "This week", month: "This month", year: "This year", custom: customLabel }
   const summaryLabel = summaryPeriodLabel[activePeriod] || activePeriod
 
   const metrics = [
@@ -323,6 +330,7 @@ export default function DashboardPage() {
             { key: "week", label: "Week" },
             { key: "month", label: "Month" },
             { key: "year", label: "Year" },
+            { key: "custom", label: "Custom" },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -376,6 +384,21 @@ export default function DashboardPage() {
         ))}
         </div>
       </div>
+
+      {/* Custom date range inputs */}
+      {activePeriod === "custom" && (
+        <div style={{ display: "flex", gap: "10px", marginBottom: "16px", alignItems: "flex-end" }}>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#606E74", marginBottom: "4px" }}>From</div>
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "#06080d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#ffffff", fontSize: "14px", outline: "none", colorScheme: "dark" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#606E74", marginBottom: "4px" }}>To</div>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "#06080d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#ffffff", fontSize: "14px", outline: "none", colorScheme: "dark" }} />
+          </div>
+          <button onClick={() => fetchData()} disabled={!customStart || !customEnd} style={{ padding: "6px 14px", border: "1px solid #606E74", borderRadius: "8px", backgroundColor: "transparent", color: "#7a8f96", fontSize: "13px", cursor: "pointer", opacity: (!customStart || !customEnd) ? 0.5 : 1 }}>Apply</button>
+        </div>
+      )}
 
       {/* Error state */}
       {fetchError && !loading && (

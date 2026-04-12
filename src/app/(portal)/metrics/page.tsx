@@ -36,6 +36,7 @@ const PERIOD_DEFS = [
   { value: "week", label: "This Week" },
   { value: "month", label: "This Month" },
   { value: "year", label: "This Year" },
+  { value: "custom", label: "Custom" },
 ]
 
 function getCompareLabel(periodValue: string): string {
@@ -97,6 +98,8 @@ export default function MetricsPage() {
   const [aiInsight, setAiInsight] = useState("")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiQuestion, setAiQuestion] = useState("")
+  const [customStart, setCustomStart] = useState("")
+  const [customEnd, setCustomEnd] = useState("")
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -104,6 +107,10 @@ export default function MetricsPage() {
     try {
       const params = new URLSearchParams({ period })
       if (location !== "Both") params.set("location", location)
+      if (period === "custom" && customStart && customEnd) {
+        params.set("startDate", customStart)
+        params.set("endDate", customEnd)
+      }
       const res = await fetch(`/api/metrics/comparison?${params}`)
       const json = await res.json()
       setData(json)
@@ -111,7 +118,7 @@ export default function MetricsPage() {
       setFetchError("Failed to load data")
     }
     setLoading(false)
-  }, [period, location])
+  }, [period, location, customStart, customEnd])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -215,6 +222,21 @@ export default function MetricsPage() {
           ))}
         </div>
       </div>
+
+      {/* Custom date range */}
+      {period === "custom" && (
+        <div style={{ display: "flex", gap: "10px", marginBottom: "16px", alignItems: "flex-end" }}>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#606E74", marginBottom: "4px" }}>From</div>
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "#06080d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#ffffff", fontSize: "14px", outline: "none", colorScheme: "dark" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#606E74", marginBottom: "4px" }}>To</div>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ padding: "8px 12px", backgroundColor: "#06080d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#ffffff", fontSize: "14px", outline: "none", colorScheme: "dark" }} />
+          </div>
+          <button onClick={() => fetchData()} disabled={!customStart || !customEnd} style={{ padding: "6px 14px", border: "1px solid #606E74", borderRadius: "8px", backgroundColor: "transparent", color: "#7a8f96", fontSize: "13px", cursor: "pointer", opacity: (!customStart || !customEnd) ? 0.5 : 1 }}>Apply</button>
+        </div>
+      )}
 
       {/* Error state */}
       {fetchError && !loading && (

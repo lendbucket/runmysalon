@@ -252,6 +252,19 @@ export async function GET(request: NextRequest) {
       return { services: lineItems, subtotal, tips, tax, total, paymentMethod, closedAt: order.closedAt, checkoutLocationId: order.locationId };
     }
 
+    // Helper: get CST calendar date string for same-day comparison
+    function getCSTDate(d: Date): string {
+      return d.toLocaleDateString("en-US", { timeZone: "America/Chicago" });
+    }
+
+    // Deduplicate orders by ID (safety)
+    const orderIdsSeen = new Set<string>();
+    const dedupedOrders = allOrdersList.filter(o => {
+      if (!o.id || orderIdsSeen.has(o.id)) return false;
+      orderIdsSeen.add(o.id);
+      return true;
+    });
+
     const usedOrderIds = new Set<string>();
     const enrichedAppointments = appointments.map(appt => {
       let isCheckedOut = false;
@@ -259,14 +272,16 @@ export async function GET(request: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let checkoutDetails: any = null;
 
-      // Strategy 1: Match by customer_id (most reliable) — widened to -1h to +8h
+      const bookingTime = new Date(appt.startTime || "").getTime();
+      const bookingCSTDate = getCSTDate(new Date(appt.startTime || ""));
+
+      // Strategy 1: Match by customer_id — SAME CST DAY + order AFTER booking start
       if (appt.customerId && ordersByCustomer[appt.customerId]) {
         const order = ordersByCustomer[appt.customerId];
         if (!usedOrderIds.has(order.id)) {
-          const bookingTime = new Date(appt.startTime || "").getTime();
           const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
-          const diffH = (orderTime - bookingTime) / (1000 * 60 * 60);
-          if (diffH >= -1 && diffH <= 8) {
+          const orderCSTDate = getCSTDate(new Date(order.closedAt || order.createdAt || ""));
+          if (bookingCSTDate === orderCSTDate && orderTime >= bookingTime) {
             isCheckedOut = true;
             orderId = order.id;
             checkoutDetails = buildCheckoutDetails(order);
@@ -275,25 +290,22 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Strategy 2: If no customer match, scan all orders for time-proximity match
-      // Catches cases where order has different/no customer_id or cross-location processing
-      if (!isCheckedOut) {
-        const bookingTime = new Date(appt.startTime || "").getTime();
+      // Strategy 2: Scan all orders — ONLY match if customer_id matches AND same day
+      // This catches cases where ordersByCustomer had a different (newer) order indexed
+      if (!isCheckedOut && appt.customerId) {
         let bestOrder = null;
         let bestDiff = Infinity;
-        for (const order of allOrdersList) {
+        for (const order of dedupedOrders) {
           if (usedOrderIds.has(order.id)) continue;
+          if (order.customerId !== appt.customerId) continue;
           const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
-          const diffH = (orderTime - bookingTime) / (1000 * 60 * 60);
-          if (diffH >= -1 && diffH <= 8) {
-            // Prefer customer_id match, then closest time
-            const isCustomerMatch = appt.customerId && order.customerId === appt.customerId;
-            const absDiff = Math.abs(orderTime - bookingTime);
-            if (isCustomerMatch || absDiff < bestDiff) {
-              bestOrder = order;
-              bestDiff = absDiff;
-              if (isCustomerMatch) break; // exact match, stop searching
-            }
+          const orderCSTDate = getCSTDate(new Date(order.closedAt || order.createdAt || ""));
+          if (bookingCSTDate !== orderCSTDate) continue;
+          if (orderTime < bookingTime) continue;
+          const diff = orderTime - bookingTime;
+          if (diff < bestDiff) {
+            bestOrder = order;
+            bestDiff = diff;
           }
         }
         if (bestOrder) {
