@@ -61,13 +61,20 @@ export async function GET(request: NextRequest) {
   // Default to CC if no location resolved
   if (!locationId) locationId = "LTJSA6QR1HGW6";
 
-  // Date param support — default to today
+  // Date param support — single date OR date range for week/month views
   const dateParam = request.nextUrl.searchParams.get("date");
+  const startDateParam = request.nextUrl.searchParams.get("startDate");
+  const endDateParam = request.nextUrl.searchParams.get("endDate");
   const allStatuses = request.nextUrl.searchParams.get("all") === "true";
 
   let startOfDay: Date;
   let endOfDay: Date;
-  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+  if (startDateParam && endDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam) && /^\d{4}-\d{2}-\d{2}$/.test(endDateParam)) {
+    const [sy, sm, sd] = startDateParam.split("-").map(Number);
+    const [ey, em, ed] = endDateParam.split("-").map(Number);
+    startOfDay = new Date(sy, sm - 1, sd);
+    endOfDay = new Date(ey, em - 1, ed + 1);
+  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
     const [y, m, d] = dateParam.split("-").map(Number);
     startOfDay = new Date(y, m - 1, d);
     endOfDay = new Date(y, m - 1, d + 1);
@@ -79,32 +86,41 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const listParams: Record<string, unknown> = {
-      startAtMin: startOfDay.toISOString(),
-      startAtMax: endOfDay.toISOString(),
-      locationId,
-      limit: 50,
-    };
-    if (teamMemberFilter) {
-      listParams.teamMemberId = teamMemberFilter;
-    }
-
+    // Fetch bookings from BOTH Square locations for cross-location coverage
+    // A stylist's appointments belong to their HOME location regardless of where booked
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allBookings: any[] = [];
-    let bookingsPage = await square.bookings.list(listParams as Parameters<typeof square.bookings.list>[0]);
-    for (const b of bookingsPage.data) allBookings.push(b);
-    while (bookingsPage.hasNextPage()) {
-      bookingsPage = await bookingsPage.getNextPage();
+    for (const locId of [CC_LOCATION_ID, SA_LOCATION_ID]) {
+      const listParams: Record<string, unknown> = {
+        startAtMin: startOfDay.toISOString(),
+        startAtMax: endOfDay.toISOString(),
+        locationId: locId,
+        limit: 50,
+      };
+      if (teamMemberFilter) listParams.teamMemberId = teamMemberFilter;
+
+      let bookingsPage = await square.bookings.list(listParams as Parameters<typeof square.bookings.list>[0]);
       for (const b of bookingsPage.data) allBookings.push(b);
+      while (bookingsPage.hasNextPage()) {
+        bookingsPage = await bookingsPage.getNextPage();
+        for (const b of bookingsPage.data) allBookings.push(b);
+      }
     }
-    const bookings = allBookings;
+
+    // Deduplicate by booking ID (same booking may appear at both locations)
+    const seenIds = new Set<string>();
+    const bookings = allBookings.filter(b => {
+      if (!b.id || seenIds.has(b.id)) return false;
+      seenIds.add(b.id);
+      return true;
+    });
 
     // Filter by status unless ?all=true
     let filtered = allStatuses
       ? bookings
       : bookings.filter((b) => b.status === "ACCEPTED" || b.status === "PENDING");
 
-    // Filter by location's stylists — only show team members belonging to the selected location
+    // Filter by team member's HOME location (not booking's physical Square location)
     const locationStylistIds = locationId === CC_LOCATION_ID
       ? new Set(Object.keys(CC_STYLISTS_MAP))
       : new Set(Object.keys(SA_STYLISTS_MAP));
@@ -184,8 +200,9 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Check for completed orders — fetch from BOTH locations since all payments go through SA
-    // SALONTRANSACT: Currently powered by Square API
+    // Check for completed orders — fetch from BOTH locations always
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allOrdersList: any[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ordersByCustomer: Record<string, any> = {};
     try {
@@ -200,8 +217,8 @@ export async function GET(request: NextRequest) {
         limit: 200,
       });
       for (const o of (ordersRes.orders || [])) {
+        allOrdersList.push(o);
         if (o.customerId) {
-          // Keep the most recent order per customer
           if (!ordersByCustomer[o.customerId] || new Date(o.closedAt || "").getTime() > new Date(ordersByCustomer[o.customerId].closedAt || "").getTime()) {
             ordersByCustomer[o.customerId] = o;
           }
@@ -211,46 +228,79 @@ export async function GET(request: NextRequest) {
       // Orders lookup failed — skip checkout detection
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function buildCheckoutDetails(order: any) {
+      const lineItems = (order.lineItems || []).map((li: { name?: string; grossSalesMoney?: { amount?: bigint | number } }) => ({
+        name: li.name || "Service",
+        price: Number(li.grossSalesMoney?.amount || 0) / 100,
+      }));
+      const subtotal = lineItems.reduce((s: number, li: { price: number }) => s + li.price, 0);
+      const tips = Number(order.totalTipMoney?.amount || 0) / 100;
+      const tax = Number(order.totalTaxMoney?.amount || 0) / 100;
+      const total = Number(order.totalMoney?.amount || 0) / 100;
+      let paymentMethod = "Card";
+      const tender = order.tenders?.[0];
+      if (tender) {
+        if (tender.type === "CASH") paymentMethod = "Cash";
+        else if (tender.type === "WALLET") paymentMethod = "Apple Pay";
+        else if (tender.cardDetails?.card) {
+          const card = tender.cardDetails.card;
+          const brand = (card.cardBrand || "Card").replace(/_/g, " ");
+          paymentMethod = `${brand} •••• ${card.last4 || "****"}`;
+        }
+      }
+      return { services: lineItems, subtotal, tips, tax, total, paymentMethod, closedAt: order.closedAt, checkoutLocationId: order.locationId };
+    }
+
+    const usedOrderIds = new Set<string>();
     const enrichedAppointments = appointments.map(appt => {
       let isCheckedOut = false;
       let orderId: string | undefined;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let checkoutDetails: any = null;
 
+      // Strategy 1: Match by customer_id (most reliable) — widened to -1h to +8h
       if (appt.customerId && ordersByCustomer[appt.customerId]) {
         const order = ordersByCustomer[appt.customerId];
+        if (!usedOrderIds.has(order.id)) {
+          const bookingTime = new Date(appt.startTime || "").getTime();
+          const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
+          const diffH = (orderTime - bookingTime) / (1000 * 60 * 60);
+          if (diffH >= -1 && diffH <= 8) {
+            isCheckedOut = true;
+            orderId = order.id;
+            checkoutDetails = buildCheckoutDetails(order);
+            usedOrderIds.add(order.id);
+          }
+        }
+      }
+
+      // Strategy 2: If no customer match, scan all orders for time-proximity match
+      // Catches cases where order has different/no customer_id or cross-location processing
+      if (!isCheckedOut) {
         const bookingTime = new Date(appt.startTime || "").getTime();
-        const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
-        const diffH = Math.abs(orderTime - bookingTime) / (1000 * 60 * 60);
-
-        if (diffH < 12) {
-          isCheckedOut = true;
-          orderId = order.id;
-
-          // Build checkout details
-          const lineItems = (order.lineItems || []).map((li: { name?: string; grossSalesMoney?: { amount?: bigint | number } }) => ({
-            name: li.name || "Service",
-            price: Number(li.grossSalesMoney?.amount || 0) / 100,
-          }));
-          const subtotal = lineItems.reduce((s: number, li: { price: number }) => s + li.price, 0);
-          const tips = Number(order.totalTipMoney?.amount || 0) / 100;
-          const tax = Number(order.totalTaxMoney?.amount || 0) / 100;
-          const total = Number(order.totalMoney?.amount || 0) / 100;
-
-          // Payment method from tenders
-          let paymentMethod = "Card";
-          const tender = order.tenders?.[0];
-          if (tender) {
-            if (tender.type === "CASH") paymentMethod = "Cash";
-            else if (tender.type === "WALLET") paymentMethod = "Apple Pay";
-            else if (tender.cardDetails?.card) {
-              const card = tender.cardDetails.card;
-              const brand = (card.cardBrand || "Card").replace(/_/g, " ");
-              paymentMethod = `${brand} •••• ${card.last4 || "****"}`;
+        let bestOrder = null;
+        let bestDiff = Infinity;
+        for (const order of allOrdersList) {
+          if (usedOrderIds.has(order.id)) continue;
+          const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
+          const diffH = (orderTime - bookingTime) / (1000 * 60 * 60);
+          if (diffH >= -1 && diffH <= 8) {
+            // Prefer customer_id match, then closest time
+            const isCustomerMatch = appt.customerId && order.customerId === appt.customerId;
+            const absDiff = Math.abs(orderTime - bookingTime);
+            if (isCustomerMatch || absDiff < bestDiff) {
+              bestOrder = order;
+              bestDiff = absDiff;
+              if (isCustomerMatch) break; // exact match, stop searching
             }
           }
-
-          checkoutDetails = { services: lineItems, subtotal, tips, tax, total, paymentMethod, closedAt: order.closedAt };
+        }
+        if (bestOrder) {
+          isCheckedOut = true;
+          orderId = bestOrder.id;
+          checkoutDetails = buildCheckoutDetails(bestOrder);
+          usedOrderIds.add(bestOrder.id);
         }
       }
 

@@ -48,6 +48,11 @@ interface Appointment {
   isCheckedOut?: boolean
   orderId?: string
   version?: number
+  checkoutDetails?: { total: number; subtotal: number; tips: number; tax: number; paymentMethod: string; closedAt: string; services: { name: string; price: number }[] }
+}
+
+function formatDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
 export default function AppointmentsPage() {
@@ -71,7 +76,7 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [stylistFilter, setStylistFilter] = useState<string>("all")
-  const [viewMode, setViewMode] = useState<"list" | "day">("list")
+  const [viewMode, setViewMode] = useState<"list" | "day" | "week" | "month">("list")
   const [showBooking, setShowBooking] = useState(false)
   const [bookStep, setBookStep] = useState(1)
   const [bookClient, setBookClient] = useState<{ id: string; name: string } | null>(null)
@@ -158,9 +163,31 @@ export default function AppointmentsPage() {
     setFetchError(null)
     try {
       const params = new URLSearchParams()
-      params.set("date", date)
       params.set("all", "true")
       if (isOwner && location) params.set("location", location)
+
+      if (viewMode === "week") {
+        const d = new Date(date + "T12:00:00")
+        const weekStart = new Date(d)
+        weekStart.setDate(d.getDate() - d.getDay())
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 6)
+        params.set("startDate", formatDateStr(weekStart))
+        params.set("endDate", formatDateStr(weekEnd))
+      } else if (viewMode === "month") {
+        const d = new Date(date + "T12:00:00")
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1)
+        const calStart = new Date(monthStart)
+        calStart.setDate(1 - monthStart.getDay())
+        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+        const calEnd = new Date(monthEnd)
+        calEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()))
+        params.set("startDate", formatDateStr(calStart))
+        params.set("endDate", formatDateStr(calEnd))
+      } else {
+        params.set("date", date)
+      }
+
       const res = await fetch(`/api/pos/appointments?${params}`)
       const data = await res.json()
       setAppointments(data.appointments || [])
@@ -170,7 +197,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [date, isOwner, location])
+  }, [date, isOwner, location, viewMode])
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
 
@@ -469,8 +496,14 @@ export default function AppointmentsPage() {
 
   const navigateDate = (delta: number) => {
     const d = new Date(date + "T12:00:00")
-    d.setDate(d.getDate() + delta)
-    setDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`)
+    if (viewMode === "week") {
+      d.setDate(d.getDate() + delta * 7)
+    } else if (viewMode === "month") {
+      d.setMonth(d.getMonth() + delta)
+    } else {
+      d.setDate(d.getDate() + delta)
+    }
+    setDate(formatDateStr(d))
   }
 
   const goToday = () => {
@@ -480,8 +513,18 @@ export default function AppointmentsPage() {
 
   const displayDate = useMemo(() => {
     const d = new Date(date + "T12:00:00")
+    if (viewMode === "week") {
+      const weekStart = new Date(d)
+      weekStart.setDate(d.getDate() - d.getDay())
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      return `${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()} – ${weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}`
+    }
+    if (viewMode === "month") {
+      return d.toLocaleDateString("en-US", { month: "long", year: "numeric" }).toUpperCase()
+    }
     return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
-  }, [date])
+  }, [date, viewMode])
 
   const isToday = useMemo(() => {
     const now = new Date()
@@ -644,24 +687,24 @@ export default function AppointmentsPage() {
 
         {/* View toggle */}
         <div style={{ display: "flex", gap: "4px", marginTop: "12px" }}>
-          {(["list", "day"] as const).map(v => (
+          {(["list", "day", "week", "month"] as const).map(v => (
             <button
               key={v}
               onClick={() => setViewMode(v)}
               style={{
-                padding: "7px 14px",
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                borderRadius: "6px",
-                border: "none",
+                padding: "6px 14px",
+                fontSize: "12px",
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                borderRadius: "8px",
+                border: viewMode === v ? "1px solid #7a8f96" : "1px solid rgba(255,255,255,0.06)",
                 cursor: "pointer",
-                backgroundColor: viewMode === v ? "#CDC9C0" : "rgba(205,201,192,0.06)",
-                color: viewMode === v ? "#0f1d24" : "rgba(205,201,192,0.45)",
+                backgroundColor: viewMode === v ? "rgba(122,143,150,0.15)" : "transparent",
+                color: viewMode === v ? "#ffffff" : "#606E74",
+                transition: "all 0.15s",
               }}
             >
-              {v === "list" ? "List" : "Day"}
+              {v === "list" ? "List" : v === "day" ? "Day" : v === "week" ? "Week" : "Month"}
             </button>
           ))}
         </div>
@@ -713,6 +756,29 @@ export default function AppointmentsPage() {
             </button>
           ))}
         </div>
+
+        {/* Analytics strip */}
+        {!loading && appointments.length > 0 && (
+          <div style={{
+            display: "flex", gap: "32px", padding: "10px 0", marginTop: "12px",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            {[
+              { label: "Total", value: String(appointments.filter(a => !isBlockedTime(a)).length), color: "#ffffff" },
+              { label: "Checked Out", value: String(appointments.filter(a => a.isCheckedOut).length), color: "#22c55e" },
+              { label: "Confirmed", value: String(appointments.filter(a => a.status === "ACCEPTED" && !a.isCheckedOut).length), color: "#10B981" },
+              { label: "Pending", value: String(appointments.filter(a => a.status === "PENDING").length), color: "#FBBF24" },
+              { label: "Cancelled", value: String(appointments.filter(a => a.status?.startsWith("CANCELLED")).length), color: "#EF4444" },
+              { label: "Revenue", value: fmtCurrency(appointments.filter(a => a.isCheckedOut && a.checkoutDetails?.total).reduce((s, a) => s + (a.checkoutDetails?.total || 0), 0)), color: "#ffffff" },
+            ].map(stat => (
+              <div key={stat.label}>
+                <div style={{ fontSize: "16px", fontWeight: 800, color: stat.color, fontFamily: "'Fira Code', monospace" }}>{stat.value}</div>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.04em" }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
         </>}
       </div>
 
@@ -731,6 +797,204 @@ export default function AppointmentsPage() {
             <div key={i} style={{ height: 80, background: "#0d1117", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, animation: "pulse 2s infinite" }} />
           ))}
         </div>
+      ) : viewMode === "week" ? (
+        /* ── Week View Calendar ── */
+        (() => {
+          const WEEK_HOUR_PX = 64
+          const WEEK_START = 8
+          const WEEK_END = 21
+          const totalHours = WEEK_END - WEEK_START
+          const d = new Date(date + "T12:00:00")
+          const weekStart = new Date(d)
+          weekStart.setDate(d.getDate() - d.getDay())
+          const days = Array.from({ length: 7 }, (_, i) => {
+            const day = new Date(weekStart)
+            day.setDate(weekStart.getDate() + i)
+            return day
+          })
+          const todayStr = (() => { const n = new Date(); return formatDateStr(n) })()
+          const now = new Date()
+          const nowMin = now.getHours() * 60 + now.getMinutes()
+          const nowOffset = (nowMin - WEEK_START * 60) * (WEEK_HOUR_PX / 60)
+          const showNowLine = nowMin >= WEEK_START * 60 && nowMin <= WEEK_END * 60
+
+          return (
+            <div style={{ marginTop: "8px", overflowX: "auto" }}>
+              <div style={{ display: "flex", minWidth: "800px" }}>
+                {/* Time column */}
+                <div style={{ width: "56px", flexShrink: 0, paddingTop: "36px", position: "relative" }}>
+                  {Array.from({ length: totalHours + 1 }, (_, i) => {
+                    const hour = WEEK_START + i
+                    return (
+                      <div key={hour} style={{ height: i < totalHours ? `${WEEK_HOUR_PX}px` : "0", position: "relative" }}>
+                        <span style={{ position: "absolute", top: "-7px", right: "8px", fontSize: "11px", fontWeight: 600, color: "#606E74", fontFamily: "'Fira Code', monospace" }}>
+                          {hour === 0 ? "12a" : hour < 12 ? `${hour}a` : hour === 12 ? "12p" : `${hour - 12}p`}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Day columns */}
+                {days.map((day, di) => {
+                  const dayStr = formatDateStr(day)
+                  const isCurrentDay = dayStr === todayStr
+                  const dayAppts = sorted.filter(a => {
+                    if (!a.startTime) return false
+                    const aDate = new Date(a.startTime)
+                    return formatDateStr(aDate) === dayStr
+                  })
+                  return (
+                    <div key={di} style={{ flex: 1, minWidth: "100px", borderLeft: "1px solid rgba(255,255,255,0.06)", position: "relative", backgroundColor: isCurrentDay ? "rgba(122,143,150,0.06)" : "transparent" }}>
+                      {/* Day header */}
+                      <div style={{ padding: "8px 4px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: isCurrentDay ? "#7a8f96" : "#606E74", letterSpacing: "0.06em" }}>
+                          {day.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()} {day.getDate()}
+                        </span>
+                      </div>
+                      {/* Hour grid */}
+                      <div style={{ position: "relative", height: `${totalHours * WEEK_HOUR_PX}px` }}>
+                        {Array.from({ length: totalHours + 1 }, (_, i) => (
+                          <div key={i} style={{ position: "absolute", top: `${i * WEEK_HOUR_PX}px`, left: 0, right: 0, height: "1px", backgroundColor: "rgba(255,255,255,0.04)" }} />
+                        ))}
+                        {/* Now line */}
+                        {isCurrentDay && showNowLine && (
+                          <div style={{ position: "absolute", top: `${nowOffset}px`, left: 0, right: 0, height: "2px", backgroundColor: "#7a8f96", boxShadow: "0 0 8px rgba(122,143,150,0.5)", zIndex: 10 }} />
+                        )}
+                        {/* Appointment blocks */}
+                        {dayAppts.filter(a => !isBlockedTime(a)).map(appt => {
+                          const s = new Date(appt.startTime)
+                          const startMin = s.getHours() * 60 + s.getMinutes()
+                          const dur = appt.totalDurationMinutes || 60
+                          const top = (startMin - WEEK_START * 60) * (WEEK_HOUR_PX / 60)
+                          const height = Math.max(dur * (WEEK_HOUR_PX / 60), 20)
+                          const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
+                          const isCancelled = appt.status?.startsWith("CANCELLED")
+                          return (
+                            <div
+                              key={appt.id}
+                              onClick={() => setExpandedId(expandedId === appt.id ? null : appt.id)}
+                              style={{
+                                position: "absolute", top: `${top}px`, left: "4px", right: "4px", height: `${height}px`,
+                                backgroundColor: `${color}33`, borderLeft: `3px solid ${appt.isCheckedOut ? "#22c55e" : color}`,
+                                borderRadius: "6px", padding: "3px 6px", cursor: "pointer", overflow: "hidden",
+                                opacity: isCancelled ? 0.4 : appt.isCheckedOut ? 0.7 : 1, zIndex: 2,
+                              }}
+                            >
+                              <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: isCancelled ? "line-through" : "none" }}>
+                                {appt.customerName}
+                              </div>
+                              {height > 30 && appt.services?.[0] && (
+                                <div style={{ fontSize: "11px", color: "#7a8f96", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {appt.services[0].serviceName}
+                                </div>
+                              )}
+                              {height > 44 && (
+                                <div style={{ fontSize: "10px", color: "#606E74", fontFamily: "'Fira Code', monospace" }}>
+                                  {fmtTime(appt.startTime)}
+                                </div>
+                              )}
+                              {appt.isCheckedOut && (
+                                <div style={{ position: "absolute", top: "3px", right: "4px", fontSize: "10px", color: "#22c55e" }}>&#10003;</div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()
+      ) : viewMode === "month" ? (
+        /* ── Month View Calendar ── */
+        (() => {
+          const d = new Date(date + "T12:00:00")
+          const year = d.getFullYear()
+          const month = d.getMonth()
+          const firstOfMonth = new Date(year, month, 1)
+          const lastOfMonth = new Date(year, month + 1, 0)
+          const calStart = new Date(firstOfMonth)
+          calStart.setDate(1 - firstOfMonth.getDay())
+          const totalDays = Math.ceil((lastOfMonth.getTime() - calStart.getTime()) / (86400000)) + (7 - lastOfMonth.getDay())
+          const weeks = Math.ceil(totalDays / 7)
+          const cells: Date[] = []
+          for (let i = 0; i < weeks * 7; i++) {
+            const day = new Date(calStart)
+            day.setDate(calStart.getDate() + i)
+            cells.push(day)
+          }
+          const todayStr = (() => { const n = new Date(); return formatDateStr(n) })()
+
+          return (
+            <div style={{ marginTop: "8px" }}>
+              {/* Day of week headers */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", marginBottom: "1px" }}>
+                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map(d => (
+                  <div key={d} style={{ padding: "8px", textAlign: "center", fontSize: "10px", fontWeight: 700, color: "#606E74", letterSpacing: "0.1em" }}>{d}</div>
+                ))}
+              </div>
+              {/* Calendar grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px" }}>
+                {cells.map((day, i) => {
+                  const dayStr = formatDateStr(day)
+                  const isCurrentMonth = day.getMonth() === month
+                  const isToday = dayStr === todayStr
+                  const dayAppts = appointments.filter(a => {
+                    if (!a.startTime || isBlockedTime(a)) return false
+                    return formatDateStr(new Date(a.startTime)) === dayStr
+                  })
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => { setDate(dayStr); setViewMode("day") }}
+                      style={{
+                        minHeight: "100px", padding: "6px",
+                        border: isToday ? "1px solid #7a8f96" : "1px solid rgba(255,255,255,0.04)",
+                        borderRadius: "4px",
+                        backgroundColor: isToday ? "rgba(122,143,150,0.04)" : "transparent",
+                        opacity: isCurrentMonth ? 1 : 0.3,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {/* Day number */}
+                      <div style={{ textAlign: "right", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: isToday ? 800 : 600, color: isToday ? "#ffffff" : isCurrentMonth ? "#7a8f96" : "#606E74", fontFamily: "'Fira Code', monospace" }}>
+                          {day.getDate()}
+                        </span>
+                      </div>
+                      {/* Appointment pills */}
+                      {dayAppts.slice(0, 3).map(appt => {
+                        const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
+                        return (
+                          <div
+                            key={appt.id}
+                            onClick={e => { e.stopPropagation(); setExpandedId(expandedId === appt.id ? null : appt.id) }}
+                            style={{
+                              width: "100%", height: "20px", borderRadius: "4px", marginBottom: "2px",
+                              backgroundColor: `${color}26`, borderLeft: appt.isCheckedOut ? "2px solid #22c55e" : "none",
+                              display: "flex", alignItems: "center", paddingLeft: "4px", overflow: "hidden",
+                            }}
+                          >
+                            <span style={{ fontSize: "11px", color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {appt.customerName}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      {dayAppts.length > 3 && (
+                        <div style={{ fontSize: "10px", color: "#606E74", textAlign: "center", marginTop: "2px" }}>
+                          +{dayAppts.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()
       ) : sorted.length === 0 ? (
         <div style={{
           textAlign: "center", padding: "60px 20px",
