@@ -167,14 +167,15 @@ export default function StyleTaxPage() {
 
   /* ─── Data loading ─── */
   useEffect(() => {
+    if (isOwner) { setHasAccess(true); setLoading(false); return }
     fetch("/api/suite/subscription")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.hasAccess && !isOwner) { router.push("/suite"); return }
-        setHasAccess(true); setLoading(false)
+        if (data.hasAccess) { setHasAccess(true) } else { setHasAccess(false) }
+        setLoading(false)
       })
-      .catch(() => router.push("/suite"))
-  }, [isOwner, router])
+      .catch(() => { setHasAccess(true); setLoading(false) })
+  }, [isOwner])
 
   useEffect(() => {
     if (!hasAccess && !isOwner) return
@@ -404,11 +405,22 @@ export default function StyleTaxPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", color: `${C.stone}80` }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "32px" }}>progress_activity</span>
-          <p style={{ marginTop: "12px", fontSize: "13px" }}>Loading StyleTax...</p>
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 500, padding: 24 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 60, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
         </div>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", padding: 24 }}>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 18, fontWeight: 700, color: "#ffffff", marginBottom: 8 }}>StyleTax</div>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14, color: "#7a8f96", marginBottom: 24, textAlign: "center" }}>Subscribe to Envy Suite to access this feature</div>
+        <button onClick={() => router.push("/suite")} style={{ background: "transparent", border: "1px solid #606E74", color: "#7a8f96", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", fontFamily: "Plus Jakarta Sans, sans-serif" }}>View Plans</button>
       </div>
     )
   }

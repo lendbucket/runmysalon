@@ -139,6 +139,7 @@ export default function DashboardPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [cancellations, setCancellations] = useState<CancellationStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [now, setNow] = useState(Date.now()) // for re-rendering timeAgo
 
@@ -151,6 +152,7 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       const params = new URLSearchParams({ period: activePeriod })
       if (activeLocation !== "Both") params.set("location", activeLocation)
@@ -169,7 +171,7 @@ export default function DashboardPage() {
       setCancellations(cancellationsJson.stats || null)
       setUpdatedAt(new Date())
     } catch {
-      // silent fail — show zeros
+      setFetchError("Failed to load data")
     } finally {
       setLoading(false)
     }
@@ -342,6 +344,14 @@ export default function DashboardPage() {
         ))}
         </div>
       </div>
+
+      {/* Error state */}
+      {fetchError && !loading && (
+        <div style={{ background: '#0d1117', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: 20, textAlign: 'center', margin: '20px 0' }}>
+          <div style={{ color: '#ef4444', fontSize: 14, fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 8 }}>{fetchError}</div>
+          <button onClick={() => { setFetchError(null); fetchData() }} style={{ background: 'transparent', border: '1px solid #606E74', color: '#7a8f96', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Retry</button>
+        </div>
+      )}
 
       {/* METRIC CARDS */}
       <div style={{

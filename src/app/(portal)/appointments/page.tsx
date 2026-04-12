@@ -20,14 +20,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 
 const DEFAULT_STATUS = { bg: "rgba(205,201,192,0.06)", text: "rgba(205,201,192,0.5)", border: "rgba(205,201,192,0.3)" }
 
-const STYLIST_COLORS: Record<string, string> = {
-  // SA
-  TMMJKxeQuMlMW1Dw: "#4F8EF7", TMcc0QbHuUZfgcIB: "#9B59B6", "TMfFCmgJ5RV-WCBq": "#E67E22",
-  TM5CjcvcHRXZQ4hP: "#E91E8C", TMk1YstlrnPrKw8p: "#1ABC9C", TMltRlD4OaczAnJr: "#1ABC9C",
-  // CC
-  TMbc13IBzS8Z43AO: "#F44336", TMaExUyYaWYlvSqh: "#FF9800", TMCzd3unwciKEVX7: "#8BC34A",
-  TMn7kInT8g7Vrgxi: "#00BCD4", TMMdDDwU8WXpCZ9m: "#9C27B0", TM_xI40vPph2_Cos: "#795548",
-}
+const PALETTE = ['#7a8f96', '#f59e0b', '#22c55e', '#3b82f6', '#e1306c', '#a78bfa', '#fb923c', '#34d399', '#60a5fa', '#f472b6', '#facc15', '#4ade80']
 
 type WaitlistItem = { id: string; customerName: string; customerPhone: string; requestedDate: string; requestedStylist: string | null; requestedService: string | null; notes: string | null; status: string; createdAt: string }
 
@@ -60,6 +53,14 @@ interface Appointment {
 export default function AppointmentsPage() {
   const { isOwner, isManager, locationName } = useUserRole()
 
+  const stylistColorMap = useMemo(() => {
+    const allIds = Object.keys(TEAM_NAMES)
+    const map: Record<string, string> = {}
+    allIds.forEach((id, i) => { map[id] = PALETTE[i % PALETTE.length] })
+    return map
+  }, [])
+
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [date, setDate] = useState(() => {
     const d = new Date()
@@ -154,6 +155,7 @@ export default function AppointmentsPage() {
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       const params = new URLSearchParams()
       params.set("date", date)
@@ -164,6 +166,7 @@ export default function AppointmentsPage() {
       setAppointments(data.appointments || [])
     } catch {
       setAppointments([])
+      setFetchError("Failed to load appointments")
     } finally {
       setLoading(false)
     }
@@ -714,11 +717,19 @@ export default function AppointmentsPage() {
       </div>
 
       {activeTab === "appointments" && <>
+      {/* Error state */}
+      {fetchError && !loading && (
+        <div style={{ background: '#0d1117', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: 20, textAlign: 'center', margin: '20px 0' }}>
+          <div style={{ color: '#ef4444', fontSize: 14, fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 8 }}>{fetchError}</div>
+          <button onClick={() => { setFetchError(null); fetchAppointments() }} style={{ background: 'transparent', border: '1px solid #606E74', color: '#7a8f96', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Retry</button>
+        </div>
+      )}
       {/* Appointment list / day view */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(205,201,192,0.35)", fontSize: "13px" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "32px", display: "block", marginBottom: "8px", opacity: 0.4 }}>hourglass_empty</span>
-          Loading appointments...
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
         </div>
       ) : sorted.length === 0 ? (
         <div style={{
@@ -824,7 +835,7 @@ export default function AppointmentsPage() {
                     const topPx = (startMin - DAY_START_HOUR * 60) * (HOUR_PX / 60)
                     const heightPx = Math.max(duration * (HOUR_PX / 60), 30)
                     const blocked = isBlockedTime(appt)
-                    const color = blocked ? "#3a3f47" : ((appt.teamMemberId && STYLIST_COLORS[appt.teamMemberId]) || "#607D8B")
+                    const color = blocked ? "#3a3f47" : ((appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B")
 
                     // Detect overlaps for same stylist → offset side by side
                     const sameStylists = stylistColumns[appt.teamMemberId || "_none"] || []
@@ -967,7 +978,7 @@ export default function AppointmentsPage() {
                     padding: "16px",
                     backgroundColor: "#1a2a32",
                     border: appt.isCheckedOut ? "1px solid rgba(16,185,129,0.15)" : "1px solid rgba(205,201,192,0.08)",
-                    borderLeft: `3px solid ${(appt.teamMemberId && STYLIST_COLORS[appt.teamMemberId]) || (appt.isCheckedOut ? "rgba(16,185,129,0.3)" : statusStyle.border)}`,
+                    borderLeft: `3px solid ${(appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || (appt.isCheckedOut ? "rgba(16,185,129,0.3)" : statusStyle.border)}`,
                     borderRadius: "10px",
                     cursor: "pointer",
                     transition: "all 0.15s",
@@ -1162,7 +1173,7 @@ export default function AppointmentsPage() {
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "16px", marginBottom: "12px" }}>
         {getLocationStylists(location).map(s => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "rgba(205,201,192,0.6)" }}>
-            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: STYLIST_COLORS[s.id] || "#666" }} />
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: stylistColorMap[s.id] || "#666" }} />
             {s.name}
           </div>
         ))}
@@ -1326,7 +1337,7 @@ export default function AppointmentsPage() {
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                     {getLocationStylists(location).map(s => (
                       <button key={s.id} onClick={() => setBookStylist(s.id)} style={{ padding: "6px 12px", borderRadius: "6px", border: bookStylist === s.id ? "1px solid #CDC9C0" : "1px solid rgba(205,201,192,0.15)", backgroundColor: bookStylist === s.id ? "rgba(205,201,192,0.12)" : "transparent", color: bookStylist === s.id ? "#fff" : "rgba(205,201,192,0.6)", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: STYLIST_COLORS[s.id] || "#666" }} />{s.name}
+                        <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: stylistColorMap[s.id] || "#666" }} />{s.name}
                       </button>
                     ))}
                   </div>

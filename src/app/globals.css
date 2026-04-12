@@ -216,6 +216,11 @@ p, h1, h2, h3, h4, h5, h6, span, div {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 * { -webkit-tap-highlight-color: transparent; }
 
 /* Prevent iOS zoom on input focus */

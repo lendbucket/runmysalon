@@ -78,19 +78,23 @@ export default function MetricsPage() {
   const [location, setLocation] = useState("Both")
   const [data, setData] = useState<ComparisonData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [aiInsight, setAiInsight] = useState("")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiQuestion, setAiQuestion] = useState("")
 
   const fetchData = useCallback(async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       const params = new URLSearchParams({ period })
       if (location !== "Both") params.set("location", location)
       const res = await fetch(`/api/metrics/comparison?${params}`)
       const json = await res.json()
       setData(json)
-    } catch (e) { console.error(e) }
+    } catch {
+      setFetchError("Failed to load data")
+    }
     setLoading(false)
   }, [period, location])
 
@@ -195,6 +199,14 @@ export default function MetricsPage() {
           ))}
         </div>
       </div>
+
+      {/* Error state */}
+      {fetchError && !loading && (
+        <div style={{ background: '#0d1117', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: 20, textAlign: 'center', margin: '20px 0' }}>
+          <div style={{ color: '#ef4444', fontSize: 14, fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 8 }}>{fetchError}</div>
+          <button onClick={() => { setFetchError(null); fetchData() }} style={{ background: 'transparent', border: '1px solid #606E74', color: '#7a8f96', borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", marginBottom: "24px" }}>

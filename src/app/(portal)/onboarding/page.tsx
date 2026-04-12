@@ -188,7 +188,11 @@ export default function OnboardingManagementPage() {
 
       {/* Enrollments list */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "40px", color: "#94A3B8" }}>Loading...</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 0" }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
+        </div>
       ) : enrollments.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 20px", backgroundColor: "#142127", borderRadius: "12px", border: "1px solid rgba(205,201,192,0.08)" }}>
           <span className="material-symbols-outlined" style={{ fontSize: "48px", color: "rgba(205,201,192,0.2)", marginBottom: "12px", display: "block" }}>person_add</span>

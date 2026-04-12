@@ -226,7 +226,11 @@ export default function SchedulePage() {
               <button onClick={createSchedule} style={{ padding: "10px 24px", backgroundColor: "#CDC9C0", border: "none", borderRadius: "7px", color: "#0f1d24", fontSize: "12px", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Create Schedule</button>
             </div>
           ) : loading ? (
-            <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>Loading schedule...</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 0" }}>
+              {[1,2,3,4].map(i => (
+                <div key={i} style={{ height: 60, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+              ))}
+            </div>
           ) : (
             !isMobile ? (
             <div style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "10px", overflow: "auto" }}>
@@ -376,6 +380,64 @@ export default function SchedulePage() {
               })}
             </div>
             )
+          )}
+
+          {/* Visual Hour Grid */}
+          {schedule && !loading && Object.keys(shifts).length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "12px" }}>
+                Visual Overview
+              </div>
+              <div style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "10px", overflow: "hidden" }}>
+                {/* Day headers */}
+                <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", borderBottom: "1px solid rgba(205,201,192,0.08)" }}>
+                  <div style={{ padding: "8px", fontSize: "9px", color: "rgba(205,201,192,0.3)" }} />
+                  {weekDates.map((date, i) => {
+                    const today = date.toDateString() === new Date().toDateString()
+                    return (
+                      <div key={i} style={{ padding: "8px 4px", textAlign: "center", fontSize: "10px", fontWeight: 700, color: today ? "#CDC9C0" : "rgba(205,201,192,0.4)", letterSpacing: "0.08em", textTransform: "uppercase", backgroundColor: today ? "rgba(122,143,150,0.04)" : "transparent" }}>
+                        {DAYS[date.getDay()]} {date.getDate()}
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Hour rows */}
+                <div style={{ position: "relative", overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>
+                  {HOURS.map((hour) => (
+                    <div key={hour} style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", height: "60px", borderBottom: "1px solid #1a2332" }}>
+                      <div style={{ padding: "4px 8px", fontSize: "11px", fontFamily: "Fira Code, monospace", color: "#606E74", display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
+                        {hour}
+                      </div>
+                      {weekDates.map((date, di) => {
+                        const dk = fmtDate(date)
+                        const today = date.toDateString() === new Date().toDateString()
+                        const hourVal = parseTimeToHours(hour)
+                        const shiftsInHour = staff.filter(m => {
+                          const sh = shifts[m.id]?.[dk]
+                          if (!sh || !sh.start || !sh.end) return false
+                          const start = parseTimeToHours(sh.start)
+                          const end = parseTimeToHours(sh.end)
+                          return hourVal >= start && hourVal < end
+                        })
+                        return (
+                          <div key={di} style={{ borderLeft: "1px solid rgba(205,201,192,0.04)", padding: "2px", backgroundColor: today ? "rgba(122,143,150,0.04)" : "transparent", display: "flex", flexDirection: "column", gap: "1px", overflow: "hidden" }}>
+                            {shiftsInHour.map(m => {
+                              const sh = shifts[m.id]?.[dk]
+                              const isOff = sh?.isOff
+                              return (
+                                <div key={m.id} style={{ backgroundColor: isOff ? "rgba(239,68,68,0.1)" : "rgba(96,110,116,0.2)", borderLeft: isOff ? "3px solid #ef4444" : "3px solid #7a8f96", borderRadius: "4px", padding: "2px 6px", fontSize: "9px", color: "#FFFFFF", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "14px" }}>
+                                  {m.fullName.split(" ")[0]}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}

@@ -57,14 +57,19 @@ export default function StyleInsurePage() {
   const [incidentForm, setIncidentForm] = useState({ incidentDate: "", clientName: "", incidentType: "chemical_burn", description: "", witnessName: "", witnessContact: "", medicalAttention: false })
   const [savingIncident, setSavingIncident] = useState(false)
 
-  useEffect(() => { checkAccess() }, [])
+  const [hasAccess, setHasAccess] = useState(false)
 
-  const checkAccess = async () => {
-    const res = await fetch("/api/suite/subscription")
-    const data = await res.json()
-    if (!data.hasAccess) { router.push("/suite"); return }
-    loadData()
-  }
+  useEffect(() => {
+    if (isOwner) { setHasAccess(true); loadData(); return }
+    fetch("/api/suite/subscription")
+      .then(r => r.json())
+      .then(data => {
+        if (data.hasAccess) { setHasAccess(true); loadData() }
+        else { setHasAccess(false); setLoading(false) }
+      })
+      .catch(() => { setHasAccess(true); loadData() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadData = async () => {
     setLoading(true)
@@ -120,6 +125,28 @@ export default function StyleInsurePage() {
   const jakarta: React.CSSProperties = { fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }
   const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER2}`, borderRadius: "8px", color: "#FFFFFF", fontSize: "14px", outline: "none", boxSizing: "border-box" as const, ...jakarta }
   const labelStyle: React.CSSProperties = { display: "block", fontSize: "9px", fontWeight: 700, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" as const, marginBottom: "6px", ...mono }
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", padding: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 500 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 60, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", padding: 24 }}>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 18, fontWeight: 700, color: "#ffffff", marginBottom: 8 }}>StyleInsure</div>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14, color: "#7a8f96", marginBottom: 24, textAlign: "center" }}>Subscribe to Envy Suite to access this feature</div>
+        <button onClick={() => router.push("/suite")} style={{ background: "transparent", border: "1px solid #606E74", color: "#7a8f96", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", fontFamily: "Plus Jakarta Sans, sans-serif" }}>View Plans</button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ ...jakarta, minHeight: "100vh", backgroundColor: "#06080d", color: "#fff", position: "relative" }}>

@@ -66,7 +66,11 @@ export default function ApprovalsPage() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>Loading...</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 0" }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
+        </div>
       ) : pending.length === 0 ? (
         <div
           style={{

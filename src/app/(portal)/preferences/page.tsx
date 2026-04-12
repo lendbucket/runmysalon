@@ -65,10 +65,14 @@ export default function PreferencesPage() {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("portal-preferences")
-      if (stored) setPrefs(JSON.parse(stored))
-    } catch { /* ignore */ }
+    fetch("/api/preferences").then(r => r.json()).then(d => {
+      if (d.preferences) setPrefs(d.preferences)
+    }).catch(() => {
+      try {
+        const stored = localStorage.getItem("portal-preferences")
+        if (stored) setPrefs(JSON.parse(stored))
+      } catch { /* ignore */ }
+    })
   }, [])
 
   function update(key: keyof Prefs, value: boolean | string) {
@@ -76,8 +80,15 @@ export default function PreferencesPage() {
     setSaved(false)
   }
 
-  function handleSave() {
+  async function handleSave() {
     localStorage.setItem("portal-preferences", JSON.stringify(prefs))
+    try {
+      await fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prefs),
+      })
+    } catch { /* localStorage fallback already saved */ }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }

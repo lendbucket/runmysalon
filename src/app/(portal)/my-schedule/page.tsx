@@ -101,7 +101,11 @@ export default function MySchedulePage() {
       <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 24px" }}>Your upcoming shifts</p>
 
       {loading ? (
-        <p style={{ color: "#94A3B8", textAlign: "center", padding: "40px 0" }}>Loading...</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 0" }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
+        </div>
       ) : shifts.length === 0 ? (
         <div style={{ backgroundColor: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: "12px", padding: "48px 24px", textAlign: "center" }}>
           <span className="material-symbols-outlined" style={{ fontSize: "48px", color: "rgba(205,201,192,0.2)", display: "block", marginBottom: "16px" }}>event_busy</span>

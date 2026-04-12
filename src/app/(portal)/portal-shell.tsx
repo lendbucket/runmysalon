@@ -95,6 +95,16 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch("/api/locations").then(r => r.json()).then(d => {
+      if (d.locations) setLocations(d.locations)
+    }).catch(() => {})
+  }, [])
+
+  // suppress unused var warning — locations available for future use
+  void locations
 
   /* Responsive listener */
   useEffect(() => {

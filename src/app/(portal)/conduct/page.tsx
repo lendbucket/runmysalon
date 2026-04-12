@@ -96,7 +96,15 @@ export default function ConductPage() {
     if (res.ok) load()
   }
 
-  if (loading) return <div style={{ padding: "clamp(16px,4vw,28px)", color: "rgba(205,201,192,0.5)" }}>Loading...</div>
+  if (loading) return (
+    <div style={{ padding: "clamp(16px,4vw,28px)", maxWidth: "900px", margin: "0 auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {[1,2,3].map(i => (
+          <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ padding: "clamp(16px,4vw,28px)", maxWidth: "900px", margin: "0 auto" }}>

@@ -59,6 +59,8 @@ export default function PurchaseOrdersPage() {
   const [formSupplier, setFormSupplier] = useState("")
   const [formNotes, setFormNotes] = useState("")
   const [formItems, setFormItems] = useState([{ brand: "", productName: "", quantityOrdered: 1, costPerUnit: 0 }])
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState("")
 
   const load = useCallback(async () => {
     const res = await fetch("/api/purchase-orders")
@@ -86,20 +88,39 @@ export default function PurchaseOrdersPage() {
   }
 
   const handleCreate = async () => {
-    const res = await fetch("/api/purchase-orders", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locationId: formLoc, supplier: formSupplier, notes: formNotes, items: formItems }),
-    })
-    if (res.ok) {
-      setShowCreate(false)
-      setFormSupplier(""); setFormNotes(""); setFormItems([{ brand: "", productName: "", quantityOrdered: 1, costPerUnit: 0 }])
-      load()
+    setCreating(true)
+    setCreateError("")
+    try {
+      const res = await fetch("/api/purchase-orders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locationId: formLoc, supplier: formSupplier, notes: formNotes, items: formItems }),
+      })
+      if (res.ok) {
+        setShowCreate(false)
+        setFormSupplier(""); setFormNotes(""); setFormItems([{ brand: "", productName: "", quantityOrdered: 1, costPerUnit: 0 }])
+        load()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setCreateError(d.error || "Failed to create purchase order")
+      }
+    } catch {
+      setCreateError("Network error — please try again")
+    } finally {
+      setCreating(false)
     }
   }
 
   const filtered = filter === "all" ? orders : orders.filter(o => o.status === filter)
 
-  if (loading) return <div style={{ padding: "clamp(16px,4vw,28px)", color: "rgba(205,201,192,0.5)" }}>Loading...</div>
+  if (loading) return (
+    <div style={{ padding: "clamp(16px,4vw,28px)", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {[1,2,3].map(i => (
+          <div key={i} style={{ height: 80, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ padding: "clamp(16px,4vw,28px)", maxWidth: "1200px", margin: "0 auto" }}>
@@ -247,9 +268,12 @@ export default function PurchaseOrdersPage() {
               ))}
             </div>
 
+            {createError && (
+              <div style={{ color: "#ef4444", fontSize: "13px", fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: "12px" }}>{createError}</div>
+            )}
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
               <button style={btnSecondary} onClick={() => setShowCreate(false)}>Cancel</button>
-              <button style={btnPrimary} onClick={handleCreate}>Create PO</button>
+              <button style={{ ...btnPrimary, opacity: creating ? 0.6 : 1 }} onClick={handleCreate} disabled={creating}>{creating ? "Creating..." : "Create PO"}</button>
             </div>
           </div>
         </div>

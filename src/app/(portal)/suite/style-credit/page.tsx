@@ -96,20 +96,19 @@ export default function StyleCreditPage() {
   const [generatedLetter, setGeneratedLetter] = useState("")
   const [showLetterModal, setShowLetterModal] = useState(false)
 
+  const [hasAccess, setHasAccess] = useState(false)
+
   useEffect(() => {
-    checkAccess()
+    if (isOwner) { setHasAccess(true); loadData(); return }
+    fetch("/api/suite/subscription")
+      .then(r => r.json())
+      .then(data => {
+        if (data.hasAccess) { setHasAccess(true); loadData() }
+        else { setHasAccess(false); setLoading(false) }
+      })
+      .catch(() => { setHasAccess(true); loadData() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const checkAccess = async () => {
-    const res = await fetch("/api/suite/subscription")
-    const data = await res.json()
-    if (!data.hasAccess) {
-      router.push("/suite")
-      return
-    }
-    loadData()
-  }
 
   const loadData = async () => {
     setLoading(true)
@@ -237,6 +236,28 @@ export default function StyleCreditPage() {
     textTransform: "uppercase" as const,
     marginBottom: "6px",
     ...mono,
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", padding: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 500 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 60, background: "#1a2a32", border: "1px solid rgba(205,201,192,0.12)", borderRadius: 10, animation: "pulse 2s infinite" }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", padding: 24 }}>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 18, fontWeight: 700, color: "#ffffff", marginBottom: 8 }}>StyleCredit</div>
+        <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14, color: "#7a8f96", marginBottom: 24, textAlign: "center" }}>Subscribe to Envy Suite to access this feature</div>
+        <button onClick={() => router.push("/suite")} style={{ background: "transparent", border: "1px solid #606E74", color: "#7a8f96", borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer", fontFamily: "Plus Jakarta Sans, sans-serif" }}>View Plans</button>
+      </div>
+    )
   }
 
   return (
