@@ -53,13 +53,20 @@ export async function GET(request: NextRequest) {
     }
   } else if (role === "OWNER") {
     const locParam = request.nextUrl.searchParams.get("location");
-    if (locParam && LOCATION_MAP[locParam]) {
-      locationId = LOCATION_MAP[locParam];
+    if (locParam) {
+      const lp = locParam.toLowerCase();
+      if (lp === "cc" || lp.includes("corpus") || locParam === CC_LOCATION_ID) {
+        locationId = CC_LOCATION_ID;
+      } else if (lp === "sa" || lp.includes("san") || locParam === SA_LOCATION_ID) {
+        locationId = SA_LOCATION_ID;
+      } else if (LOCATION_MAP[locParam]) {
+        locationId = LOCATION_MAP[locParam];
+      }
     }
   }
 
   // Default to CC if no location resolved
-  if (!locationId) locationId = "LTJSA6QR1HGW6";
+  if (!locationId) locationId = CC_LOCATION_ID;
 
   // Date param support — single date OR date range for week/month views
   const dateParam = request.nextUrl.searchParams.get("date");

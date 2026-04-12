@@ -224,14 +224,17 @@ export default function AppointmentsPage() {
         params.set("all", "true")
         params.set("startDate", startDateStr)
         params.set("endDate", endDateStr)
-        params.set("brief", "true") // skip checkout detection for speed
-        if (isOwner && location) params.set("location", location)
+        params.set("brief", "true")
+        if (isOwner && location) {
+          params.set("location", location)
+        }
         const url = `/api/pos/appointments?${params}`
         console.log("[Month fetch]", url)
         const res = await fetch(url)
         const data = await res.json()
         const appts = Array.isArray(data) ? data : (data.appointments || data.bookings || [])
         console.log("[Month fetch] received:", appts.length, "appointments")
+        if (appts.length > 0) console.log("[Month fetch] first apt:", { startTime: appts[0].startTime, customerName: appts[0].customerName, teamMemberId: appts[0].teamMemberId, status: appts[0].status })
         setMonthAppointments(appts)
       } catch (err) {
         console.error("[Month fetch] error:", err)
