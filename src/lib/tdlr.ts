@@ -14,116 +14,179 @@ export interface TDLRResult {
 export async function verifyTDLRLicense(licenseNumber: string): Promise<TDLRResult> {
   const cleaned = licenseNumber.trim().replace(/\s+/g, "").replace(/-/g, "")
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let record: Record<string, any> | null = null
+  // Strategy 1: TDLR License Search via POST (correct endpoint)
+  try {
+    const formData = new URLSearchParams()
+    formData.append("searchby", "LIC")
+    formData.append("status", "A")
+    formData.append("licno", cleaned)
+    formData.append("stype", "H")
+    formData.append("name", "")
+    formData.append("city", "")
+    formData.append("county", "0")
+    formData.append("zip", "")
 
-  // Strategy 1: Try multiple field names on the main TDLR dataset
-  const queries = [
-    `https://data.texas.gov/resource/7358-krk7.json?license_number=${cleaned}`,
-    `https://data.texas.gov/resource/7358-krk7.json?lic_nbr=${cleaned}`,
-    `https://data.texas.gov/resource/7358-krk7.json?$where=license_number='${cleaned}'`,
-    `https://data.texas.gov/resource/7358-krk7.json?$where=lic_nbr='${cleaned}'`,
-  ]
+    const res = await fetch("https://www.tdlr.texas.gov/LicenseSearch/licfile.asp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.tdlr.texas.gov/LicenseSearch/",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+      body: formData.toString(),
+    })
 
-  // Strategy 2: Try the cosmetology-specific dataset
-  const altQueries = [
-    `https://data.texas.gov/resource/whvf-shnm.json?license_number=${cleaned}`,
-    `https://data.texas.gov/resource/whvf-shnm.json?lic_nbr=${cleaned}`,
-  ]
+    if (res.ok) {
+      const html = await res.text()
+      console.log("[TDLR POST] Response length:", html.length)
+      console.log("[TDLR POST] Snippet:", html.substring(0, 500))
 
-  const appToken = process.env.TDLR_APP_TOKEN || ""
-  const headers: Record<string, string> = { Accept: "application/json" }
-  if (appToken) headers["X-App-Token"] = appToken
+      if (!html.includes("No records found") && !html.includes("no records") && html.length > 500) {
+        const nameMatch = html.match(/([A-Z]+,\s+[A-Z][A-Z\s]+?)(?=\s*<\/td>|\s*<br)/i)
+        const licNumMatch = html.match(/>\s*(\d{6,8})\s*<\/td>/i)
+        const dateMatches = html.match(/\d{2}\/\d{2}\/\d{4}/g) || []
+        const activeMatch = html.toLowerCase().includes("active")
+        const expiredMatch = html.toLowerCase().includes("expired")
+        const licTypeMatch = html.match(/>(Cosmetologist[^<]*|Barber[^<]*|Esthetician[^<]*|Manicurist[^<]*)<\/td>/i)
+        const cosmetMatch = html.match(/Cosmetologist[^<]*/i)
+        const countyMatch = html.match(/County[:\s]*([A-Z]+)/i)
 
-  for (const url of [...queries, ...altQueries]) {
-    try {
-      const res = await fetch(url, { headers })
-      if (!res.ok) continue
-      const data = await res.json()
-      if (Array.isArray(data) && data.length > 0) {
-        record = data[0]
-        console.log("[TDLR] Found via:", url, "keys:", Object.keys(record!))
-        break
-      }
-    } catch (e) {
-      console.log("[TDLR] Query failed:", url, e instanceof Error ? e.message : e)
-      continue
-    }
-  }
+        if (nameMatch || licNumMatch || dateMatches.length > 0) {
+          const expDate = dateMatches[0] || ""
+          const issueDate = dateMatches.length > 1 ? dateMatches[dateMatches.length - 1] : ""
+          const status = expiredMatch ? "EXPIRED" : activeMatch ? "ACTIVE" : "UNKNOWN"
 
-  // Strategy 3: Scrape the TDLR public website as fallback
-  if (!record) {
-    try {
-      const tdlrUrl = `https://www.tdlr.texas.gov/LicenseSearch/SearchResultDetail.asp?Ession=SessionID&SearchBy=LicNbr&LicNbr=${cleaned}`
-      const res = await fetch(tdlrUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; SalonEnvyPortal/1.0)", Accept: "text/html" },
-      })
-      if (res.ok) {
-        const html = await res.text()
-        console.log("[TDLR] Website response length:", html.length, "contains license?", html.includes(cleaned))
+          let isExpired = false
+          if (expDate) {
+            const [month, day, year] = expDate.split("/")
+            isExpired = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)) < new Date()
+          }
 
-        // Try extracting data from the HTML
-        const nameMatch = html.match(/(?:Name|Licensee)[:\s]*<[^>]*>([^<]+)</i)
-        const expMatchSingle = html.match(/(?:Expir(?:ation|es)|Exp\.?\s*Date)[:\s]*<[^>]*>([^<]+)/i)
-        const expMatchAll = html.match(/(\d{1,2}\/\d{1,2}\/\d{4})/g)
-        const expDateStr = expMatchSingle?.[1]?.trim() || (expMatchAll ? expMatchAll[expMatchAll.length - 1] : "") || ""
-        const statusMatch = html.match(/(?:License\s*)?Status[:\s]*<[^>]*>([^<]+)/i)
-        const typeMatch = html.match(/(?:License\s*)?Type[:\s]*<[^>]*>([^<]+)/i)
-        const countyMatch = html.match(/County[:\s]*<[^>]*>([^<]+)/i)
-        const issueMatch = html.match(/(?:Original\s*)?Issue\s*Date[:\s]*<[^>]*>([^<]+)/i)
+          console.log("[TDLR POST] Parsed:", { name: nameMatch?.[1], expDate, status, licType: licTypeMatch?.[1] })
 
-        if (nameMatch || statusMatch || html.toLowerCase().includes("active")) {
-          record = {
-            name: nameMatch?.[1]?.trim() || "",
-            license_number: cleaned,
-            expiration_date: expDateStr,
-            status: statusMatch?.[1]?.trim() || "Active",
-            license_type: typeMatch?.[1]?.trim() || "Cosmetologist",
+          return {
+            valid: !isExpired && status === "ACTIVE",
+            holderName: nameMatch?.[1]?.trim() || "",
+            licenseNumber: licNumMatch?.[1]?.trim() || cleaned,
+            licenseType: licTypeMatch?.[1]?.trim() || cosmetMatch?.[0]?.trim() || "Cosmetologist",
+            expirationDate: expDate,
+            originalIssueDate: issueDate !== expDate ? issueDate : "",
+            status: isExpired ? "EXPIRED" : status,
             county: countyMatch?.[1]?.trim() || "",
-            issue_date: issueMatch?.[1]?.trim() || "",
             source: "tdlr_website",
           }
-          console.log("[TDLR] Found via website scrape:", JSON.stringify(record))
+        }
+      } else {
+        console.log("[TDLR POST] No records found")
+      }
+    }
+  } catch (e) {
+    console.log("[TDLR POST] failed:", e instanceof Error ? e.message : e)
+  }
+
+  // Strategy 2: TDLR GET request
+  try {
+    const url = `https://www.tdlr.texas.gov/LicenseSearch/licfile.asp?searchby=LIC&status=A&licno=${cleaned}&stype=H&name=&city=&county=0&zip=`
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Accept: "text/html",
+      },
+    })
+
+    if (res.ok) {
+      const html = await res.text()
+      console.log("[TDLR GET] Response length:", html.length, "contains license:", html.includes(cleaned))
+
+      if (!html.includes("No records") && html.length > 1000) {
+        const nameMatch = html.match(/([A-Z]{2,},\s+[A-Z][A-Z\s]+?)(?=\s*<\/td>)/i)
+        const dateMatches = html.match(/\d{2}\/\d{2}\/\d{4}/g) || []
+        const licTypeMatch = html.match(/>(Cosmetologist[^<]*|Barber[^<]*|Esthetician[^<]*)<\/td>/i)
+        const countyMatch = html.match(/County[:\s]*([A-Z]+)/i)
+        const activeMatch = html.toLowerCase().includes("active")
+
+        if (nameMatch || dateMatches.length > 0) {
+          const expDate = dateMatches[0] || ""
+          const issueDate = dateMatches.length > 1 ? dateMatches[dateMatches.length - 1] : ""
+
+          let isExpired = false
+          if (expDate) {
+            const [m, d, y] = expDate.split("/")
+            isExpired = new Date(parseInt(y), parseInt(m) - 1, parseInt(d)) < new Date()
+          }
+
+          return {
+            valid: !isExpired && activeMatch,
+            holderName: nameMatch?.[1]?.trim() || "",
+            licenseNumber: cleaned,
+            licenseType: licTypeMatch?.[1]?.trim() || "Cosmetologist",
+            expirationDate: expDate,
+            originalIssueDate: issueDate !== expDate ? issueDate : "",
+            status: isExpired ? "EXPIRED" : "ACTIVE",
+            county: countyMatch?.[1]?.trim() || "",
+            source: "tdlr_website_get",
+          }
         }
       }
-    } catch (e) {
-      console.log("[TDLR] Website scrape failed:", e instanceof Error ? e.message : e)
+    }
+  } catch (e) {
+    console.log("[TDLR GET] failed:", e instanceof Error ? e.message : e)
+  }
+
+  // Strategy 3: Texas Open Data Portal with multiple datasets and field names
+  const datasets = [
+    "https://data.texas.gov/resource/7358-krk7.json",
+    "https://data.texas.gov/resource/whvf-shnm.json",
+    "https://data.texas.gov/resource/9t4d-g5h8.json",
+    "https://data.texas.gov/resource/ibi4-56rc.json",
+  ]
+
+  for (const dataset of datasets) {
+    const attempts = [
+      `${dataset}?license_nbr=${cleaned}`,
+      `${dataset}?lic_nbr=${cleaned}`,
+      `${dataset}?license_number=${cleaned}`,
+      `${dataset}?$where=license_nbr=%27${cleaned}%27`,
+      `${dataset}?$where=lic_nbr=%27${cleaned}%27`,
+    ]
+
+    for (const url of attempts) {
+      try {
+        const res = await fetch(url, { headers: { Accept: "application/json" } })
+        if (!res.ok) continue
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          const r = data[0]
+          console.log("[TDLR OpenData] Found via:", url, "keys:", Object.keys(r))
+
+          const holderName = r.name || r.licensee_name || r.license_holder || r.holder_name || r.full_name || ""
+          const expDate = r.expiration_date || r.exp_date || r.expiry || r.expire_date || ""
+          const rawStatus = r.status || r.license_status || r.lic_status || "ACTIVE"
+          const licType = r.license_type || r.lic_type || r.type || r.profession || "Cosmetologist"
+          const county = r.county || r.county_name || ""
+          const issueDate = r.original_issue_date || r.issue_date || r.issued || ""
+
+          let isExpired = false
+          if (expDate) {
+            try { isExpired = new Date(expDate) < new Date() } catch { /* skip */ }
+          }
+
+          return {
+            valid: !isExpired,
+            holderName: String(holderName).trim(),
+            licenseNumber: r.license_nbr || r.lic_nbr || r.license_number || cleaned,
+            licenseType: String(licType).trim(),
+            expirationDate: expDate || null,
+            originalIssueDate: String(issueDate),
+            status: isExpired ? "EXPIRED" : String(rawStatus).toUpperCase(),
+            county: String(county).trim(),
+            source: "open_data",
+          }
+        }
+      } catch { continue }
     }
   }
 
-  if (!record) {
-    return { valid: false, error: "License not found in TDLR database. Verify the number at tdlr.texas.gov" }
-  }
-
-  // Map any field name variation to standard names
-  const holderName = record.name || record.licensee_name || record.holder_name || record.lic_holder || ""
-  const licType = record.license_type || record.lic_type || record.type || record.profession || ""
-  const expDate = record.expiration_date || record.exp_date || record.expiry_date || record.license_expiration_date || record.expiration || ""
-  const rawStatus = record.status || record.lic_status || record.license_status || "ACTIVE"
-  const county = record.county || record.county_name || ""
-  const issueDate = record.issue_date || record.original_issue_date || record.issued_date || ""
-  const licNum = record.license_number || record.lic_nbr || record.license_no || cleaned
-
-  let isExpired = false
-  if (expDate) {
-    try {
-      isExpired = new Date(expDate) < new Date()
-    } catch { /* not parseable */ }
-  }
-
-  const statusUpper = rawStatus.toUpperCase().trim()
-  const isActive = statusUpper.includes("ACTIVE") || statusUpper.includes("CURRENT")
-  const status = isExpired ? "EXPIRED" : isActive ? "ACTIVE" : statusUpper
-
-  return {
-    valid: !isExpired && isActive,
-    holderName: holderName.trim(),
-    licenseNumber: licNum,
-    licenseType: licType.trim(),
-    expirationDate: expDate || null,
-    status,
-    county: county.trim(),
-    originalIssueDate: issueDate.trim(),
-    source: record.source || "tdlr_api",
-  }
+  return { valid: false, error: "License not found. Please verify the number at tdlr.texas.gov" }
 }
