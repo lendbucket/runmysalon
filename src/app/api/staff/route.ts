@@ -6,11 +6,17 @@ export async function GET() {
   const { response } = await requireSession();
   if (response) return response;
 
-  const { prisma } = await import("@/lib/prisma");
-  const staff = await prisma.staffMember.findMany({
-    include: { location: true },
-    orderBy: [{ location: { name: "asc" } }, { fullName: "asc" }],
-  });
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const staff = await prisma.staffMember.findMany({
+      include: { location: true },
+      orderBy: [{ location: { name: "asc" } }, { fullName: "asc" }],
+    });
 
-  return NextResponse.json({ staff });
+    return NextResponse.json({ staff });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[staff route] error:", msg);
+    return NextResponse.json({ error: msg, staff: [] }, { status: 500 });
+  }
 }

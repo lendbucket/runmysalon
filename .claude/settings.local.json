@@ -17,7 +17,8 @@
       "Bash(grep -c \"DATABASE_URL\" .env.local)",
       "Bash(ls .env*)",
       "Bash(cat .env)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(ls:*)"
     ]
   }
 }

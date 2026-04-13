@@ -106,8 +106,17 @@ export default function StaffPage() {
     setErr(null);
     try {
       const res = await fetch("/api/staff/by-location?all=true");
-      const data = (await res.json()) as { staff?: StaffRow[] };
-      if (!res.ok) throw new Error("Could not load staff");
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("[staff page] API error:", res.status, text);
+        throw new Error("Failed to load staff: " + res.status);
+      }
+      let data: { staff?: StaffRow[] };
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Failed to parse staff data. Please refresh.");
+      }
       const list = data.staff ?? [];
       setStaff(list);
 

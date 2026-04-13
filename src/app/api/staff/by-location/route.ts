@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
 
   const showAll = req.nextUrl.searchParams.get("all") === "true"
 
+  try {
   const staff = await prisma.staffMember.findMany({
     where: {
       ...(!showAll ? { isActive: true } : {}),
@@ -46,4 +47,9 @@ export async function GET(req: NextRequest) {
   }))
 
   return NextResponse.json({ staff: result })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[staff/by-location] error:", msg)
+    return NextResponse.json({ error: msg, staff: [] }, { status: 500 })
+  }
 }
