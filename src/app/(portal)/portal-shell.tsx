@@ -29,6 +29,7 @@ const OWNER_NAV: NavItem[] = [
   { href: "/alerts", icon: "notifications", label: "Alerts", badge: true },
   { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
+  { href: "/settings", icon: "settings", label: "Settings" },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
 
@@ -49,6 +50,7 @@ const MANAGER_NAV: NavItem[] = [
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
+  { href: "/settings", icon: "settings", label: "Settings" },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
 
@@ -61,6 +63,7 @@ const STYLIST_NAV: NavItem[] = [
   { href: "/submit-complaint", icon: "report", label: "Report Issue" },
   { href: "/conduct", icon: "gavel", label: "My Record" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
+  { href: "/settings", icon: "settings", label: "Settings" },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
 

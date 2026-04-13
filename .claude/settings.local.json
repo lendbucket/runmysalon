@@ -11,7 +11,13 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git push:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx dotenv-cli:*)",
+      "Bash(grep -c \"DIRECT_URL\" .env.local)",
+      "Bash(grep -c \"DATABASE_URL\" .env.local)",
+      "Bash(ls .env*)",
+      "Bash(cat .env)",
+      "Bash(npx vercel:*)"
     ]
   }
 }

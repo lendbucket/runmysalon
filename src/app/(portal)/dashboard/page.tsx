@@ -146,6 +146,7 @@ export default function DashboardPage() {
   const [now, setNow] = useState(Date.now()) // for re-rendering timeAgo
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
+  const [licenseStatus, setLicenseStatus] = useState<{ verified: boolean; expired: boolean; expiringSoon: boolean; daysUntilExpiry: number | null; expirationDate: string | null } | null>(null)
 
   const userName = session?.user?.name?.split(" ")[0] || "User"
   const hour = new Date().getHours()
@@ -233,6 +234,12 @@ export default function DashboardPage() {
     return () => clearInterval(id)
   }, [activeLocation])
 
+  // License status fetch for stylists/managers
+  useEffect(() => {
+    if (isOwner) return
+    fetch("/api/staff/me/license-status").then(r => r.json()).then(d => setLicenseStatus(d)).catch(() => {})
+  }, [isOwner])
+
   const customLabel = customStart && customEnd ? `${new Date(customStart + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(customEnd + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Custom"
   const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", "7days": "7 Days", "30days": "30 Days", "90days": "90 Days", week: "This Week", month: "This Month", year: "This Year", custom: customLabel }
   const pLabel = periodLabel[activePeriod] || activePeriod
@@ -304,6 +311,35 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* License banner for non-owners */}
+      {licenseStatus && !isOwner && !licenseStatus.verified && (
+        <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <div style={{ fontSize: "13px", color: "#f59e0b", fontWeight: 600 }}>License Not Verified</div>
+            <div style={{ fontSize: "12px", color: "#7a8f96", marginTop: "2px" }}>Verify your cosmetology license to complete your profile</div>
+          </div>
+          <Link href="/settings?tab=license" style={{ background: "transparent", border: "1px solid #f59e0b", color: "#f59e0b", borderRadius: "8px", padding: "6px 14px", fontSize: "12px", textDecoration: "none", whiteSpace: "nowrap" }}>Verify Now</Link>
+        </div>
+      )}
+      {licenseStatus && !isOwner && licenseStatus.verified && licenseStatus.expired && (
+        <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <div style={{ fontSize: "13px", color: "#ef4444", fontWeight: 600 }}>License Expired</div>
+            <div style={{ fontSize: "12px", color: "#7a8f96", marginTop: "2px" }}>Your cosmetology license has expired. Please renew immediately.</div>
+          </div>
+          <Link href="/settings?tab=license" style={{ background: "transparent", border: "1px solid #ef4444", color: "#ef4444", borderRadius: "8px", padding: "6px 14px", fontSize: "12px", textDecoration: "none", whiteSpace: "nowrap" }}>Update License</Link>
+        </div>
+      )}
+      {licenseStatus && !isOwner && licenseStatus.verified && licenseStatus.expiringSoon && !licenseStatus.expired && (
+        <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+          <div>
+            <div style={{ fontSize: "13px", color: "#f59e0b", fontWeight: 600 }}>License Expiring Soon</div>
+            <div style={{ fontSize: "12px", color: "#7a8f96", marginTop: "2px" }}>Your license expires in {licenseStatus.daysUntilExpiry} days. Renew before {licenseStatus.expirationDate ? new Date(licenseStatus.expirationDate).toLocaleDateString() : "expiry"}.</div>
+          </div>
+          <Link href="/settings?tab=license" style={{ background: "transparent", border: "1px solid #f59e0b", color: "#f59e0b", borderRadius: "8px", padding: "6px 14px", fontSize: "12px", textDecoration: "none", whiteSpace: "nowrap" }}>Update License</Link>
+        </div>
+      )}
 
       {/* QUICK STATS BAR */}
       {!loading && (

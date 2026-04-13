@@ -88,6 +88,10 @@ model StaffMember {
   tdlrExpirationDate DateTime?
   tdlrVerifiedAt     DateTime?
   tdlrHolderName     String?
+  licenseVerificationToken       String?  @unique
+  licenseVerificationTokenExpiry DateTime?
+  licenseVerificationMethod      String?
+  licenseVerifiedBy              String?
   createdAt          DateTime @default(now())
   location           Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   user               User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
