@@ -209,10 +209,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // For brief/range queries (month view), skip checkout detection — return immediately
+    // For brief/range queries (month view), skip checkout detection — dedup and return
     if (isBrief) {
-      console.log("[appointments route] brief mode — returning", appointments.length, "appointments without checkout detection");
-      return NextResponse.json({ appointments });
+      // Dedup by ID
+      const briefMap = new Map<string, typeof appointments[0]>();
+      for (const a of appointments) { if (!briefMap.has(a.id)) briefMap.set(a.id, a); }
+      const briefResult = Array.from(briefMap.values());
+      console.log("[appointments route] brief mode — returning", briefResult.length, "appointments");
+      return NextResponse.json({ appointments: briefResult });
     }
 
     // Check for completed orders — fetch from BOTH locations always
@@ -334,7 +338,33 @@ export async function GET(request: NextRequest) {
       return { ...appt, isCheckedOut, ...(orderId ? { orderId } : {}), ...(checkoutDetails ? { checkoutDetails } : {}) };
     });
 
-    return NextResponse.json({ appointments: enrichedAppointments });
+    // Final deduplication pass — by booking ID, then by customerName + startTime
+    const idMap = new Map<string, typeof enrichedAppointments[0]>();
+    for (const a of enrichedAppointments) {
+      const existing = idMap.get(a.id);
+      if (!existing || (a.isCheckedOut && !existing.isCheckedOut)) {
+        idMap.set(a.id, a);
+      }
+    }
+    let dedupedFinal = Array.from(idMap.values());
+
+    // Secondary dedup: same customer + same start time (within 5 min)
+    const finalResult: typeof dedupedFinal = [];
+    const timeKeys = new Set<string>();
+    for (const a of dedupedFinal) {
+      const startMs = new Date(a.startTime || "").getTime();
+      const roundedMin = Math.floor(startMs / 300000); // 5-min buckets
+      const key = `${a.customerName}::${roundedMin}`;
+      if (!timeKeys.has(key)) {
+        timeKeys.add(key);
+        finalResult.push(a);
+      }
+    }
+
+    const removed = enrichedAppointments.length - finalResult.length;
+    if (removed > 0) console.log(`[dedup] removed ${removed} duplicates, returning ${finalResult.length} appointments`);
+
+    return NextResponse.json({ appointments: finalResult });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ appointments: [], error: msg }, { status: 500 });

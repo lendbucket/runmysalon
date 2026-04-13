@@ -1,5 +1,6 @@
 "use client"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useUserRole } from "@/hooks/useUserRole"
 
@@ -63,7 +64,11 @@ const LOCATIONS = ["Corpus Christi", "San Antonio"]
 // TODO: make configurable per location in Settings page
 const TAX_RATE = 0.0825
 
-export default function POSPage() {
+export default function POSPageWrapper() {
+  return <Suspense fallback={null}><POSPageInner /></Suspense>
+}
+
+function POSPageInner() {
   const { isOwner, isStylist, locationName } = useUserRole()
 
   const [isMobile, setIsMobile] = useState(false)
@@ -151,15 +156,22 @@ export default function POSPage() {
     day: "numeric",
   })
 
-  // Fetch appointments
+  // Fetch ALL of today's appointments for selected location
   const fetchAppointments = useCallback(async () => {
     setLoadingAppts(true)
     try {
+      const now = new Date()
+      const todayCST = now.toLocaleDateString("en-CA", { timeZone: "America/Chicago" })
       const params = new URLSearchParams()
+      params.set("date", todayCST)
+      params.set("all", "true")
       if (isOwner && location) params.set("location", location)
       const res = await fetch(`/api/pos/appointments?${params}`)
       const data = await res.json()
-      setAppointments(data.appointments || [])
+      const appts = (data.appointments || []).sort((a: Appointment, b: Appointment) =>
+        new Date(a.startTime || "").getTime() - new Date(b.startTime || "").getTime()
+      )
+      setAppointments(appts)
     } catch {
       setAppointments([])
     } finally {
@@ -180,6 +192,8 @@ export default function POSPage() {
       setLoadingCatalog(false)
     }
   }, [])
+
+  const searchParams = useSearchParams()
 
   useEffect(() => { fetchAppointments() }, [fetchAppointments])
   useEffect(() => { fetchCatalog() }, [fetchCatalog])
@@ -207,6 +221,15 @@ export default function POSPage() {
     }
     if (isMobile) setMobileTab("checkout")
   }, [isMobile])
+
+  // Auto-select appointment from query param (e.g. from Appointments page "Checkout in POS")
+  useEffect(() => {
+    const aptId = searchParams.get("appointmentId")
+    if (aptId && appointments.length > 0 && !selectedAppt) {
+      const match = appointments.find(a => a.id === aptId)
+      if (match) selectAppointment(match)
+    }
+  }, [searchParams, appointments, selectedAppt, selectAppointment])
 
   // Cart helpers
   const addToCart = (service: CatalogService, variation: ServiceVariation) => {

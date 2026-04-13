@@ -117,6 +117,7 @@ export default function AppointmentsPage() {
   // ── Month view dedicated data ──
   const [monthAppointments, setMonthAppointments] = useState<Appointment[]>([])
   const [loadingMonth, setLoadingMonth] = useState(false)
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
 
   // ── Transactions tab ──
   const [activeTab, setActiveTab] = useState<"appointments" | "transactions">("appointments")
@@ -701,20 +702,21 @@ export default function AppointmentsPage() {
           )}
           {activeTab === "appointments" && <>
             <button onClick={openBookingModal} style={{
-              padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+              padding: isMobile ? "7px 10px" : "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
               borderRadius: "6px", border: "none", cursor: "pointer", backgroundColor: "#CDC9C0", color: "#0f1d24",
-            }}>New Appointment</button>
-            <button onClick={openBlockModal} style={{
+              display: "flex", alignItems: "center", gap: "4px",
+            }}><span className="material-symbols-outlined" style={{ fontSize: "14px" }}>add</span>{!isMobile && "New Appointment"}</button>
+            {!isMobile && <button onClick={openBlockModal} style={{
               padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
               borderRadius: "6px", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer",
               backgroundColor: "transparent", color: "rgba(205,201,192,0.6)",
-            }}>Block Time</button>
+            }}>Block Time</button>}
             <button onClick={() => setShowWaitlist(!showWaitlist)} style={{
               padding: "7px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
               borderRadius: "6px", border: showWaitlist ? "1px solid #CDC9C0" : "1px solid rgba(255,255,255,0.08)",
               backgroundColor: showWaitlist ? "rgba(255,255,255,0.06)" : "transparent",
               color: showWaitlist ? "#CDC9C0" : "rgba(205,201,192,0.45)", cursor: "pointer",
-            }}>Waitlist{waitlist.length > 0 ? ` (${waitlist.length})` : ""}</button>
+            }}>{isMobile ? `WL${waitlist.length > 0 ? ` (${waitlist.length})` : ""}` : `Waitlist${waitlist.length > 0 ? ` (${waitlist.length})` : ""}`}</button>
           </>}
         </div>
 
@@ -780,7 +782,7 @@ export default function AppointmentsPage() {
           </button>
 
           <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(205,201,192,0.55)", marginLeft: "4px" }}>
-            {displayDate}
+            {isMobile && (viewMode === "list" || viewMode === "day") ? new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : displayDate}
           </span>
         </div>
 
@@ -832,7 +834,7 @@ export default function AppointmentsPage() {
                   onClick={() => setStylistFilter("all")}
                   style={{
                     padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
-                    borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap",
+                    borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
                     border: stylistFilter === "all" ? "1px solid rgba(122,143,150,0.3)" : "1px solid rgba(255,255,255,0.06)",
                     backgroundColor: stylistFilter === "all" ? "rgba(122,143,150,0.1)" : "transparent",
                     color: stylistFilter === "all" ? "#ffffff" : "rgba(205,201,192,0.45)",
@@ -849,7 +851,7 @@ export default function AppointmentsPage() {
                       onClick={() => setStylistFilter(s.id)}
                       style={{
                         padding: "6px 12px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
-                        borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap",
+                        borderRadius: "20px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
                         display: "flex", alignItems: "center", gap: "5px",
                         border: stylistFilter === s.id ? `1px solid ${clr}50` : "1px solid rgba(255,255,255,0.06)",
                         backgroundColor: stylistFilter === s.id ? `${clr}1A` : "transparent",
@@ -869,21 +871,28 @@ export default function AppointmentsPage() {
         {/* Analytics strip */}
         {!loading && appointments.length > 0 && (
           <div style={{
-            display: "flex", gap: "32px", padding: "10px 0", marginTop: "12px",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            display: isMobile ? "grid" : "flex",
+            gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : undefined,
+            gap: isMobile ? "1px" : "32px",
+            padding: isMobile ? "0" : "10px 0",
+            marginTop: "12px",
+            borderTop: isMobile ? "none" : "1px solid rgba(255,255,255,0.06)",
+            borderBottom: isMobile ? "none" : "1px solid rgba(255,255,255,0.06)",
+            backgroundColor: isMobile ? "rgba(255,255,255,0.04)" : "transparent",
+            borderRadius: isMobile ? "8px" : "0",
+            overflow: "hidden",
           }}>
             {[
               { label: "Total", value: String(appointments.filter(a => !isBlockedTime(a)).length), color: "#ffffff" },
-              { label: "Checked Out", value: String(appointments.filter(a => a.isCheckedOut).length), color: "#22c55e" },
+              { label: "Checked", value: String(appointments.filter(a => a.isCheckedOut).length), color: "#22c55e" },
               { label: "Confirmed", value: String(appointments.filter(a => a.status === "ACCEPTED" && !a.isCheckedOut).length), color: "#10B981" },
               { label: "Pending", value: String(appointments.filter(a => a.status === "PENDING").length), color: "#FBBF24" },
-              { label: "Cancelled", value: String(appointments.filter(a => a.status?.startsWith("CANCELLED")).length), color: "#EF4444" },
+              { label: "Cancel", value: String(appointments.filter(a => a.status?.startsWith("CANCELLED")).length), color: "#EF4444" },
               { label: "Revenue", value: fmtCurrency(appointments.filter(a => a.isCheckedOut && a.checkoutDetails?.total).reduce((s, a) => s + (a.checkoutDetails?.total || 0), 0)), color: "#ffffff" },
             ].map(stat => (
-              <div key={stat.label}>
-                <div style={{ fontSize: "16px", fontWeight: 800, color: stat.color, fontFamily: "'Fira Code', monospace" }}>{stat.value}</div>
-                <div style={{ fontSize: "11px", fontWeight: 600, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.04em" }}>{stat.label}</div>
+              <div key={stat.label} style={{ display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "flex-start", padding: isMobile ? "10px 8px" : "0", backgroundColor: isMobile ? "#0d1117" : "transparent" }}>
+                <div style={{ fontSize: isMobile ? "20px" : "16px", fontWeight: isMobile ? 700 : 800, color: stat.color, fontFamily: "'Fira Code', monospace" }}>{stat.value}</div>
+                <div style={{ fontSize: "10px", fontWeight: 600, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{stat.label}</div>
               </div>
             ))}
           </div>
@@ -1412,7 +1421,7 @@ export default function AppointmentsPage() {
             return (
               <div key={appt.id}>
                 <button
-                  onClick={() => setExpandedId(isExpanded ? null : appt.id)}
+                  onClick={() => { setExpandedId(isExpanded ? null : appt.id); if (isMobile) setSelectedAppt(appt) }}
                   style={{
                     width: "100%",
                     textAlign: "left",
@@ -1498,13 +1507,13 @@ export default function AppointmentsPage() {
                   {/* Checkout link for confirmed */}
                   {(appt.status === "ACCEPTED" || appt.status === "PENDING") && (
                     <Link
-                      href={`/pos`}
+                      href={`/pos?appointmentId=${appt.id}&location=${encodeURIComponent(location)}`}
                       onClick={(e) => e.stopPropagation()}
                       style={{
-                        display: "inline-flex", alignItems: "center", gap: "4px",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
                         fontSize: "10px", fontWeight: 700, color: "#CDC9C0",
                         textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase",
-                        marginTop: "2px",
+                        marginTop: "2px", width: "100%", padding: "10px 0",
                       }}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>point_of_sale</span>
@@ -2152,6 +2161,86 @@ export default function AppointmentsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Appointment detail bottom sheet */}
+      {selectedAppt && (
+        <>
+          <div onClick={() => setSelectedAppt(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 199 }} />
+          <div style={{
+            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
+            background: "#0d1117", borderTop: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "20px 20px 0 0", maxHeight: "85vh", overflowY: "auto",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}>
+            {/* Handle */}
+            <div style={{ width: "40px", height: "4px", backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "2px", margin: "12px auto" }} />
+            <div style={{ padding: "0 20px 16px" }}>
+              {/* Client + status */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff" }}>{selectedAppt.customerName}</div>
+                <span style={{ fontSize: "9px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px", backgroundColor: (STATUS_COLORS[selectedAppt.status] || DEFAULT_STATUS).bg, color: (STATUS_COLORS[selectedAppt.status] || DEFAULT_STATUS).text, textTransform: "uppercase", letterSpacing: "0.06em" }}>{selectedAppt.status.replace(/_/g, " ")}</span>
+              </div>
+              {/* Info */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "#7a8f96" }}>schedule</span>
+                  <span style={{ fontSize: "14px", color: "#7a8f96", fontFamily: "'Fira Code', monospace" }}>{fmtTime(selectedAppt.startTime)}{selectedAppt.endTime ? ` – ${fmtTime(selectedAppt.endTime)}` : ""}</span>
+                </div>
+                {selectedAppt.teamMemberId && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "#7a8f96" }}>person</span>
+                    <span style={{ fontSize: "14px", color: "#ffffff" }}>{TEAM_NAMES[selectedAppt.teamMemberId] || ""}</span>
+                  </div>
+                )}
+                {selectedAppt.totalDurationMinutes && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: "16px", color: "#606E74" }}>timer</span>
+                    <span style={{ fontSize: "13px", color: "#606E74", fontFamily: "'Fira Code', monospace" }}>{selectedAppt.totalDurationMinutes} min</span>
+                  </div>
+                )}
+              </div>
+              {/* Services */}
+              {selectedAppt.services && selectedAppt.services.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px" }}>Services</div>
+                  {selectedAppt.services.map((s, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", marginBottom: "8px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px" }}>
+                      <span style={{ fontSize: "14px", color: "#ffffff" }}>{s.serviceName}</span>
+                      <span style={{ fontSize: "14px", color: "#7a8f96", fontFamily: "'Fira Code', monospace" }}>{fmtCurrency(s.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Total */}
+              {(selectedAppt.totalPrice ?? 0) > 0 && (
+                <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: "#606E74", textTransform: "uppercase", letterSpacing: "0.1em" }}>Total</span>
+                  <span style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff", fontFamily: "'Fira Code', monospace" }}>{fmtCurrency(selectedAppt.totalPrice || 0)}</span>
+                </div>
+              )}
+            </div>
+            {/* Action buttons */}
+            <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "#0d1117" }}>
+              {!selectedAppt.isCheckedOut && (
+                <Link href={`/pos?appointmentId=${selectedAppt.id}&location=${encodeURIComponent(location)}`} style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "52px",
+                  backgroundColor: "#7a8f96", color: "#06080d", fontWeight: 700, fontSize: "15px", borderRadius: "12px",
+                  textDecoration: "none", cursor: "pointer",
+                }}>Checkout in POS</Link>
+              )}
+              {selectedAppt.isCheckedOut && selectedAppt.checkoutDetails && (
+                <div style={{ textAlign: "center", padding: "12px", color: "#22c55e", fontSize: "14px", fontWeight: 600 }}>
+                  Checked out — {fmtCurrency(selectedAppt.checkoutDetails.total)}
+                </div>
+              )}
+              <button onClick={() => setSelectedAppt(null)} style={{
+                width: "100%", height: "44px", backgroundColor: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+                color: "#7a8f96", borderRadius: "12px", marginTop: "8px", cursor: "pointer", fontSize: "14px",
+              }}>Close</button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Toast */}
