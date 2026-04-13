@@ -23,12 +23,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (method === "manual") {
     if (!licenseNumber) return NextResponse.json({ error: "License number required" }, { status: 400 })
     const result = await verifyTDLRLicense(licenseNumber)
+
+    // Parse expiration date safely
+    let expDateParsed: Date | null = null
+    if (result.expirationDate) {
+      try { expDateParsed = new Date(result.expirationDate) } catch { /* skip */ }
+      if (expDateParsed && isNaN(expDateParsed.getTime())) expDateParsed = null
+    }
+
     await prisma.staffMember.update({
       where: { id: staffId },
       data: {
-        tdlrLicenseNumber: licenseNumber,
+        tdlrLicenseNumber: result.licenseNumber || licenseNumber,
         tdlrStatus: result.status || (result.valid ? "ACTIVE" : "INVALID"),
-        tdlrExpirationDate: result.expirationDate ? new Date(result.expirationDate) : null,
+        tdlrExpirationDate: expDateParsed,
         tdlrVerifiedAt: result.valid ? new Date() : null,
         tdlrHolderName: result.holderName || null,
         licenseVerificationMethod: "manual",

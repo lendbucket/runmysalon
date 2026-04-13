@@ -105,7 +105,7 @@ export default function StaffPage() {
   const [licenseModal, setLicenseModal] = useState<{ staffId: string; staffName: string; phone: string | null; email: string | null; currentLicense: string | null; currentStatus: string | null } | null>(null)
   const [licenseInput, setLicenseInput] = useState("")
   const [licenseVerifying, setLicenseVerifying] = useState(false)
-  const [licenseResult, setLicenseResult] = useState<{ verified: boolean; holderName?: string; licenseType?: string; expirationDate?: string; status?: string; error?: string } | null>(null)
+  const [licenseResult, setLicenseResult] = useState<{ verified: boolean; holderName?: string; licenseNumber?: string; licenseType?: string; expirationDate?: string | null; status?: string; county?: string; originalIssueDate?: string; source?: string; error?: string } | null>(null)
   const [licenseSendStatus, setLicenseSendStatus] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
@@ -761,20 +761,22 @@ export default function StaffPage() {
               <div style={{ marginTop: 16, borderRadius: 12, border: "1px solid rgba(34,197,94,0.2)", background: "rgba(34,197,94,0.06)", padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <ShieldCheck style={{ width: 20, height: 20, color: "#34d399" }} />
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#34d399" }}>License Verified</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#34d399" }}>LICENSE VERIFIED — ACTIVE</span>
                 </div>
                 <div>
                   {[
-                    { label: "LICENSE NUMBER", value: licenseInput },
-                    { label: "LICENSE HOLDER", value: licenseResult.holderName },
+                    { label: "NAME", value: licenseResult.holderName },
+                    { label: "LICENSE NUMBER", value: licenseResult.licenseNumber || licenseInput },
                     { label: "LICENSE TYPE", value: licenseResult.licenseType },
-                    { label: "EXPIRATION DATE", value: licenseResult.expirationDate ? new Date(licenseResult.expirationDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null },
-                    { label: "STATUS", value: licenseResult.status },
+                    { label: "EXPIRATION DATE", value: licenseResult.expirationDate || "" },
+                    { label: "LICENSE STATUS", value: licenseResult.status || "" },
+                    { label: "ORIGINAL ISSUE DATE", value: licenseResult.originalIssueDate || "" },
+                    { label: "COUNTY", value: licenseResult.county || "" },
                     { label: "ISSUED STATE", value: "TEXAS" },
-                  ].filter(r => r.value).map((r, idx, arr) => (
+                  ].filter(r => !!r.value).map((r, idx, arr) => (
                     <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: idx < arr.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: "#606E74" }}>{r.label}</span>
-                      {r.label === "STATUS" ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#606E74", letterSpacing: "0.04em" }}>{r.label}</span>
+                      {r.label === "LICENSE STATUS" ? (
                         <span style={{
                           borderRadius: 9999, padding: "2px 10px", fontFamily: "'Fira Code', monospace", fontSize: 11, fontWeight: 600,
                           background: r.value === "ACTIVE" ? "rgba(16,185,129,0.1)" : r.value === "EXPIRED" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)",

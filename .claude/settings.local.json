@@ -18,7 +18,9 @@
       "Bash(ls .env*)",
       "Bash(cat .env)",
       "Bash(npx vercel:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

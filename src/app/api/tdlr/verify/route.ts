@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { verifyTDLRLicense } from "@/lib/tdlr";
 
 // Public TDLR license lookup (GET) — no auth needed
 export async function GET(req: NextRequest) {
@@ -13,46 +14,26 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `https://data.texas.gov/resource/7358-krk7.json?license_number=${encodeURIComponent(license)}`;
-    const res = await fetch(url, { next: { revalidate: 3600 } });
+    const result = await verifyTDLRLicense(license);
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { found: false, error: "TDLR API error" },
-        { status: 502 },
-      );
+    if (!result.valid && result.error) {
+      return NextResponse.json({ found: false, error: result.error });
     }
 
-    const data = (await res.json()) as Array<Record<string, string>>;
-
-    if (!data || data.length === 0) {
-      return NextResponse.json({ found: false });
-    }
-
-    const record = data[0];
-    const status = record.license_status || record.status || "";
-    const isActive =
-      status.toLowerCase() === "active" ||
-      status.toLowerCase() === "current";
-    const expirationDate =
-      record.license_expiration_date || record.expiration_date || null;
-    const isExpired = expirationDate
-      ? new Date(expirationDate) < new Date()
-      : false;
-
-    let statusColor: "green" | "red" | "yellow" = "yellow";
-    if (isActive && !isExpired) statusColor = "green";
-    else if (isExpired || status.toLowerCase() === "expired") statusColor = "red";
+    const statusColor = result.status === "ACTIVE" ? "green" : result.status === "EXPIRED" ? "red" : "yellow";
 
     return NextResponse.json({
       found: true,
-      licenseNumber: record.license_number || license,
-      holderName: record.name || record.license_holder_name || record.full_name || "",
-      licenseType: record.license_type || record.license_sub_type || "",
-      status,
-      isActive: isActive && !isExpired,
-      expirationDate,
+      licenseNumber: result.licenseNumber || license,
+      holderName: result.holderName || "",
+      licenseType: result.licenseType || "",
+      status: result.status || "",
+      isActive: result.valid,
+      expirationDate: result.expirationDate || null,
       statusColor,
+      county: result.county || "",
+      originalIssueDate: result.originalIssueDate || "",
+      source: result.source || "",
     });
   } catch {
     return NextResponse.json(
