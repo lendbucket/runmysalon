@@ -111,7 +111,18 @@ export async function POST(req: NextRequest) {
       });
     } catch (emailErr) {
       console.error("Failed to send enrollment email:", emailErr);
-      // Don't fail the entire request if email fails
+    }
+
+    // Send SMS if phone number provided (non-blocking)
+    if (phone) {
+      try {
+        const { sendSMS } = await import("@/lib/twilio");
+        const baseUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+        const smsMsg = `Hi ${firstName}! You've been invited to complete your Salon Envy onboarding. Click here to get started: ${baseUrl}/onboarding/enroll/${enrollment.inviteToken} Questions? Call (361) 889-1102. Reply STOP to unsubscribe.`;
+        await sendSMS(phone, smsMsg);
+      } catch (smsErr) {
+        console.error("Failed to send onboarding SMS:", smsErr);
+      }
     }
 
     return NextResponse.json({ success: true, enrollment });

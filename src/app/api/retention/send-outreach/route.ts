@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/api-auth"
 import { Resend } from "resend"
+import { sendSMS, formatOutreachMessage } from "@/lib/twilio"
 
 export async function POST(req: NextRequest) {
   const { response } = await requireSession()
@@ -17,16 +18,26 @@ export async function POST(req: NextRequest) {
   }
 
   if (channel === "sms") {
-    return NextResponse.json({
-      sent: 0,
-      failed: 0,
-      results: customers.map((c) => ({
-        customerId: c.customerId,
-        customerName: c.customerName,
-        status: "pending",
-        note: "SMS outreach not yet configured",
-      })),
-    })
+    const smsResults: { customerId: string; customerName: string; status: string; error?: string }[] = []
+    let smsSent = 0
+    let smsFailed = 0
+    for (const customer of customers) {
+      if (!customer.phone) {
+        smsResults.push({ customerId: customer.customerId, customerName: customer.customerName, status: "skipped", error: "No phone number" })
+        smsFailed++
+        continue
+      }
+      const smsMsg = message || formatOutreachMessage(customer.customerName, 0, "")
+      const result = await sendSMS(customer.phone, smsMsg)
+      if (result.success) {
+        smsResults.push({ customerId: customer.customerId, customerName: customer.customerName, status: "sent" })
+        smsSent++
+      } else {
+        smsResults.push({ customerId: customer.customerId, customerName: customer.customerName, status: "failed", error: result.error })
+        smsFailed++
+      }
+    }
+    return NextResponse.json({ sent: smsSent, failed: smsFailed, results: smsResults })
   }
 
   // Email via Resend

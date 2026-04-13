@@ -161,6 +161,16 @@ export async function POST(req: Request) {
       `,
     })
 
+    // Send SMS if phone number provided (non-blocking)
+    if (phone) {
+      try {
+        const { sendSMS } = await import("@/lib/twilio")
+        await sendSMS(phone, `Hi ${fullName}! You've been invited to join the Salon Envy team portal. Check your email for your login link. Questions? Contact your manager.`)
+      } catch (smsErr) {
+        console.error("Failed to send staff invite SMS:", smsErr)
+      }
+    }
+
     const inviter = session.user as Record<string, unknown>
     logAction({ action: AUDIT_ACTIONS.STAFF_INVITED, entity: "User", userId: inviter.id as string, userEmail: inviter.email as string, userRole: inviter.role as string, metadata: { invitedEmail: body.email, invitedName: body.fullName } })
     return NextResponse.json({ success: true, enrollmentLink })

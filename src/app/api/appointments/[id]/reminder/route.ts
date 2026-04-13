@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { TEAM_NAMES } from "@/lib/staff"
+import { TEAM_NAMES, TEAM_MEMBER_LOCATIONS } from "@/lib/staff"
+import { sendSMS, formatAppointmentReminder } from "@/lib/twilio"
 
 const SQ = "https://connect.squareup.com/v2"
 
@@ -125,7 +126,25 @@ export async function POST(
       `,
     })
 
-    return NextResponse.json({ sent: true })
+    // Also send SMS if client has a phone number
+    let smsStatus: "sent" | "failed" | "no_phone" = "no_phone"
+    let customerPhone = ""
+    if (booking.customer_id) {
+      try {
+        const cPhoneData = await sq(`/customers/${booking.customer_id}`)
+        customerPhone = cPhoneData.customer?.phone_number || ""
+      } catch { /* skip */ }
+    }
+    if (customerPhone) {
+      const locName = stylistId && TEAM_MEMBER_LOCATIONS[stylistId]
+        ? (TEAM_MEMBER_LOCATIONS[stylistId] === "Corpus Christi" ? "CC" : "SA")
+        : "CC"
+      const smsMessage = formatAppointmentReminder(customerName, stylistName, dateStr, timeStr, locName)
+      const smsResult = await sendSMS(customerPhone, smsMessage)
+      smsStatus = smsResult.success ? "sent" : "failed"
+    }
+
+    return NextResponse.json({ sent: true, smsStatus })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to send reminder" }, { status: 500 })
   }
