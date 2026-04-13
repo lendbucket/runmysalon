@@ -20,7 +20,9 @@
       "Bash(npx vercel:*)",
       "Bash(ls:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -35,31 +35,45 @@ function parseCSVLine(line: string): string[] {
 function mapRecord(r: Record<string, any>, cleaned: string, source: string): TDLRResult {
   const lastName = r.name_last || r.last_name || r.lname || ""
   const firstName = r.name_first || r.first_name || r.fname || ""
-  const fullName = r.name || r.full_name || r.licensee_name ||
+  const fullName = r.owner_name || r.business_name || r.name || r.full_name || r.licensee_name ||
     (lastName && firstName ? `${lastName}, ${firstName}` : lastName || firstName)
-  const expDate = r.expiration_date || r.exp_date || r.expiry_date || r.lic_exp_date || r.expire_date || ""
+  const expDate = r.license_expiration_date_mmddccyy || r.expiration_date || r.exp_date || r.expiry_date || r.lic_exp_date || r.expire_date || ""
   const rawStatus = r.status || r.lic_status || r.license_status || "ACTIVE"
   const licType = r.license_type || r.lic_type || r.type || r.profession || "Cosmetologist - Operator"
-  const county = r.county || r.county_name || ""
+  const licSubtype = r.license_subtype || ""
+  const county = r.business_county || r.mailing_address_county || r.county || r.county_name || ""
   const issueDate = r.original_issue_date || r.issue_date || r.orig_iss_date || r.first_issued || ""
   const city = r.city || r.bus_city || ""
-  const licNum = r.license_no || r.lic_no || r.license_number || r.lic_nbr || cleaned
+  const licNum = r.license_number || r.license_no || r.lic_no || r.lic_nbr || cleaned
+  const ceFlag = r.continuing_education_flag || ""
 
+  // Parse expiration — handle MM/DD/YYYY format from TDLR
   let isExpired = false
-  if (expDate) { try { isExpired = new Date(expDate) < new Date() } catch { /* skip */ } }
+  let expDateStr = String(expDate).trim()
+  if (expDateStr) {
+    try {
+      // Handle MM/DD/YYYY format
+      const parts = expDateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      const expObj = parts ? new Date(parseInt(parts[3]), parseInt(parts[1]) - 1, parseInt(parts[2])) : new Date(expDateStr)
+      isExpired = expObj < new Date()
+    } catch { /* skip */ }
+  }
 
   const statusStr = String(rawStatus).toUpperCase()
+  // If no explicit status field, determine from expiration
   const normalizedStatus = isExpired ? "EXPIRED" :
     statusStr.includes("ACTIVE") ? "ACTIVE" :
     statusStr.includes("EXPIRE") ? "EXPIRED" :
-    statusStr || "ACTIVE"
+    (statusStr && statusStr !== "ACTIVE") ? statusStr : "ACTIVE"
+
+  const fullLicType = licSubtype ? `${String(licType).trim()} (${licSubtype})` : String(licType).trim()
 
   return {
     valid: !isExpired && normalizedStatus === "ACTIVE",
     holderName: String(fullName).toUpperCase().trim(),
     licenseNumber: String(licNum).trim(),
-    licenseType: String(licType).trim(),
-    expirationDate: String(expDate).trim() || null,
+    licenseType: fullLicType,
+    expirationDate: expDateStr || null,
     originalIssueDate: String(issueDate).trim(),
     status: normalizedStatus,
     county: String(county).toUpperCase().trim(),
@@ -129,20 +143,15 @@ export async function verifyTDLRLicense(licenseNumber: string): Promise<TDLRResu
   }
 
   // STEP 2: Try Socrata API (fast, small response, <1s per request)
+  // CONFIRMED: dataset 7358-krk7, field name "license_number" (NOT license_no)
   const socrataToken = process.env.SOCRATA_APP_TOKEN || ""
-  const padded7 = cleaned.padStart(7, "0")
-  const padded8 = cleaned.padStart(8, "0")
 
   const socrataUrls = [
-    `https://data.texas.gov/resource/er6t-8gkz.json?license_no=${cleaned}`,
-    `https://data.texas.gov/resource/er6t-8gkz.json?license_no=${padded7}`,
-    `https://data.texas.gov/resource/er6t-8gkz.json?license_no=${padded8}`,
-    `https://data.texas.gov/resource/er6t-8gkz.json?$where=license_no=%27${cleaned}%27`,
-    `https://data.texas.gov/resource/7358-krk7.json?license_no=${cleaned}`,
-    `https://data.texas.gov/resource/7358-krk7.json?license_no=${padded7}`,
-    `https://data.texas.gov/resource/7358-krk7.json?$where=license_no=%27${cleaned}%27`,
-    `https://data.texas.gov/resource/er6t-8gkz.json?$where=license_no+like+%27%25${cleaned}%25%27&$limit=5`,
-    `https://data.texas.gov/resource/7358-krk7.json?$where=license_no+like+%27%25${cleaned}%25%27&$limit=5`,
+    // Primary — confirmed working query
+    `https://data.texas.gov/resource/7358-krk7.json?license_number=${cleaned}`,
+    // Fallback variants
+    `https://data.texas.gov/resource/7358-krk7.json?$where=license_number=%27${cleaned}%27`,
+    `https://data.texas.gov/resource/7358-krk7.json?$where=license_number+like+%27%25${cleaned}%25%27&$limit=5`,
   ]
 
   for (const url of socrataUrls) {
