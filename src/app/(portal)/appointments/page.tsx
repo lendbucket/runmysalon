@@ -1614,7 +1614,7 @@ export default function AppointmentsPage() {
                         Checkout
                       </Link>
                       <button
-                        onClick={(e) => { e.stopPropagation(); console.log("[cancel] Button clicked:", appt.id, appt.customerName); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
+                        onClick={(e) => { e.stopPropagation(); console.log("[cancel] IDs:", { id: appt.id, orderId: appt.orderId }); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
                         style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em" }}
                       >Cancel</button>
                     </div>

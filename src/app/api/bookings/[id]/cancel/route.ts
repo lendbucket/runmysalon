@@ -33,12 +33,15 @@ export async function POST(
 
   try {
     const body = await req.json().catch(() => ({})) as { reason?: string }
-    console.log("[cancel] Cancelling booking:", bookingId, "reason:", body.reason)
+    console.log("[cancel] Received booking ID:", bookingId, "reason:", body.reason)
 
     // Get current booking to find version and customer
     const current = await sq(`/bookings/${bookingId}`)
+    console.log("[cancel] Square retrieve response:", JSON.stringify(current).substring(0, 500))
     if (current.errors) {
-      return NextResponse.json({ error: current.errors[0]?.detail || "Booking not found" }, { status: 404 })
+      const errDetail = current.errors[0]?.detail || "Booking not found"
+      console.error("[cancel] Retrieve error:", errDetail, "for ID:", bookingId)
+      return NextResponse.json({ error: `${errDetail} (ID: ${bookingId})` }, { status: 404 })
     }
 
     const booking = current.booking
