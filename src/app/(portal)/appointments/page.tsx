@@ -331,6 +331,8 @@ export default function AppointmentsPage() {
   }
 
   const [bookSuccess, setBookSuccess] = useState(false)
+  const [sendCardSMS, setSendCardSMS] = useState(true)
+  const [cardPhone, setCardPhone] = useState("")
 
   async function submitBooking() {
     if (!bookClient || !bookStylist || bookSelectedSvcs.length === 0) return
@@ -352,7 +354,14 @@ export default function AppointmentsPage() {
         return
       }
 
-      // Success — show success step
+      // Success — send card request if enabled
+      if (sendCardSMS && cardPhone) {
+        try {
+          const locId = location === "San Antonio" ? "LXJYXDXWR0XZF" : "LTJSA6QR1HGW6"
+          await fetch("/api/card-on-file/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientName: bookClient.name, clientPhone: cardPhone, squareBookingId: d.booking?.id || "", locationId: locId }) })
+          console.log("[booking] Card request sent to:", cardPhone)
+        } catch (cardErr) { console.log("[booking] Card request failed (non-fatal):", cardErr) }
+      }
       setBookSuccess(true)
       setBookStep(5)
       fetchAppointments()
@@ -1604,12 +1613,10 @@ export default function AppointmentsPage() {
                         <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>point_of_sale</span>
                         Checkout
                       </Link>
-                      {(isOwner || isManager) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
-                          style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em" }}
-                        >Cancel</button>
-                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); console.log("[cancel] Button clicked:", appt.id, appt.customerName); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
+                        style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em" }}
+                      >Cancel</button>
                     </div>
                   )}
                 </button>
@@ -1973,7 +1980,23 @@ export default function AppointmentsPage() {
                     {TEAM_NAMES[bookStylist] || "Stylist"} already has an appointment at this time. Book anyway?
                   </div>
                 )}
-                <textarea value={bookNotes} onChange={e => setBookNotes(e.target.value)} placeholder="Notes (optional)" style={{ width: "100%", padding: "10px 14px", backgroundColor: "rgba(205,201,192,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", minHeight: "60px", resize: "vertical", marginBottom: "12px", boxSizing: "border-box" }} />
+                <textarea value={bookNotes} onChange={e => setBookNotes(e.target.value)} placeholder="Notes (optional)" style={{ width: "100%", padding: "10px 14px", backgroundColor: "rgba(205,201,192,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", minHeight: "60px", resize: "vertical" as const, marginBottom: "12px", boxSizing: "border-box" as const }} />
+
+                {/* Card on File */}
+                <div style={{ marginBottom: 12, background: "rgba(122,143,150,0.06)", border: "1px solid rgba(122,143,150,0.2)", borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#7a8f96", textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 12 }}>Card on File Request</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                    <input type="checkbox" id="sendCardSMS" checked={sendCardSMS} onChange={e => setSendCardSMS(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#7a8f96", cursor: "pointer" }} />
+                    <label htmlFor="sendCardSMS" style={{ fontSize: 13, color: "#ffffff", cursor: "pointer" }}>Send secure card link to client after booking</label>
+                  </div>
+                  {sendCardSMS && (
+                    <div>
+                      <input type="tel" placeholder="Client phone number" value={cardPhone} onChange={e => setCardPhone(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 14px", color: "#ffffff", fontSize: 14, boxSizing: "border-box" as const, outline: "none" }} />
+                      <div style={{ fontSize: 11, color: "#606E74", marginTop: 6 }}>Client receives: &quot;Add a card to secure your appointment&quot; with a secure link.</div>
+                    </div>
+                  )}
+                </div>
+
                 {bookError && <div style={{ fontSize: "13px", color: "#EF4444", marginBottom: "10px", padding: "10px 14px", backgroundColor: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", lineHeight: 1.5, wordBreak: "break-word" as const }}>{bookError}</div>}
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button onClick={() => { setBookStep(3); setBookOverlap(false) }} style={{ flex: 1, padding: "10px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", backgroundColor: "transparent", color: "rgba(205,201,192,0.6)", cursor: "pointer" }}>Back</button>
@@ -1987,11 +2010,16 @@ export default function AppointmentsPage() {
               <div style={{ textAlign: "center", padding: "32px 20px" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(34,197,94,0.1)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, color: "#22c55e" }}>&#10003;</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: "#ffffff", marginBottom: 8 }}>Appointment Booked!</div>
-                <div style={{ fontSize: 14, color: "#7a8f96", marginBottom: 24 }}>
+                <div style={{ fontSize: 14, color: "#7a8f96", marginBottom: 16 }}>
                   {bookClient?.name} is confirmed for {new Date(`${bookDate}T${bookTime}:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {new Date(`2026-01-01T${bookTime}:00`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} with {TEAM_NAMES[bookStylist] || "stylist"}
                 </div>
+                {sendCardSMS && cardPhone && (
+                  <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: "#22c55e" }}>
+                    Card request sent to {cardPhone}
+                  </div>
+                )}
                 <button
-                  onClick={() => { setShowBooking(false); resetBooking(); setBookSuccess(false) }}
+                  onClick={() => { setShowBooking(false); resetBooking(); setBookSuccess(false); setSendCardSMS(true); setCardPhone("") }}
                   style={{ width: "100%", height: 48, background: "rgba(122,143,150,0.15)", border: "1px solid #7a8f96", borderRadius: 10, color: "#ffffff", fontSize: 15, fontWeight: 600, cursor: "pointer" }}
                 >
                   Done
