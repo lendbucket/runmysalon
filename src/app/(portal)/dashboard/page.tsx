@@ -148,6 +148,34 @@ export default function DashboardPage() {
   const [customEnd, setCustomEnd] = useState("")
   const [licenseStatus, setLicenseStatus] = useState<{ verified: boolean; expired: boolean; expiringSoon: boolean; daysUntilExpiry: number | null; expirationDate: string | null } | null>(null)
 
+  // Drill-down panel state
+  const [drillDown, setDrillDown] = useState<{
+    type: "net_sales" | "checkouts" | "cancellations" | "avg_ticket" | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any[]
+    loading: boolean
+    title: string
+  }>({ type: null, data: [], loading: false, title: "" })
+
+  const openDrillDown = async (type: "net_sales" | "checkouts" | "cancellations" | "avg_ticket") => {
+    setDrillDown({ type, data: [], loading: true, title: type === "net_sales" ? "Net Sales" : type === "checkouts" ? "Checkouts" : type === "cancellations" ? "Cancellations" : "Avg Ticket" })
+    try {
+      const params = new URLSearchParams({ period: activePeriod })
+      if (activeLocation !== "Both") params.set("location", activeLocation)
+      const endpoint = type === "cancellations" ? `/api/cancellations?${params}` : `/api/metrics/live?${params}`
+      const res = await fetch(endpoint)
+      const json = await res.json()
+      if (type === "cancellations") {
+        setDrillDown(prev => ({ ...prev, data: json.cancellations || [], loading: false }))
+      } else {
+        const allBreakdown = (json.metrics || []).flatMap((m: LocationMetrics) => m.stylistBreakdown || [])
+        setDrillDown(prev => ({ ...prev, data: allBreakdown, loading: false }))
+      }
+    } catch {
+      setDrillDown(prev => ({ ...prev, loading: false }))
+    }
+  }
+
   const userName = session?.user?.name?.split(" ")[0] || "User"
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
@@ -247,15 +275,17 @@ export default function DashboardPage() {
   const summaryLabel = summaryPeriodLabel[activePeriod] || activePeriod
 
   const metrics = [
-    { label: `Net Sales · ${pLabel}`, value: loading ? null : fmt(totalRevenue), icon: "payments", sub: activeLocation === "Both" ? "Both locations" : activeLocation },
-    { label: `Checkouts · ${pLabel}`, value: loading ? null : String(totalCheckouts), icon: "content_cut", sub: "Unique customers checked out" },
-    { label: "Avg Ticket", value: loading ? null : fmt(totalAvg), icon: "receipt_long", sub: "Per checkout" },
-    { label: "Pending Approvals", value: loading ? null : String(pendingCount), icon: "rule", sub: "Needs attention", alert: pendingCount > 0 },
+    { label: `Net Sales · ${pLabel}`, value: loading ? null : fmt(totalRevenue), icon: "payments", sub: activeLocation === "Both" ? "Both locations" : activeLocation, drillType: "net_sales" as const },
+    { label: `Checkouts · ${pLabel}`, value: loading ? null : String(totalCheckouts), icon: "content_cut", sub: "Unique customers checked out", drillType: "checkouts" as const },
+    { label: "Avg Ticket", value: loading ? null : fmt(totalAvg), icon: "receipt_long", sub: "Per checkout", drillType: "avg_ticket" as const },
+    { label: "Pending Approvals", value: loading ? null : String(pendingCount), icon: "rule", sub: "Needs attention", alert: pendingCount > 0, drillType: null },
   ]
 
   // Compute all stylists from metrics for reuse
   const allStylists: StylistMetrics[] = metricsData.flatMap((m) => m.stylistBreakdown || [])
-  const topStylist = allStylists.length > 0 ? [...allStylists].sort((a, b) => b.revenue - a.revenue)[0] : null
+  // Only consider stylists with actual checkouts and revenue for "top" designation
+  const activeStylists = allStylists.filter((s) => s.checkoutCount > 0 && s.revenue > 0)
+  const topStylist = activeStylists.length > 0 ? [...activeStylists].sort((a, b) => b.revenue - a.revenue)[0] : null
 
   const quickActions = [
     { href: "/inventory/add", icon: "add_box", label: "Add Inventory" },
@@ -452,15 +482,15 @@ export default function DashboardPage() {
         marginBottom: "20px",
       }}>
         {metrics.map((m) => (
-          <div key={m.label} style={{
+          <div key={m.label} onClick={() => m.drillType && openDrillDown(m.drillType)} style={{
             backgroundColor: "#0d1117",
             border: m.alert ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(205,201,192,0.1)",
             borderRadius: "10px",
             padding: "20px",
-            transition: "transform 0.15s, box-shadow 0.15s",
-            cursor: "default",
+            transition: "transform 0.15s, box-shadow 0.15s, background-color 0.15s",
+            cursor: m.drillType ? "pointer" : "default",
             position: "relative",
-          }}>
+          }} onMouseEnter={e => { if (m.drillType) e.currentTarget.style.backgroundColor = "#111820" }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#0d1117" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
               <span style={{
                 fontSize: "9px",
@@ -551,7 +581,7 @@ export default function DashboardPage() {
               {topStylist ? topStylist.name.split(" ")[0] : "\u2014"}
             </div>
             <div style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 500 }}>
-              {topStylist ? `${topStylist.homeLocation === "Corpus Christi" ? "CC" : "SA"} \u00b7 ${topStylist.checkoutCount} checkouts` : "No data yet"}
+              {topStylist ? `${topStylist.homeLocation === "Corpus Christi" ? "CC" : "SA"} \u00b7 ${topStylist.checkoutCount} checkouts \u00b7 ${fmt(topStylist.revenue)}` : "No checkouts yet"}
             </div>
           </div>
         </Link>
@@ -767,6 +797,93 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* DRILL-DOWN PANEL */}
+      {drillDown.type && (
+        <>
+          <div onClick={() => setDrillDown({ type: null, data: [], loading: false, title: "" })} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 100 }} />
+          <div style={{
+            position: "fixed", top: 0, right: 0, bottom: 0, width: "min(440px, 95vw)",
+            backgroundColor: "#0d1117", borderLeft: "1px solid rgba(255,255,255,0.08)",
+            zIndex: 101, display: "flex", flexDirection: "column", overflow: "hidden",
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#FFFFFF", margin: "0 0 2px" }}>{drillDown.title}</h3>
+                <p style={{ fontSize: "11px", color: "#94A3B8", margin: 0 }}>{pLabel} {activeLocation === "Both" ? "· Both locations" : `· ${activeLocation}`}</p>
+              </div>
+              <button onClick={() => setDrillDown({ type: null, data: [], loading: false, title: "" })} style={{ background: "none", border: "none", color: "#94A3B8", cursor: "pointer", fontSize: "24px", padding: "4px" }}>&times;</button>
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+              {drillDown.loading ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {[1,2,3,4,5].map(i => <div key={i} style={{ height: "56px", backgroundColor: "rgba(205,201,192,0.06)", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />)}
+                </div>
+              ) : drillDown.type === "cancellations" ? (
+                drillDown.data.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#94A3B8" }}>No cancellations in this period</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {drillDown.data.map((c: any, i: number) => (
+                      <div key={i} style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>{c.customerName || "Walk-in"}</span>
+                          <span style={{ fontSize: "10px", padding: "3px 8px", borderRadius: "4px", backgroundColor: "rgba(239,68,68,0.1)", color: "#ef4444", fontWeight: 700, textTransform: "uppercase" }}>{c.cancelReason || "Cancelled"}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#94A3B8" }}>
+                          {c.serviceName || "Service"} {c.stylistName ? `· ${c.stylistName}` : ""}
+                        </div>
+                        {c.startAt && <div style={{ fontSize: "10px", color: "rgba(205,201,192,0.4)", marginTop: "4px" }}>{new Date(c.startAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* Net Sales / Checkouts / Avg Ticket — show stylist breakdown */
+                drillDown.data.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#94A3B8" }}>No data for this period</div>
+                ) : (
+                  <>
+                    {/* Summary row */}
+                    <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+                      <div style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
+                        <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Total</div>
+                        <div style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF" }}>{fmt(drillDown.data.reduce((s: number, d: StylistMetrics) => s + d.revenue, 0))}</div>
+                      </div>
+                      <div style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
+                        <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Checkouts</div>
+                        <div style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF" }}>{drillDown.data.reduce((s: number, d: StylistMetrics) => s + d.checkoutCount, 0)}</div>
+                      </div>
+                    </div>
+                    {/* Stylist table */}
+                    <div style={{ fontSize: "9px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "10px" }}>By Stylist</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {[...drillDown.data].sort((a: StylistMetrics, b: StylistMetrics) => b.revenue - a.revenue).map((s: StylistMetrics) => (
+                        <div key={s.teamMemberId} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", borderRadius: "8px", backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                          <div style={{ width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "rgba(205,201,192,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 800, color: "#CDC9C0", flexShrink: 0 }}>
+                            {s.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>{s.name}</div>
+                            <div style={{ fontSize: "10px", color: "rgba(205,201,192,0.4)" }}>{s.homeLocation === "Corpus Christi" ? "CC" : "SA"} · {s.checkoutCount} checkouts</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "14px", fontWeight: 800, color: "#FFFFFF" }}>{fmt(s.revenue)}</div>
+                            {s.avgTicket > 0 && <div style={{ fontSize: "10px", color: "rgba(205,201,192,0.4)" }}>avg {fmt(s.avgTicket)}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

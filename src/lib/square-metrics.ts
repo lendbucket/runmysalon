@@ -64,11 +64,19 @@ interface BookingEntry {
 
 
 function getCSTMidnight(date: Date): { start: string; end: string } {
+  // Use America/Chicago which handles CST/CDT automatically
   const cst = date.toLocaleDateString("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" })
   const [m, d, y] = cst.split("/")
+  // Determine if date falls in CDT (UTC-5) or CST (UTC-6) by checking the offset
+  // Create a date at noon in Chicago to reliably detect DST
+  const probe = new Date(`${y}-${m}-${d}T12:00:00`)
+  const chicagoNoon = new Date(probe.toLocaleString("en-US", { timeZone: "America/Chicago" }))
+  const utcNoon = probe
+  const offsetHours = Math.round((utcNoon.getTime() - chicagoNoon.getTime()) / (1000 * 60 * 60))
+  const tz = offsetHours === 5 ? "-05:00" : "-06:00" // CDT = -5, CST = -6
   return {
-    start: new Date(`${y}-${m}-${d}T00:00:00-06:00`).toISOString(),
-    end: new Date(`${y}-${m}-${d}T23:59:59-06:00`).toISOString(),
+    start: new Date(`${y}-${m}-${d}T00:00:00${tz}`).toISOString(),
+    end: new Date(`${y}-${m}-${d}T23:59:59${tz}`).toISOString(),
   }
 }
 
@@ -190,6 +198,7 @@ export async function getMetricsByPeriodWithDates(
     // Step 2b + 3: Unified attribution — checkout count AND revenue from the same orders
     // Each completed order with net > 0 = 1 checkout + its net revenue, attributed together
     const usedBookings = new Set<number>()
+    const unattributedRevenue: Record<string, { revenue: number; count: number }> = {}
     for (const o of rawOrders) {
       const totalAmt = Number(o.totalMoney?.amount || 0)
       const taxAmt = Number(o.totalTaxMoney?.amount || 0)
@@ -219,12 +228,23 @@ export async function getMetricsByPeriodWithDates(
         stylistMetrics[tmId].checkoutCount += 1
         stylistMetrics[tmId].revenue += netAmount
       } else {
-        // No booking match — attribute to first available stylist at this location
-        const locName = o.locationId === "LTJSA6QR1HGW6" ? "Corpus Christi" : "San Antonio"
-        const locStylists = Object.entries(TEAM_MEMBER_LOCATIONS).filter(([, l]) => l === locName)
-        if (locStylists.length > 0) {
-          stylistMetrics[locStylists[0][0]].checkoutCount += 1
-          stylistMetrics[locStylists[0][0]].revenue += netAmount
+        // No booking match — try to attribute via order tenders or fulfillments
+        // Check if the order has a team member ID directly (from Square POS)
+        const orderTeamMemberId = o.tenders?.[0]?.employeeId ||
+          o.lineItems?.[0]?.modifiers?.find((mod: { name?: string }) => mod.name?.startsWith("TM"))?.name ||
+          null
+        if (orderTeamMemberId && stylistMetrics[orderTeamMemberId]) {
+          stylistMetrics[orderTeamMemberId].checkoutCount += 1
+          stylistMetrics[orderTeamMemberId].revenue += netAmount
+        }
+        // If no team member can be identified, add to location totals without
+        // attributing to any individual stylist. This prevents ghost checkouts.
+        // Revenue is still counted at the location level below.
+        else {
+          const locName = o.locationId === "LTJSA6QR1HGW6" ? "Corpus Christi" : "San Antonio"
+          if (!unattributedRevenue[locName]) unattributedRevenue[locName] = { revenue: 0, count: 0 }
+          unattributedRevenue[locName].revenue += netAmount
+          unattributedRevenue[locName].count += 1
         }
       }
     }
@@ -251,6 +271,16 @@ export async function getMetricsByPeriodWithDates(
       target.revenue += m.revenue
       target.checkoutCount += m.checkoutCount
       target.stylistBreakdown.push(m)
+    }
+
+    // Add unattributed revenue to location totals (not to any stylist)
+    if (unattributedRevenue["Corpus Christi"]) {
+      ccMetrics.revenue += unattributedRevenue["Corpus Christi"].revenue
+      ccMetrics.checkoutCount += unattributedRevenue["Corpus Christi"].count
+    }
+    if (unattributedRevenue["San Antonio"]) {
+      saMetrics.revenue += unattributedRevenue["San Antonio"].revenue
+      saMetrics.checkoutCount += unattributedRevenue["San Antonio"].count
     }
 
     if (ccMetrics.checkoutCount > 0) ccMetrics.avgTicket = Math.round((ccMetrics.revenue / ccMetrics.checkoutCount) * 100) / 100

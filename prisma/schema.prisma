@@ -373,6 +373,13 @@ model OnboardingEnrollment {
   mediaConsent            String?
   ackDirectDeposit        Boolean   @default(false)
 
+  // Portal account
+  portalEmail               String?
+  portalPasswordHash        String?
+  portalAccountRequested    Boolean   @default(false)
+  portalAccountApproved     Boolean   @default(false)
+  portalAccountApprovedAt   DateTime?
+
   // Verification
   verificationCode      String?
   squareTeamMemberId    String?
