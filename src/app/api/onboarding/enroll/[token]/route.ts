@@ -93,6 +93,8 @@ export async function PATCH(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "Unknown";
+  const userAgent = req.headers.get("user-agent") || "Unknown";
 
   const enrollment = await prisma.onboardingEnrollment.findUnique({
     where: { inviteToken: token },
@@ -158,6 +160,16 @@ export async function PATCH(
         updateData.emergencyName = data.emergencyName;
         updateData.emergencyRelationship = data.emergencyRelationship;
         updateData.emergencyPhone = data.emergencyPhone;
+        break;
+
+      case "consents":
+        updateData.ackBackgroundCheck = data.ackBackgroundCheck;
+        updateData.ackDrugFree = data.ackDrugFree;
+        updateData.ackSocialMedia = data.ackSocialMedia;
+        updateData.ackSanitation = data.ackSanitation;
+        updateData.ackEquipment = data.ackEquipment;
+        updateData.mediaConsent = data.mediaConsent;
+        updateData.ackDirectDeposit = data.ackDirectDeposit;
         break;
 
       case "agreement":
@@ -288,65 +300,104 @@ export async function PATCH(
                 commissionRate: 40,
               });
 
-          // 4. Email signed agreement to owner
+          // 4. Email signed agreement to owner — professional white-background HTML
+          const ssnMasked = fullEnrollment.w9Ssn ? `***-**-${fullEnrollment.w9Ssn.replace(/-/g, "").slice(-4)}` : "N/A";
+          const signedAt = new Date().toISOString();
+          const uaTruncated = userAgent.length > 100 ? userAgent.slice(0, 100) + "..." : userAgent;
+
           try {
             const { Resend } = await import("resend");
             const resend = new Resend(process.env.RESEND_API_KEY);
 
+            const field = (label: string, value: string) => `<tr><td style="color:#666;font-size:13px;font-weight:bold;padding:6px 0;border-bottom:1px solid #eee;">${label}</td><td style="color:#000;font-size:13px;padding:6px 0;text-align:right;border-bottom:1px solid #eee;">${value}</td></tr>`;
+
+            const ownerHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#ffffff;color:#000;margin:0;padding:0;">
+<div style="max-width:700px;margin:0 auto;padding:40px 20px;">
+<div style="text-align:center;margin-bottom:30px;">
+<img src="https://portal.salonenvyusa.com/images/logo-white.png" alt="Salon Envy" style="max-width:200px;background:#0f1d24;padding:12px 20px;border-radius:8px;" onerror="this.style.display='none'" />
+<h1 style="color:#000;font-size:28px;margin:16px 0 0;letter-spacing:2px;">SALON ENVY</h1>
+</div>
+
+<h1 style="color:#000;font-size:24px;border-bottom:2px solid #C9A84C;padding-bottom:10px;">New Contractor Onboarding Complete</h1>
+<p><span style="display:inline-block;background:#C9A84C;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold;">${fullEnrollment.role}</span> &nbsp; ${locationName} &nbsp; ${new Date().toLocaleDateString()}</p>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 12px;">PERSONAL INFORMATION</h2>
+<table style="width:100%;border-collapse:collapse;">
+${field("Full Legal Name", fullName)}
+${field("Date of Birth", fullEnrollment.dateOfBirth || "N/A")}
+${field("SSN", ssnMasked)}
+${field("Email", fullEnrollment.email)}
+${field("Phone", fullEnrollment.phone || "N/A")}
+${field("Address", `${fullEnrollment.address || ""}, ${fullEnrollment.city || ""}, ${fullEnrollment.state || ""} ${fullEnrollment.zip || ""}`)}
+${field("Emergency Contact", `${fullEnrollment.emergencyName || "N/A"} — ${fullEnrollment.emergencyPhone || "N/A"}`)}
+</table></div>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 12px;">PROFESSIONAL INFORMATION</h2>
+<table style="width:100%;border-collapse:collapse;">
+${field("TDLR License #", fullEnrollment.licenseNumber || "N/A")}
+${field("License Expiration", fullEnrollment.licenseExpiration || "N/A")}
+${field("Years of Experience", fullEnrollment.yearsOfExperience?.toString() || "N/A")}
+${field("Specialties", fullEnrollment.specialties || "N/A")}
+</table></div>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 8px;">DIRECT DEPOSIT / BANKING INFORMATION</h2>
+<p style="color:red;font-size:11px;margin:0 0 12px;">SENSITIVE — Handle with care. Store securely.</p>
+<table style="width:100%;border-collapse:collapse;">
+${field("Bank Name", fullEnrollment.ddBankName || "N/A")}
+${field("Account Holder", fullEnrollment.ddNameOnAccount || "N/A")}
+${field("Account Type", fullEnrollment.ddAccountType ? fullEnrollment.ddAccountType.charAt(0).toUpperCase() + fullEnrollment.ddAccountType.slice(1) : "N/A")}
+${field("Routing Number", fullEnrollment.ddRoutingNumber || "N/A")}
+${field("Account Number", fullEnrollment.ddAccountNumber || "N/A")}
+</table></div>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 12px;">W-9 INFORMATION</h2>
+<table style="width:100%;border-collapse:collapse;">
+${field("Legal Name", fullEnrollment.w9LegalName || "N/A")}
+${field("Business Name", fullEnrollment.w9BusinessName || "N/A")}
+${field("Tax Classification", fullEnrollment.w9TaxClassification || "N/A")}
+${field("SSN / EIN", ssnMasked)}
+${field("Address", fullEnrollment.w9Address || "N/A")}
+</table></div>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 12px;">VERIFICATION STATUS</h2>
+<table style="width:100%;border-collapse:collapse;">
+${field("Email Verified", fullEnrollment.emailVerified ? "Yes" : "No")}
+${field("Phone Verified", fullEnrollment.phoneVerified ? "Yes" : "No")}
+${field("Agreement Signed", `Yes — ${signedAt}`)}
+${field("Verification Code", code)}
+${squareTeamMemberId ? field("Square Team ID", squareTeamMemberId) : ""}
+${field("IP Address", clientIp)}
+${field("Device/Browser", uaTruncated)}
+</table></div>
+
+<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:20px;">
+<h2 style="color:#333;font-size:16px;margin:0 0 12px;">SIGNED AGREEMENT</h2>
+<div style="background:#fff;border:1px solid #ccc;padding:20px;font-size:11px;line-height:1.6;white-space:pre-wrap;font-family:'Courier New',monospace;">${agreementText}</div>
+<div style="background:#f0f0f0;border:2px solid #C9A84C;padding:16px;margin-top:20px;border-radius:8px;">
+<strong>DIGITAL SIGNATURE</strong><br/>
+Signed by: ${fullEnrollment.signedLegalName || fullName}<br/>
+Date/Time: ${signedAt}<br/>
+IP Address: ${clientIp}<br/>
+This electronic signature is legally binding under Section 18.8 of the Agreement.
+</div></div>
+
+<div style="text-align:center;color:#999;font-size:11px;margin-top:40px;">
+Salon Envy USA LLC &bull; Corpus Christi, TX &bull; ceo@36west.org<br/>
+This email was automatically generated by the Salon Envy Management Portal<br/>
+Generated: ${signedAt}
+</div></div></body></html>`;
+
             await resend.emails.send({
               from: "waivers@salonenvyusa.com",
               to: "ceo@36west.org",
-              subject: `Signed Agreement — ${fullName} — ${fullEnrollment.role} — ${locationName}`,
-              html: `
-                <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0f1d24; color: #ffffff; padding: 40px; border-radius: 12px;">
-                  <h2 style="color: #CDC9C0; margin: 0 0 16px;">New Signed Agreement</h2>
-                  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Name</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullName}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Role</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.role}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Location</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${locationName}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Date</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${new Date().toLocaleDateString()}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Email</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.email}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Phone</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.phone || "N/A"}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">License #</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${fullEnrollment.licenseNumber || "N/A"}</td></tr>
-                    <tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Verification Code</td><td style="color: #CDC9C0; font-size: 13px; font-weight: 700; padding: 6px 0; text-align: right;">${code}</td></tr>
-                    ${squareTeamMemberId ? `<tr><td style="color: #94A3B8; font-size: 13px; padding: 6px 0;">Square Team ID</td><td style="color: #fff; font-size: 13px; padding: 6px 0; text-align: right;">${squareTeamMemberId}</td></tr>` : ""}
-                  </table>
-
-                  <div style="margin-top: 20px; padding: 16px; background: rgba(205,201,192,0.06); border: 1px solid rgba(205,201,192,0.12); border-radius: 8px;">
-                    <h3 style="color: #CDC9C0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 12px;">Direct Deposit Information</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Bank Name</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddBankName || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Account Holder</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddNameOnAccount || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Account Type</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddAccountType ? fullEnrollment.ddAccountType.charAt(0).toUpperCase() + fullEnrollment.ddAccountType.slice(1) : "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Routing Number</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddRoutingNumber || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Account Number</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.ddAccountNumber || "N/A"}</td></tr>
-                    </table>
-                  </div>
-
-                  <div style="margin-top: 20px; padding: 16px; background: rgba(205,201,192,0.06); border: 1px solid rgba(205,201,192,0.12); border-radius: 8px;">
-                    <h3 style="color: #CDC9C0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 12px;">W-9 / Tax Info</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Legal Name</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.w9LegalName || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">SSN</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.w9Ssn || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">EIN</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.w9Ein || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Tax Classification</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.w9TaxClassification || "N/A"}</td></tr>
-                      <tr><td style="color: #94A3B8; font-size: 13px; padding: 4px 0;">Tax Address</td><td style="color: #fff; font-size: 13px; padding: 4px 0; text-align: right;">${fullEnrollment.w9Address || "N/A"}</td></tr>
-                    </table>
-                  </div>
-
-                  <div style="margin-top: 20px; padding: 16px; background: rgba(205,201,192,0.06); border: 1px solid rgba(205,201,192,0.12); border-radius: 8px;">
-                    <h3 style="color: #CDC9C0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 12px;">Signed Agreement</h3>
-                    <pre style="font-family: monospace; font-size: 11px; white-space: pre-wrap; color: #94A3B8; margin: 0;">${agreementText}</pre>
-                  </div>
-
-                  <div style="margin-top: 16px; padding: 12px 16px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 8px;">
-                    <p style="color: #22c55e; font-size: 13px; margin: 0 0 4px; font-weight: 700;">Digital Signature</p>
-                    <p style="color: #94A3B8; font-size: 12px; margin: 0;">Signed by: ${fullEnrollment.signedLegalName || fullName}</p>
-                    <p style="color: #94A3B8; font-size: 12px; margin: 2px 0 0;">Signed at: ${new Date().toISOString()}</p>
-                    <p style="color: #94A3B8; font-size: 12px; margin: 2px 0 0;">SSN Last 4: ${fullEnrollment.signedSsnLast4 || "N/A"}</p>
-                  </div>
-                </div>
-              `,
+              subject: `New Contractor Onboarding Complete — ${fullName} — ${fullEnrollment.role} — ${locationName} — ${new Date().toLocaleDateString()}`,
+              html: ownerHtml,
+              text: `New Contractor Onboarding Complete\n\nName: ${fullName}\nRole: ${fullEnrollment.role}\nLocation: ${locationName}\nEmail: ${fullEnrollment.email}\nPhone: ${fullEnrollment.phone || "N/A"}\nLicense: ${fullEnrollment.licenseNumber || "N/A"}\nVerification Code: ${code}\nBank: ${fullEnrollment.ddBankName || "N/A"}\nRouting: ${fullEnrollment.ddRoutingNumber || "N/A"}\nAccount: ${fullEnrollment.ddAccountNumber || "N/A"}\n\nFull agreement and details are in the HTML version of this email.`,
             });
 
             // 5. Email welcome to new team member

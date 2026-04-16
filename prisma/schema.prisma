@@ -354,6 +354,23 @@ model OnboardingEnrollment {
   ackSafetyProtocol     Boolean   @default(false)
   ackTechPolicy         Boolean   @default(false)
 
+  // Email/Phone Verification
+  emailVerificationCode   String?
+  emailVerificationExpiry DateTime?
+  emailVerified           Boolean   @default(false)
+  phoneVerificationCode   String?
+  phoneVerificationExpiry DateTime?
+  phoneVerified           Boolean   @default(false)
+
+  // Fortune 500 Consents
+  ackBackgroundCheck      Boolean   @default(false)
+  ackDrugFree             Boolean   @default(false)
+  ackSocialMedia          Boolean   @default(false)
+  ackSanitation           Boolean   @default(false)
+  ackEquipment            Boolean   @default(false)
+  mediaConsent            String?
+  ackDirectDeposit        Boolean   @default(false)
+
   // Verification
   verificationCode      String?
   squareTeamMemberId    String?
