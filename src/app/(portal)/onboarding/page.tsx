@@ -30,6 +30,7 @@ const statusColors: Record<string, { bg: string; color: string; label: string }>
   in_progress: { bg: "rgba(59,130,246,0.12)", color: "#3b82f6", label: "In Progress" },
   completed: { bg: "rgba(34,197,94,0.12)", color: "#22c55e", label: "Completed" },
   expired: { bg: "rgba(239,68,68,0.12)", color: "#ef4444", label: "Expired" },
+  cancelled: { bg: "rgba(239,68,68,0.12)", color: "#ef4444", label: "Cancelled" },
 };
 
 export default function OnboardingManagementPage() {
@@ -42,6 +43,11 @@ export default function OnboardingManagementPage() {
   const [newEnroll, setNewEnroll] = useState({ firstName: "", lastName: "", email: "", locationId: "", enrollRole: "STYLIST" });
   const [message, setMessage] = useState("");
   const [copiedId, setCopiedId] = useState("");
+  const [toast, setToast] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<Enrollment | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [resendOpen, setResendOpen] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const fetchEnrollments = useCallback(async () => {
     try {
@@ -122,6 +128,45 @@ export default function OnboardingManagementPage() {
     setCopiedId(token);
     setTimeout(() => setCopiedId(""), 2000);
   };
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/onboarding/${cancelTarget.id}/cancel`, { method: "POST" });
+      if (res.ok) {
+        setEnrollments((prev) => prev.filter((e) => e.id !== cancelTarget.id));
+        setToast("Enrollment cancelled");
+        setCancelTarget(null);
+      } else {
+        const data = await res.json();
+        setMessage(data.error || "Failed to cancel");
+      }
+    } catch { setMessage("Network error"); }
+    setCancelling(false);
+  };
+
+  const handleResend = async (enrollmentId: string, method: "email" | "sms") => {
+    setResending(true);
+    try {
+      const res = await fetch(`/api/onboarding/${enrollmentId}/resend?method=${method}`, { method: "POST" });
+      if (res.ok) {
+        setToast(`Invitation resent via ${method === "sms" ? "SMS" : "email"}`);
+      } else {
+        const data = await res.json();
+        setMessage(data.error || "Failed to resend");
+      }
+    } catch { setMessage("Network error"); }
+    setResending(false);
+    setResendOpen(null);
+  };
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   if (!isOwner && !isManager) {
     return (
@@ -240,37 +285,94 @@ export default function OnboardingManagementPage() {
                     <div style={{ fontSize: "16px", fontWeight: 900, color: "#CDC9C0", fontFamily: "monospace", marginTop: "2px" }}>{e.verificationCode}</div>
                   </div>
                 )}
-                <button
-                  onClick={() => copyLink(e.inviteToken)}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: copiedId === e.inviteToken ? "rgba(34,197,94,0.15)" : "rgba(205,201,192,0.06)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: "6px",
-                    color: copiedId === e.inviteToken ? "#22c55e" : "#94A3B8",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>
-                    {copiedId === e.inviteToken ? "check" : "content_copy"}
-                  </span>
-                  {copiedId === e.inviteToken ? "Copied" : "Copy Link"}
-                </button>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => copyLink(e.inviteToken)}
+                    style={{
+                      padding: "4px 10px",
+                      backgroundColor: copiedId === e.inviteToken ? "rgba(34,197,94,0.15)" : "rgba(205,201,192,0.06)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: "6px",
+                      color: copiedId === e.inviteToken ? "#22c55e" : "#94A3B8",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>
+                      {copiedId === e.inviteToken ? "check" : "content_copy"}
+                    </span>
+                    {copiedId === e.inviteToken ? "Copied" : "Copy Link"}
+                  </button>
+                  {(e.status === "pending" || e.status === "in_progress") && (
+                    <>
+                      {/* Resend dropdown */}
+                      <div style={{ position: "relative" }}>
+                        <button
+                          onClick={() => setResendOpen(resendOpen === e.id ? null : e.id)}
+                          disabled={resending}
+                          style={{ padding: "4px 10px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#7a8f96", fontSize: "10px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", opacity: resending ? 0.5 : 1 }}
+                        >
+                          Resend
+                        </button>
+                        {resendOpen === e.id && (
+                          <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "4px", backgroundColor: "#0d1117", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "4px", zIndex: 50, minWidth: "140px" }}>
+                            <button onClick={() => handleResend(e.id, "email")} style={{ display: "block", width: "100%", padding: "8px 12px", background: "transparent", border: "none", color: "#94A3B8", fontSize: "12px", cursor: "pointer", textAlign: "left", borderRadius: "4px" }} onMouseOver={(ev) => (ev.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")} onMouseOut={(ev) => (ev.currentTarget.style.backgroundColor = "transparent")}>Resend Email</button>
+                            <button onClick={() => handleResend(e.id, "sms")} style={{ display: "block", width: "100%", padding: "8px 12px", background: "transparent", border: "none", color: "#94A3B8", fontSize: "12px", cursor: "pointer", textAlign: "left", borderRadius: "4px" }} onMouseOver={(ev) => (ev.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")} onMouseOut={(ev) => (ev.currentTarget.style.backgroundColor = "transparent")}>Send SMS Link</button>
+                          </div>
+                        )}
+                      </div>
+                      {/* Cancel button */}
+                      <button
+                        onClick={() => setCancelTarget(e)}
+                        style={{ padding: "4px 10px", background: "transparent", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", color: "#ef4444", fontSize: "10px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", bottom: "24px", right: "24px", backgroundColor: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "8px", padding: "12px 20px", color: "#22c55e", fontSize: "13px", fontWeight: 600, zIndex: 200 }}>
+          {toast}
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {cancelTarget && (
+        <>
+          <div onClick={() => setCancelTarget(null)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 100 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "90%", maxWidth: "400px", backgroundColor: "#0d1117", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "14px", padding: "28px", zIndex: 101 }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#ef4444", margin: "0 0 12px" }}>Cancel Enrollment</h2>
+            <p style={{ fontSize: "14px", color: "#94A3B8", lineHeight: 1.6, margin: "0 0 20px" }}>
+              Cancel <strong style={{ color: "#FFFFFF" }}>{cancelTarget.firstName} {cancelTarget.lastName}</strong>&apos;s enrollment? This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: "12px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.2)", borderRadius: "8px", color: "#CDC9C0", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
+                Keep
+              </button>
+              <button onClick={handleCancel} disabled={cancelling} style={{ flex: 1, padding: "12px", backgroundColor: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", color: "#ef4444", fontSize: "11px", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", opacity: cancelling ? 0.5 : 1 }}>
+                {cancelling ? "Cancelling..." : "Confirm Cancel"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* New Enrollment Modal */}
       {showModal && (
         <>
           <div onClick={() => setShowModal(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 100 }} />

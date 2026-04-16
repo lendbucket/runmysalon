@@ -85,6 +85,8 @@ model StaffMember {
   inviteStatus       String   @default("not_invited")
   onboardingCompleted   Boolean  @default(false)
   onboardingCompletedAt DateTime?
+  terminatedAt       DateTime?
+  terminationReason  String?
   tdlrLicenseNumber  String?
   tdlrStatus         String?
   tdlrExpirationDate DateTime?
@@ -374,6 +376,11 @@ model OnboardingEnrollment {
   // Verification
   verificationCode      String?
   squareTeamMemberId    String?
+
+  // Reminders & Cancellation
+  lastReminderSentAt    DateTime?
+  reminderCount         Int       @default(0)
+  cancelledAt           DateTime?
 
   completedAt           DateTime?
   expiresAt             DateTime?
@@ -1114,4 +1121,29 @@ model BusinessModel {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   @@map("business_models")
+}
+
+model OffboardingRecord {
+  id                      String    @id @default(cuid())
+  staffMemberId           String
+  staffMemberName         String
+  locationId              String
+  terminationType         String
+  terminationReason       String
+  terminationDate         DateTime
+  lastWorkingDay          DateTime?
+  finalPayAmount          Float?
+  finalPayStatus          String    @default("pending")
+  squareDeactivated       Boolean   @default(false)
+  squareDeactivatedAt     DateTime?
+  appointmentsCancelled   Boolean   @default(false)
+  appointmentsCancelledAt DateTime?
+  equipmentReturned       Boolean   @default(false)
+  notesFromManager        String?
+  initiatedBy             String
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([staffMemberId])
+  @@map("offboarding_records")
 }

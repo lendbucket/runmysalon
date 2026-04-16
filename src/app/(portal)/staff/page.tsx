@@ -111,6 +111,13 @@ export default function StaffPage() {
   const [overrideForm, setOverrideForm] = useState({ holderName: "", licenseType: "Cosmetologist - Operator", expirationDate: "", status: "ACTIVE" })
   const [overrideSaving, setOverrideSaving] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [showInactive, setShowInactive] = useState(false)
+
+  // Offboarding modal
+  const [offboardTarget, setOffboardTarget] = useState<StaffRow | null>(null)
+  const [offboardForm, setOffboardForm] = useState({ terminationType: "voluntary", terminationDate: new Date().toISOString().split("T")[0], lastWorkingDay: new Date().toISOString().split("T")[0], reason: "", cancelAppointments: true, sendNotice: true, confirmed: false })
+  const [offboarding, setOffboarding] = useState(false)
+  const [offboardResult, setOffboardResult] = useState<{ success: boolean; squareDeactivated: boolean; appointmentsCancelled: number } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -350,6 +357,7 @@ export default function StaffPage() {
   // Filtering
   const filtered = useMemo(() => {
     return staff.filter((m) => {
+      if (!showInactive && !m.isActive) return false;
       if (locationTab !== "all" && m.location.id !== locationTab) return false;
       if (roleFilter !== "all" && m.position.toLowerCase() !== roleFilter) return false;
       if (search) {
@@ -362,7 +370,7 @@ export default function StaffPage() {
       }
       return true;
     });
-  }, [staff, locationTab, roleFilter, search]);
+  }, [staff, locationTab, roleFilter, search, showInactive]);
 
   // Group by location for owner "all" view
   const grouped = useMemo(() => {
@@ -489,6 +497,15 @@ export default function StaffPage() {
                   Send Enrollment
                 </button>
               )}
+              {isOwner && m.isActive && (
+                <button
+                  type="button"
+                  onClick={() => { setOffboardTarget(m); setOffboardForm({ terminationType: "voluntary", terminationDate: new Date().toISOString().split("T")[0], lastWorkingDay: new Date().toISOString().split("T")[0], reason: "", cancelAppointments: true, sendNotice: true, confirmed: false }); setOffboardResult(null); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, borderRadius: 6, border: "1px solid rgba(239,68,68,0.2)", background: "transparent", padding: "4px 10px", fontSize: 10, fontWeight: 700, color: "#ef4444", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" as const }}
+                >
+                  Terminate
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -582,6 +599,19 @@ export default function StaffPage() {
             className="w-full rounded-xl border border-[#1a2332] bg-[#0d1117] py-2 pl-9 pr-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-[#7a8f96]/40"
           />
         </div>
+
+        {/* Show Inactive toggle */}
+        {isOwner && (
+          <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="size-4 accent-[#7a8f96]"
+            />
+            <span className="text-xs text-neutral-400">Show Inactive</span>
+          </label>
+        )}
       </div>
 
       {err && <p className="mt-4 text-sm text-red-400">{err}</p>}
@@ -888,6 +918,117 @@ export default function StaffPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Offboarding Modal ---- */}
+      {offboardTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-red-500/20 bg-[#0d1117] p-6" style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.8)", maxHeight: "90vh", overflowY: "auto" }}>
+            {offboardResult ? (
+              /* Success state */
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/15">
+                    <span className="text-lg text-emerald-400">&#10003;</span>
+                  </div>
+                  <h2 className="text-lg font-bold text-neutral-100">Offboarding Complete</h2>
+                </div>
+                <div className="flex flex-col gap-2 rounded-xl border border-[#1a2332] bg-[#0a0e14] p-4">
+                  <div className="flex items-center gap-2 text-sm"><span className="text-emerald-400">&#10003;</span><span className="text-neutral-300">{offboardResult.squareDeactivated ? "Square account deactivated" : "No Square account to deactivate"}</span></div>
+                  <div className="flex items-center gap-2 text-sm"><span className="text-emerald-400">&#10003;</span><span className="text-neutral-300">{offboardResult.appointmentsCancelled} future appointment{offboardResult.appointmentsCancelled !== 1 ? "s" : ""} cancelled</span></div>
+                  {offboardForm.sendNotice && <div className="flex items-center gap-2 text-sm"><span className="text-emerald-400">&#10003;</span><span className="text-neutral-300">Termination notice sent</span></div>}
+                  <div className="flex items-center gap-2 text-sm"><span className="text-emerald-400">&#10003;</span><span className="text-neutral-300">Offboarding record created</span></div>
+                </div>
+                <button type="button" onClick={() => { setOffboardTarget(null); void load(); }} className="mt-5 w-full rounded-xl bg-[#7a8f96] py-2.5 text-sm font-bold text-[#06080d]">Done</button>
+              </div>
+            ) : (
+              /* Form state */
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-red-400">Offboard {offboardTarget.fullName}</h2>
+                  <button type="button" onClick={() => setOffboardTarget(null)}><X className="size-5 text-neutral-500 hover:text-neutral-300" /></button>
+                </div>
+                {/* Warning banner */}
+                <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                  <p className="text-xs text-red-300 leading-relaxed">This will permanently deactivate {offboardTarget.fullName} in Square, cancel all their future appointments, and notify clients. This action cannot be undone.</p>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-neutral-400">Termination Type</label>
+                    <select value={offboardForm.terminationType} onChange={(e) => setOffboardForm({ ...offboardForm, terminationType: e.target.value })} className="w-full rounded-lg border border-[#1a2332] bg-[#0d1117] px-3 py-2.5 text-sm text-neutral-100 outline-none">
+                      <option value="voluntary">Voluntary Resignation</option>
+                      <option value="involuntary">Involuntary Termination</option>
+                      <option value="mutual">Mutual Agreement</option>
+                      <option value="end_of_contract">End of Contract</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-neutral-400">Termination Date</label>
+                      <input type="date" value={offboardForm.terminationDate} onChange={(e) => setOffboardForm({ ...offboardForm, terminationDate: e.target.value })} className="w-full rounded-lg border border-[#1a2332] bg-[#0d1117] px-3 py-2.5 text-sm text-neutral-100 outline-none" style={{ colorScheme: "dark" }} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-neutral-400">Last Working Day</label>
+                      <input type="date" value={offboardForm.lastWorkingDay} onChange={(e) => setOffboardForm({ ...offboardForm, lastWorkingDay: e.target.value })} className="w-full rounded-lg border border-[#1a2332] bg-[#0d1117] px-3 py-2.5 text-sm text-neutral-100 outline-none" style={{ colorScheme: "dark" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-neutral-400">Reason *</label>
+                    <textarea value={offboardForm.reason} onChange={(e) => setOffboardForm({ ...offboardForm, reason: e.target.value })} placeholder="Describe the reason for termination (min 20 chars)..." rows={3} className="w-full rounded-lg border border-[#1a2332] bg-[#0d1117] px-3 py-2.5 text-sm text-neutral-100 outline-none resize-none" />
+                    {offboardForm.reason.length > 0 && offboardForm.reason.length < 20 && <p className="mt-1 text-[11px] text-red-400">{20 - offboardForm.reason.length} more characters needed</p>}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" checked={offboardForm.cancelAppointments} onChange={(e) => setOffboardForm({ ...offboardForm, cancelAppointments: e.target.checked })} className="size-4 accent-[#7a8f96]" /><span className="text-sm text-neutral-300">Cancel all future appointments and notify clients</span></label>
+                    <label className="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" checked={offboardForm.sendNotice} onChange={(e) => setOffboardForm({ ...offboardForm, sendNotice: e.target.checked })} className="size-4 accent-[#7a8f96]" /><span className="text-sm text-neutral-300">Send termination notice to contractor</span></label>
+                  </div>
+                  <label className="flex items-start gap-2.5 cursor-pointer rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                    <input type="checkbox" checked={offboardForm.confirmed} onChange={(e) => setOffboardForm({ ...offboardForm, confirmed: e.target.checked })} className="size-4 accent-red-500 mt-0.5" />
+                    <span className="text-xs text-red-300 leading-relaxed">I confirm I want to permanently terminate {offboardTarget.fullName}&apos;s contractor agreement and deactivate their Square account.</span>
+                  </label>
+                </div>
+                <div className="mt-5 flex gap-3">
+                  <button type="button" onClick={() => setOffboardTarget(null)} className="flex-1 rounded-xl border border-[#1a2332] py-2.5 text-sm font-medium text-neutral-400 hover:bg-[#0d1117]">Cancel</button>
+                  <button
+                    type="button"
+                    disabled={offboarding || !offboardForm.confirmed || offboardForm.reason.length < 20}
+                    onClick={async () => {
+                      setOffboarding(true);
+                      try {
+                        const res = await fetch(`/api/staff/${offboardTarget.id}/offboard`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            terminationType: offboardForm.terminationType,
+                            terminationReason: offboardForm.reason,
+                            terminationDate: offboardForm.terminationDate,
+                            lastWorkingDay: offboardForm.lastWorkingDay,
+                            cancelFutureAppointments: offboardForm.cancelAppointments,
+                            sendTerminationNotice: offboardForm.sendNotice,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setOffboardResult(data);
+                        } else {
+                          setErr(data.error || "Failed to process offboarding");
+                          setOffboardTarget(null);
+                        }
+                      } catch {
+                        setErr("Network error");
+                        setOffboardTarget(null);
+                      }
+                      setOffboarding(false);
+                    }}
+                    className="flex-[2] rounded-xl py-2.5 text-sm font-bold disabled:opacity-40"
+                    style={{ backgroundColor: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444" }}
+                  >
+                    {offboarding ? "Processing termination..." : "Confirm Termination"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
