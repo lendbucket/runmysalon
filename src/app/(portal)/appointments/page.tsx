@@ -9,16 +9,21 @@ function getLocationStylists(loc: string) {
 
 const LOCATIONS = ["Corpus Christi", "San Antonio"]
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  ACCEPTED: { bg: "rgba(16,185,129,0.08)", text: "#10B981", border: "#10B981" },
-  PENDING: { bg: "rgba(251,191,36,0.08)", text: "#FBBF24", border: "#FBBF24" },
-  CANCELLED_BY_SELLER: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444" },
-  CANCELLED_BY_BUYER: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444" },
-  DECLINED: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444" },
-  NO_SHOW: { bg: "rgba(156,163,175,0.08)", text: "#9CA3AF", border: "#9CA3AF" },
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  CHECKED_OUT: { bg: "rgba(34,197,94,0.1)", text: "#22c55e", border: "#22c55e", label: "Checked Out" },
+  IN_PROGRESS: { bg: "rgba(201,168,76,0.1)", text: "#C9A84C", border: "#C9A84C", label: "In Progress" },
+  UPCOMING: { bg: "rgba(122,143,150,0.1)", text: "#7a8f96", border: "#7a8f96", label: "Upcoming" },
+  ACCEPTED: { bg: "rgba(96,165,250,0.1)", text: "#60a5fa", border: "#60a5fa", label: "Confirmed" },
+  PENDING: { bg: "rgba(251,191,36,0.08)", text: "#FBBF24", border: "#FBBF24", label: "Pending" },
+  CANCELLED: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444", label: "Cancelled" },
+  CANCELLED_BY_SELLER: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444", label: "Cancelled" },
+  CANCELLED_BY_CUSTOMER: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444", label: "Cancelled" },
+  CANCELLED_BY_BUYER: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444", label: "Cancelled" },
+  DECLINED: { bg: "rgba(239,68,68,0.08)", text: "#EF4444", border: "#EF4444", label: "Declined" },
+  NO_SHOW: { bg: "rgba(245,158,11,0.1)", text: "#f59e0b", border: "#f59e0b", label: "No Show" },
 }
 
-const DEFAULT_STATUS = { bg: "rgba(205,201,192,0.06)", text: "rgba(205,201,192,0.5)", border: "rgba(205,201,192,0.3)" }
+const DEFAULT_STATUS = { bg: "rgba(205,201,192,0.06)", text: "rgba(205,201,192,0.5)", border: "rgba(205,201,192,0.3)", label: "Unknown" }
 
 const PALETTE = ['#7a8f96', '#f59e0b', '#22c55e', '#3b82f6', '#e1306c', '#a78bfa', '#fb923c', '#34d399', '#60a5fa', '#f472b6', '#facc15', '#4ade80']
 
@@ -41,6 +46,7 @@ interface Appointment {
   endTime?: string | null
   teamMemberId: string | null
   status: string
+  resolvedStatus?: string
   services?: AppointmentService[]
   totalPrice?: number
   totalDurationMinutes?: number
@@ -48,6 +54,7 @@ interface Appointment {
   isCheckedOut?: boolean
   orderId?: string
   version?: number
+  checkedOutAt?: string
   checkoutDetails?: { total: number; subtotal: number; tips: number; tax: number; paymentMethod: string; closedAt: string; services: { name: string; price: number }[] }
 }
 
@@ -734,7 +741,10 @@ export default function AppointmentsPage() {
   const fmtCurrency = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
 
-  const getStatusStyle = (status: string) => STATUS_COLORS[status] || DEFAULT_STATUS
+  const getStatusStyle = (appt: Appointment) => {
+    const key = appt.resolvedStatus || appt.status
+    return STATUS_COLORS[key] || DEFAULT_STATUS
+  }
 
   const BLOCK_REASONS = ["Lunch", "Break", "Personal", "Training", "Other"]
   const isBlockedTime = (appt: Appointment) => {
@@ -977,10 +987,10 @@ export default function AppointmentsPage() {
           }}>
             {[
               { label: "Total", value: String(appointments.filter(a => !isBlockedTime(a)).length), color: "#ffffff" },
-              { label: "Checked", value: String(appointments.filter(a => a.isCheckedOut).length), color: "#22c55e" },
-              { label: "Confirmed", value: String(appointments.filter(a => a.status === "ACCEPTED" && !a.isCheckedOut).length), color: "#10B981" },
+              { label: "Checked", value: String(appointments.filter(a => a.resolvedStatus === "CHECKED_OUT" || a.isCheckedOut).length), color: "#22c55e" },
+              { label: "Confirmed", value: String(appointments.filter(a => (a.resolvedStatus === "ACCEPTED" || a.resolvedStatus === "UPCOMING" || a.resolvedStatus === "IN_PROGRESS") && !a.isCheckedOut).length), color: "#60a5fa" },
               { label: "Pending", value: String(appointments.filter(a => a.status === "PENDING").length), color: "#FBBF24" },
-              { label: "Cancel", value: String(appointments.filter(a => a.status?.startsWith("CANCELLED")).length), color: "#EF4444" },
+              { label: "Cancel", value: String(appointments.filter(a => a.resolvedStatus === "CANCELLED" || a.status?.startsWith("CANCELLED")).length), color: "#EF4444" },
               { label: "Revenue", value: fmtCurrency(appointments.filter(a => a.isCheckedOut && a.checkoutDetails?.total).reduce((s, a) => s + (a.checkoutDetails?.total || 0), 0)), color: "#ffffff" },
             ].map(stat => (
               <div key={stat.label} style={{ display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "flex-start", padding: isMobile ? "10px 8px" : "0", backgroundColor: isMobile ? "#0d1117" : "transparent" }}>
@@ -1093,7 +1103,7 @@ export default function AppointmentsPage() {
                           const top = (startMin - WEEK_START * 60) * (WEEK_HOUR_PX / 60)
                           const height = Math.max(dur * (WEEK_HOUR_PX / 60), 40)
                           const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
-                          const isCancelled = appt.status?.startsWith("CANCELLED")
+                          const isCancelled = appt.resolvedStatus === "CANCELLED" || appt.status?.startsWith("CANCELLED")
                           return (
                             <div
                               key={appt.id}
@@ -1232,7 +1242,7 @@ export default function AppointmentsPage() {
                       {/* Appointment pills */}
                       {dayAppts.slice(0, MAX_PILLS).map(appt => {
                         const color = (appt.teamMemberId && stylistColorMap[appt.teamMemberId]) || "#607D8B"
-                        const isCancelled = appt.status?.startsWith("CANCELLED")
+                        const isCancelled = appt.resolvedStatus === "CANCELLED" || appt.status?.startsWith("CANCELLED")
                         return (
                           <div
                             key={appt.id}
@@ -1390,7 +1400,7 @@ export default function AppointmentsPage() {
                     const leftPct = overlapIdx * widthPct
 
                     // Is in progress?
-                    const isInProgress = !blocked && isToday && appt.status === "ACCEPTED" && startMin <= nowMinutes && (startMin + duration) > nowMinutes
+                    const isInProgress = !blocked && isToday && appt.resolvedStatus === "IN_PROGRESS"
 
                     return (
                       <div
@@ -1477,7 +1487,7 @@ export default function AppointmentsPage() {
                 </div>
                 {group.items.map((appt) => {
             const isExpanded = expandedId === appt.id
-            const statusStyle = getStatusStyle(appt.status)
+            const statusStyle = getStatusStyle(appt)
             const blocked = isBlockedTime(appt)
 
             if (blocked) {
@@ -1540,21 +1550,19 @@ export default function AppointmentsPage() {
                       {appt.customerName}
                     </span>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                      {appt.isCheckedOut && (
-                        <span style={{
-                          fontSize: "9px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px",
-                          backgroundColor: "rgba(16,185,129,0.12)", color: "#22c55e",
-                          textTransform: "uppercase", letterSpacing: "0.06em",
-                        }}>
-                          Checked Out
+                      {appt.isCheckedOut && appt.checkoutDetails && (
+                        <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: 700, color: "#22c55e" }}>
+                          ${appt.checkoutDetails.total.toFixed(2)}
                         </span>
                       )}
                       <span style={{
                         fontSize: "9px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px",
                         backgroundColor: statusStyle.bg, color: statusStyle.text,
                         textTransform: "uppercase", letterSpacing: "0.06em",
+                        display: "flex", alignItems: "center", gap: "3px",
                       }}>
-                        {appt.status.replace(/_/g, " ")}
+                        {appt.isCheckedOut && <span className="material-symbols-outlined" style={{ fontSize: "11px" }}>check_circle</span>}
+                        {statusStyle.label}
                       </span>
                     </div>
                   </div>
@@ -1597,8 +1605,19 @@ export default function AppointmentsPage() {
                     )}
                   </div>
 
-                  {/* Checkout + Cancel for confirmed */}
-                  {(appt.status === "ACCEPTED" || appt.status === "PENDING") && !appt.isCheckedOut && (
+                  {/* Actions based on resolved status */}
+                  {appt.isCheckedOut && appt.checkoutDetails && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px", fontSize: "11px", color: "rgba(205,201,192,0.45)" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: "13px", color: "#22c55e" }}>check_circle</span>
+                      <span style={{ fontFamily: "'Fira Code', monospace", color: "rgba(205,201,192,0.5)" }}>{appt.checkoutDetails.paymentMethod}</span>
+                      {appt.checkoutDetails.closedAt && (
+                        <span style={{ fontFamily: "'Fira Code', monospace", color: "rgba(205,201,192,0.35)" }}>
+                          {new Date(appt.checkoutDetails.closedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {!appt.isCheckedOut && (appt.resolvedStatus === "ACCEPTED" || appt.resolvedStatus === "UPCOMING" || appt.resolvedStatus === "IN_PROGRESS" || appt.status === "ACCEPTED" || appt.status === "PENDING") && (
                     <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
                       <Link
                         href={`/pos?appointmentId=${appt.id}&location=${encodeURIComponent(location)}`}
@@ -1614,7 +1633,7 @@ export default function AppointmentsPage() {
                         Checkout
                       </Link>
                       <button
-                        onClick={(e) => { e.stopPropagation(); console.log("[cancel] IDs:", { id: appt.id, orderId: appt.orderId }); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
+                        onClick={(e) => { e.stopPropagation(); setCancelConfirm({ id: appt.id, clientName: appt.customerName, time: fmtTime(appt.startTime) }) }}
                         style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em" }}
                       >Cancel</button>
                     </div>
@@ -1690,7 +1709,7 @@ export default function AppointmentsPage() {
                     )}
 
                     {/* Send Reminder */}
-                    {appt.status === "ACCEPTED" && !appt.isCheckedOut && (
+                    {(appt.resolvedStatus === "ACCEPTED" || appt.resolvedStatus === "UPCOMING") && !appt.isCheckedOut && (
                       <button
                         onClick={() => sendReminder(appt.id)}
                         disabled={reminderSent.has(appt.id) || reminderSending === appt.id}
@@ -2454,7 +2473,7 @@ export default function AppointmentsPage() {
                               color: (STATUS_COLORS[v.status] || DEFAULT_STATUS).text,
                               textTransform: "uppercase", letterSpacing: "0.06em",
                             }}>
-                              {v.status.replace(/_/g, " ")}
+                              {(STATUS_COLORS[v.status] || DEFAULT_STATUS).label}
                             </span>
                           </div>
                           <div style={{ fontSize: "11px", color: "rgba(205,201,192,0.5)", marginBottom: "4px" }}>
@@ -2509,7 +2528,7 @@ export default function AppointmentsPage() {
               {/* Client + status */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <div style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff" }}>{selectedAppt.customerName}</div>
-                <span style={{ fontSize: "9px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px", backgroundColor: (STATUS_COLORS[selectedAppt.status] || DEFAULT_STATUS).bg, color: (STATUS_COLORS[selectedAppt.status] || DEFAULT_STATUS).text, textTransform: "uppercase", letterSpacing: "0.06em" }}>{selectedAppt.status.replace(/_/g, " ")}</span>
+                <span style={{ fontSize: "9px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px", backgroundColor: (STATUS_COLORS[selectedAppt.resolvedStatus || selectedAppt.status] || DEFAULT_STATUS).bg, color: (STATUS_COLORS[selectedAppt.resolvedStatus || selectedAppt.status] || DEFAULT_STATUS).text, textTransform: "uppercase", letterSpacing: "0.06em" }}>{(STATUS_COLORS[selectedAppt.resolvedStatus || selectedAppt.status] || DEFAULT_STATUS).label}</span>
               </div>
               {/* Info */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>

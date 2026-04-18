@@ -249,6 +249,18 @@ export async function getMetricsByPeriodWithDates(
       }
     }
 
+    // Consistency log: orders-based checkout count is the source of truth
+    const ordersCheckoutCount = rawOrders.filter(o => {
+      const net = (Number(o.totalMoney?.amount || 0) - Number(o.totalTaxMoney?.amount || 0) - Number(o.totalTipMoney?.amount || 0)) / 100
+      return net > 0
+    }).length
+    const bookingsCheckoutCount = bookings.length
+    console.log(`[metrics] Orders-based checkout count: ${ordersCheckoutCount}`)
+    console.log(`[metrics] Bookings-based checkout count: ${bookingsCheckoutCount}`)
+    if (ordersCheckoutCount !== bookingsCheckoutCount) {
+      console.warn(`[metrics] MISMATCH: orders (${ordersCheckoutCount}) vs bookings (${bookingsCheckoutCount}) checkout count. Using orders count as source of truth.`)
+    }
+
     // Step 4: Calculate avg tickets (revenue / checkouts)
     for (const m of Object.values(stylistMetrics)) {
       if (m.checkoutCount > 0 && m.revenue > 0) {

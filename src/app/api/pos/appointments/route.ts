@@ -6,6 +6,7 @@ import { SquareClient, SquareEnvironment } from "square";
 
 import { CC_LOCATION_ID, SA_LOCATION_ID, CC_STYLISTS_MAP, SA_STYLISTS_MAP, TEAM_NAMES } from "@/lib/staff";
 import { getFullCache } from "@/lib/catalogCache";
+import { resolveStatuses } from "@/lib/square-appointment-status";
 
 const LOCATION_MAP: Record<string, string> = {
   "Corpus Christi": CC_LOCATION_ID,
@@ -219,11 +220,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ appointments: briefResult });
     }
 
-    // Check for completed orders — fetch from BOTH locations always
+    // ── Cross-reference with completed Square orders to resolve true status ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allOrdersList: any[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ordersByCustomer: Record<string, any> = {};
+    let completedOrders: any[] = [];
     try {
       const ordersRes = await square.orders.search({
         locationIds: [CC_LOCATION_ID, SA_LOCATION_ID],
@@ -235,16 +234,36 @@ export async function GET(request: NextRequest) {
         },
         limit: 200,
       });
-      for (const o of (ordersRes.orders || [])) {
-        allOrdersList.push(o);
-        if (o.customerId) {
-          if (!ordersByCustomer[o.customerId] || new Date(o.closedAt || "").getTime() > new Date(ordersByCustomer[o.customerId].closedAt || "").getTime()) {
-            ordersByCustomer[o.customerId] = o;
-          }
-        }
-      }
+      completedOrders = ordersRes.orders || [];
     } catch {
-      // Orders lookup failed — skip checkout detection
+      // Orders lookup failed — statuses will fall back to time-based
+    }
+
+    // Deduplicate orders by ID
+    const orderIdsSeen = new Set<string>();
+    completedOrders = completedOrders.filter(o => {
+      if (!o.id || orderIdsSeen.has(o.id)) return false;
+      orderIdsSeen.add(o.id);
+      return true;
+    });
+
+    // Build raw booking objects for resolver (it needs startAt, appointmentSegments, customerId, status, id)
+    const rawBookingsForResolver = bookingsToEnrich.map(b => ({
+      id: b.id,
+      startAt: b.startAt,
+      customerId: b.customerId,
+      status: b.status,
+      appointmentSegments: b.appointmentSegments,
+    }));
+
+    // Resolve true statuses
+    const statusMap = resolveStatuses(rawBookingsForResolver, completedOrders);
+
+    // Build order lookup for checkout details
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ordersById = new Map<string, any>();
+    for (const o of completedOrders) {
+      if (o.id) ordersById.set(o.id, o);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,72 +290,28 @@ export async function GET(request: NextRequest) {
       return { services: lineItems, subtotal, tips, tax, total, paymentMethod, closedAt: order.closedAt, checkoutLocationId: order.locationId };
     }
 
-    // Helper: get CST calendar date string for same-day comparison
-    function getCSTDate(d: Date): string {
-      return d.toLocaleDateString("en-US", { timeZone: "America/Chicago" });
-    }
-
-    // Deduplicate orders by ID (safety)
-    const orderIdsSeen = new Set<string>();
-    const dedupedOrders = allOrdersList.filter(o => {
-      if (!o.id || orderIdsSeen.has(o.id)) return false;
-      orderIdsSeen.add(o.id);
-      return true;
-    });
-
-    const usedOrderIds = new Set<string>();
+    // Enrich appointments with resolved status + checkout details
     const enrichedAppointments = appointments.map(appt => {
-      let isCheckedOut = false;
-      let orderId: string | undefined;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let checkoutDetails: any = null;
+      const resolved = statusMap.get(appt.id);
+      const resolvedStatus = resolved?.status || (appt.status === "CANCELLED_BY_CUSTOMER" || appt.status === "CANCELLED_BY_SELLER" ? "CANCELLED" : appt.status);
+      const isCheckedOut = resolvedStatus === "CHECKED_OUT";
+      const orderId = resolved?.squareOrderId;
+      const order = orderId ? ordersById.get(orderId) : null;
+      const checkoutDetails = order ? buildCheckoutDetails(order) : null;
 
-      const bookingTime = new Date(appt.startTime || "").getTime();
-      const bookingCSTDate = getCSTDate(new Date(appt.startTime || ""));
-
-      // Strategy 1: Match by customer_id — SAME CST DAY + order AFTER booking start
-      if (appt.customerId && ordersByCustomer[appt.customerId]) {
-        const order = ordersByCustomer[appt.customerId];
-        if (!usedOrderIds.has(order.id)) {
-          const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
-          const orderCSTDate = getCSTDate(new Date(order.closedAt || order.createdAt || ""));
-          if (bookingCSTDate === orderCSTDate && orderTime >= bookingTime) {
-            isCheckedOut = true;
-            orderId = order.id;
-            checkoutDetails = buildCheckoutDetails(order);
-            usedOrderIds.add(order.id);
-          }
-        }
-      }
-
-      // Strategy 2: Scan all orders — ONLY match if customer_id matches AND same day
-      // This catches cases where ordersByCustomer had a different (newer) order indexed
-      if (!isCheckedOut && appt.customerId) {
-        let bestOrder = null;
-        let bestDiff = Infinity;
-        for (const order of dedupedOrders) {
-          if (usedOrderIds.has(order.id)) continue;
-          if (order.customerId !== appt.customerId) continue;
-          const orderTime = new Date(order.closedAt || order.createdAt || "").getTime();
-          const orderCSTDate = getCSTDate(new Date(order.closedAt || order.createdAt || ""));
-          if (bookingCSTDate !== orderCSTDate) continue;
-          if (orderTime < bookingTime) continue;
-          const diff = orderTime - bookingTime;
-          if (diff < bestDiff) {
-            bestOrder = order;
-            bestDiff = diff;
-          }
-        }
-        if (bestOrder) {
-          isCheckedOut = true;
-          orderId = bestOrder.id;
-          checkoutDetails = buildCheckoutDetails(bestOrder);
-          usedOrderIds.add(bestOrder.id);
-        }
-      }
-
-      return { ...appt, isCheckedOut, ...(orderId ? { orderId } : {}), ...(checkoutDetails ? { checkoutDetails } : {}) };
+      return {
+        ...appt,
+        resolvedStatus,
+        isCheckedOut,
+        ...(orderId ? { orderId } : {}),
+        ...(checkoutDetails ? { checkoutDetails } : {}),
+        ...(resolved?.checkedOutAt ? { checkedOutAt: resolved.checkedOutAt } : {}),
+      };
     });
+
+    console.log("[appointments] Status breakdown:",
+      enrichedAppointments.reduce((acc, a) => { acc[a.resolvedStatus] = (acc[a.resolvedStatus] || 0) + 1; return acc }, {} as Record<string, number>)
+    );
 
     // Final deduplication pass — by booking ID, then by customerName + startTime
     const idMap = new Map<string, typeof enrichedAppointments[0]>();
