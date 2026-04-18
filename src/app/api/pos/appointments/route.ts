@@ -116,12 +116,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Deduplicate by booking ID (same booking may appear at both locations)
-    const seenIds = new Set<string>();
-    const bookings = allBookings.filter(b => {
-      if (!b.id || seenIds.has(b.id)) return false;
-      seenIds.add(b.id);
-      return true;
-    });
+    console.log("[appointments-api] Raw bookings count:", allBookings.length);
+    const bookingIdMap = new Map<string, typeof allBookings[0]>();
+    for (const b of allBookings) {
+      if (b.id && !bookingIdMap.has(b.id)) bookingIdMap.set(b.id, b);
+    }
+    const bookings = Array.from(bookingIdMap.values());
+    console.log("[appointments-api] Unique bookings count:", bookings.length);
+    if (allBookings.length !== bookings.length) {
+      console.warn("[appointments-api] DUPLICATES REMOVED:", allBookings.length - bookings.length);
+    }
 
     // Filter by status unless ?all=true
     let filtered = allStatuses
@@ -324,17 +328,18 @@ export async function GET(request: NextRequest) {
     let dedupedFinal = Array.from(idMap.values());
 
     // Secondary dedup: same customer + same start time (within 5 min)
-    const finalResult: typeof dedupedFinal = [];
-    const timeKeys = new Set<string>();
+    // Prefer checked-out entry over non-checked-out when colliding
+    const timeKeyMap = new Map<string, typeof dedupedFinal[0]>();
     for (const a of dedupedFinal) {
       const startMs = new Date(a.startTime || "").getTime();
       const roundedMin = Math.floor(startMs / 300000); // 5-min buckets
       const key = `${a.customerName}::${roundedMin}`;
-      if (!timeKeys.has(key)) {
-        timeKeys.add(key);
-        finalResult.push(a);
+      const existing = timeKeyMap.get(key);
+      if (!existing || (a.isCheckedOut && !existing.isCheckedOut)) {
+        timeKeyMap.set(key, a);
       }
     }
+    const finalResult = Array.from(timeKeyMap.values());
 
     const removed = enrichedAppointments.length - finalResult.length;
     if (removed > 0) console.log(`[dedup] removed ${removed} duplicates, returning ${finalResult.length} appointments`);
