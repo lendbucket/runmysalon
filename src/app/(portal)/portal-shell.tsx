@@ -11,6 +11,7 @@ type NavItem = { href: string; icon: string; label: string; badge?: boolean; hig
 /* ── Role-based full nav ── */
 const OWNER_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+  { href: "/performance", icon: "trending_up", label: "Performance" },
   { href: "/appointments", icon: "event", label: "Appointments" },
   { href: "/approvals", icon: "verified", label: "Approvals", badge: true },
   { href: "/metrics", icon: "insights", label: "Metrics" },
@@ -30,12 +31,14 @@ const OWNER_NAV: NavItem[] = [
   { href: "/alerts", icon: "notifications", label: "Alerts", badge: true },
   { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
+  { href: "/permissions", icon: "admin_panel_settings", label: "Permissions" },
   { href: "/settings", icon: "settings", label: "Settings" },
   { href: "/suite", icon: "", label: "Envy Suite®" },
 ]
 
 const MANAGER_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+  { href: "/performance", icon: "trending_up", label: "Performance" },
   { href: "/appointments", icon: "event", label: "Appointments" },
   { href: "/metrics", icon: "insights", label: "Metrics" },
   { href: "/retention", icon: "favorite", label: "Retention" },
@@ -58,6 +61,7 @@ const MANAGER_NAV: NavItem[] = [
 
 const STYLIST_NAV: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+  { href: "/performance", icon: "trending_up", label: "Performance" },
   { href: "/my-schedule", icon: "calendar_month", label: "My Schedule" },
   { href: "/appointments", icon: "event", label: "My Appts" },
   { href: "/reviews", icon: "star", label: "My Reviews" },
@@ -87,7 +91,7 @@ const STYLIST_BOTTOM: NavItem[] = [
 ]
 
 /* ── Allowed pages per role for stylist redirect ── */
-const STYLIST_ALLOWED = ["/dashboard", "/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/reviews", "/suite"]
+const STYLIST_ALLOWED = ["/dashboard", "/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/reviews", "/suite", "/performance", "/permissions"]
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

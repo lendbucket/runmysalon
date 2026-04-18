@@ -804,18 +804,22 @@ model SystemSetting {
 }
 
 model WaitlistEntry {
-  id               String   @id @default(cuid())
-  locationId       String
-  customerName     String
-  customerPhone    String
-  customerEmail    String?
-  requestedDate    DateTime
-  requestedStylist String?
-  requestedService String?
-  notes            String?
-  status           String   @default("waiting")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @default(now()) @updatedAt
+  id                   String    @id @default(cuid())
+  locationId           String
+  customerName         String
+  customerPhone        String
+  customerEmail        String?
+  requestedDate        DateTime
+  requestedStylist     String?
+  requestedService     String?
+  notes                String?
+  status               String    @default("waiting")
+  notifiedAt           DateTime?
+  notificationExpiry   DateTime?
+  notificationStatus   String?
+  notificationToken    String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
   @@map("waitlist_entries")
 }
 
@@ -1235,4 +1239,193 @@ model ApiKeyLog {
   @@index([apiKeyId])
   @@index([createdAt])
   @@map("api_key_logs")
+}
+
+// ═══════════════════════════════════════
+// Feature 1: Stylist Performance
+// ═══════════════════════════════════════
+
+model PerformanceGoal {
+  id            String   @id @default(cuid())
+  staffMemberId String
+  locationId    String
+  goalType      String
+  targetValue   Float
+  currentValue  Float    @default(0)
+  bonusAmount   Float?
+  bonusType     String?
+  period        String
+  periodStart   DateTime
+  periodEnd     DateTime
+  status        String   @default("active")
+  notifyOnHit   Boolean  @default(true)
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([staffMemberId])
+  @@index([locationId])
+  @@index([periodStart, periodEnd])
+  @@map("performance_goals")
+}
+
+model PerformanceBonus {
+  id            String    @id @default(cuid())
+  staffMemberId String
+  goalId        String?
+  amount        Float
+  reason        String
+  period        String
+  periodStart   DateTime
+  periodEnd     DateTime
+  status        String    @default("pending")
+  approvedBy    String?
+  approvedAt    DateTime?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([staffMemberId])
+  @@map("performance_bonuses")
+}
+
+model RebookRecord {
+  id                String    @id @default(cuid())
+  staffMemberId     String
+  locationId        String
+  clientSquareId    String
+  appointmentDate   DateTime
+  rebookedAt        DateTime?
+  wasRebooked       Boolean   @default(false)
+  nextAppointmentId String?
+  createdAt         DateTime  @default(now())
+
+  @@index([staffMemberId])
+  @@index([locationId])
+  @@map("rebook_records")
+}
+
+// ═══════════════════════════════════════
+// Feature 3: Reputation Management
+// ═══════════════════════════════════════
+
+model ReviewRequest {
+  id               String    @id @default(cuid())
+  locationId       String
+  clientSquareId   String
+  clientName       String
+  clientPhone      String?
+  clientEmail      String?
+  staffMemberId    String?
+  stylistName      String?
+  appointmentDate  DateTime
+  checkoutTime     DateTime
+  sendAt           DateTime
+  sentAt           DateTime?
+  status           String    @default("scheduled")
+  channel          String    @default("sms")
+  rating           Int?
+  feedback         String?
+  googleReviewSent Boolean   @default(false)
+  responseAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([status, sendAt])
+  @@index([locationId])
+  @@map("review_requests")
+}
+
+// ═══════════════════════════════════════
+// Feature 4: Permissions Dashboard
+// ═══════════════════════════════════════
+
+model PortalPermission {
+  id            String   @id @default(cuid())
+  locationId    String?
+  staffMemberId String?
+  role          String
+  feature       String
+  action        String
+  granted       Boolean  @default(true)
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([locationId, staffMemberId, role, feature, action])
+  @@index([role, feature])
+  @@index([staffMemberId])
+  @@map("portal_permissions")
+}
+
+// ═══════════════════════════════════════
+// Feature 5: Churn Predictor
+// ═══════════════════════════════════════
+
+model ChurnPrediction {
+  id                   String    @id @default(cuid())
+  locationId           String
+  clientSquareId       String
+  clientName           String
+  clientPhone          String?
+  clientEmail          String?
+  riskScore            Float
+  riskLevel            String
+  lastVisitDate        DateTime?
+  avgDaysBetweenVisits Float?
+  daysSinceLastVisit   Int?
+  totalVisits          Int       @default(0)
+  totalSpend           Float     @default(0)
+  predictedChurnDate   DateTime?
+  outreachSent         Boolean   @default(false)
+  outreachSentAt       DateTime?
+  outreachResponse     String?
+  wonBack              Boolean   @default(false)
+  calculatedAt         DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([locationId, clientSquareId])
+  @@index([locationId, riskLevel])
+  @@index([riskScore])
+  @@map("churn_predictions")
+}
+
+// ═══════════════════════════════════════
+// Feature 6: Reyna AI Persistent Learning
+// ═══════════════════════════════════════
+
+model ReynaConversation {
+  id             String   @id @default(cuid())
+  sessionId      String   @unique
+  userId         String
+  locationId     String?
+  messages       Json
+  topics         String[]
+  insights       Json?
+  userIntent     String?
+  resolved       Boolean  @default(false)
+  feedbackRating Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([locationId])
+  @@map("reyna_conversations")
+}
+
+model ReynaKnowledge {
+  id          String   @id @default(cuid())
+  category    String
+  key         String
+  value       Json
+  confidence  Float    @default(1.0)
+  sourceCount Int      @default(1)
+  lastUpdated DateTime @default(now())
+  locationId  String?
+  createdAt   DateTime @default(now())
+
+  @@unique([category, key, locationId])
+  @@index([category])
+  @@map("reyna_knowledge")
 }

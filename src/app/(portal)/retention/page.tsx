@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { TEAM_NAMES } from "@/lib/staff"
 
 interface CustomerData {
@@ -114,7 +114,7 @@ export default function RetentionPage() {
   const [data, setData] = useState<RetentionData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [activeTab, setActiveTab] = useState<"overview" | "lapsed" | "top" | "outreach">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "lapsed" | "top" | "outreach" | "at_risk">("overview")
   const [selectedSegment, setSelectedSegment] = useState("all")
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set())
   const [outreachMessage, setOutreachMessage] = useState(
@@ -189,11 +189,52 @@ export default function RetentionPage() {
     }
   }
 
+  // Churn predictor state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [churnData, setChurnData] = useState<any[]>([])
+  const [churnLoading, setChurnLoading] = useState(false)
+  const [churnFilter, setChurnFilter] = useState<string>("all")
+  const [sendingChurnOutreach, setSendingChurnOutreach] = useState<string | null>(null)
+  const [churnSummary, setChurnSummary] = useState({ critical: 0, high: 0, medium: 0, low: 0 })
+
+  const loadChurnData = async () => {
+    setChurnLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: "100" })
+      if (churnFilter !== "all") params.set("riskLevel", churnFilter)
+      if (location) params.set("locationId", location)
+      const res = await fetch(`/api/churn?${params}`)
+      if (res.ok) {
+        const json = await res.json()
+        setChurnData(json.predictions || [])
+        setChurnSummary(json.summary || { critical: 0, high: 0, medium: 0, low: 0 })
+      }
+    } catch { /* ignore */ }
+    setChurnLoading(false)
+  }
+
+  const sendChurnOutreach = async (predictionId: string) => {
+    setSendingChurnOutreach(predictionId)
+    try {
+      await fetch("/api/churn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ predictionId }) })
+      loadChurnData()
+    } catch { /* ignore */ }
+    setSendingChurnOutreach(null)
+  }
+
+  useEffect(() => {
+    if (activeTab === "at_risk") loadChurnData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, churnFilter, location])
+
+  const RISK_COLORS: Record<string, string> = { critical: "#ef4444", high: "#f59e0b", medium: "#eab308", low: "#94A3B8" }
+
   const tabs = [
     { key: "overview" as const, label: "Overview" },
     { key: "lapsed" as const, label: "Lapsed Clients" },
     { key: "top" as const, label: "Top Clients" },
     { key: "outreach" as const, label: "Outreach" },
+    { key: "at_risk" as const, label: "At-Risk Clients" },
   ]
 
   return (
@@ -742,6 +783,108 @@ export default function RetentionPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* At-Risk Clients (Churn Predictor) */}
+      {activeTab === "at_risk" && (
+        <div>
+          {/* Summary badges */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+            {[
+              { label: "Critical", count: churnSummary.critical, color: "#ef4444" },
+              { label: "High", count: churnSummary.high, color: "#f59e0b" },
+              { label: "Medium", count: churnSummary.medium, color: "#eab308" },
+              { label: "Low", count: churnSummary.low, color: "#94A3B8" },
+            ].map(s => (
+              <div key={s.label} style={{ padding: "12px 16px", backgroundColor: "#0d1117", border: "1px solid rgba(255,255,255,0.06)", borderLeft: `3px solid ${s.color}`, borderRadius: "0 8px 8px 0", minWidth: "100px" }}>
+                <div style={{ fontFamily: "'Fira Code', monospace", fontSize: "22px", fontWeight: 700, color: s.color }}>{s.count}</div>
+                <div style={{ fontSize: "10px", color: "rgba(205,201,192,0.5)", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>{s.label} Risk</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Filter */}
+          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+            {["all", "critical", "high", "medium", "low"].map(level => (
+              <button key={level} onClick={() => setChurnFilter(level)} style={{
+                padding: "5px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
+                backgroundColor: churnFilter === level ? "rgba(255,255,255,0.08)" : "transparent",
+                color: churnFilter === level ? "#CDC9C0" : "rgba(205,201,192,0.4)",
+                fontSize: "11px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.06em",
+              }}>{level}</button>
+            ))}
+            <button onClick={() => {
+              const criticals = churnData.filter(c => c.riskLevel === "critical" && !c.outreachSent)
+              if (!criticals.length) return
+              criticals.forEach(c => sendChurnOutreach(c.id))
+            }} style={{ marginLeft: "auto", padding: "6px 14px", backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "6px", color: "#ef4444", fontSize: "10px", fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>
+              Send to All Critical
+            </button>
+          </div>
+
+          {/* Table */}
+          <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+            {churnLoading ? (
+              <div style={{ padding: "40px", textAlign: "center" }}>
+                {[1,2,3,4,5].map(i => <div key={i} style={{ height: "48px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "6px", marginBottom: "6px", animation: "pulse 1.5s infinite" }} />)}
+              </div>
+            ) : churnData.length === 0 ? (
+              <div style={{ padding: "60px 24px", textAlign: "center", color: "rgba(205,201,192,0.4)" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600 }}>No churn predictions yet</div>
+                <div style={{ fontSize: "12px", marginTop: "4px" }}>Run the churn analysis cron to generate predictions</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                      {["Client", "Last Visit", "Days Since", "Risk", "Score", "Visits", "Spend", "Outreach", ""].map(h => (
+                        <th key={h} style={{ padding: "10px 14px", textAlign: h === "Client" ? "left" : "right", fontFamily: "'Fira Code', monospace", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(205,201,192,0.35)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {churnData.map((c: any, i: number) => (
+                      <tr key={c.id} style={{ borderBottom: i < churnData.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                        <td style={{ padding: "12px 14px" }}>
+                          <div style={{ fontSize: "13px", fontWeight: 500, color: "#fff" }}>{c.clientName}</div>
+                          {c.clientPhone && <div style={{ fontFamily: "'Fira Code', monospace", fontSize: "10px", color: "rgba(205,201,192,0.4)", marginTop: "1px" }}>{c.clientPhone}</div>}
+                        </td>
+                        <td style={{ fontFamily: "'Fira Code', monospace", padding: "12px 14px", textAlign: "right", fontSize: "12px", color: "rgba(205,201,192,0.5)" }}>{c.lastVisitDate ? new Date(c.lastVisitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "N/A"}</td>
+                        <td style={{ fontFamily: "'Fira Code', monospace", padding: "12px 14px", textAlign: "right", fontSize: "12px", color: RISK_COLORS[c.riskLevel] || "#94A3B8" }}>{c.daysSinceLastVisit ?? "N/A"}</td>
+                        <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                          <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "9px", padding: "2px 8px", borderRadius: "4px", backgroundColor: `${RISK_COLORS[c.riskLevel] || "#94A3B8"}15`, color: RISK_COLORS[c.riskLevel] || "#94A3B8", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{c.riskLevel}</span>
+                        </td>
+                        <td style={{ fontFamily: "'Fira Code', monospace", padding: "12px 14px", textAlign: "right", fontSize: "13px", fontWeight: 600, color: RISK_COLORS[c.riskLevel] || "#94A3B8" }}>{Math.round(c.riskScore)}</td>
+                        <td style={{ fontFamily: "'Fira Code', monospace", padding: "12px 14px", textAlign: "right", fontSize: "12px", color: "rgba(205,201,192,0.5)" }}>{c.totalVisits}</td>
+                        <td style={{ fontFamily: "'Fira Code', monospace", padding: "12px 14px", textAlign: "right", fontSize: "12px", color: "#22c55e" }}>${(c.totalSpend || 0).toFixed(0)}</td>
+                        <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                          {c.outreachSent ? (
+                            <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "9px", padding: "2px 8px", borderRadius: "4px", backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e", fontWeight: 700, textTransform: "uppercase" as const }}>Sent</span>
+                          ) : (
+                            <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "9px", color: "rgba(205,201,192,0.3)" }}>Pending</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                          {!c.outreachSent && (
+                            <button onClick={() => sendChurnOutreach(c.id)} disabled={sendingChurnOutreach === c.id} style={{
+                              padding: "4px 10px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.15)", borderRadius: "5px",
+                              color: "rgba(205,201,192,0.5)", fontSize: "10px", fontWeight: 600, cursor: "pointer",
+                              opacity: sendingChurnOutreach === c.id ? 0.5 : 1,
+                            }}>
+                              {sendingChurnOutreach === c.id ? "..." : "Send"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Client Profile Modal */}
