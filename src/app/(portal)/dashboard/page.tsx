@@ -184,9 +184,13 @@ export default function DashboardPage() {
     if (!drillDown.data.length) return
     let csv = ""
     if (drillDown.type === "cancellations") {
-      csv = "Client,Appointment Time,Stylist,Location,Service,Cancelled By\n"
+      csv = "Client,Phone,Appointment Date,Appointment Time,Stylist,Location,Service,Cancelled By,Cancelled At\n"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      csv += drillDown.data.map((c: any) => `"${c.clientName}","${c.appointmentTime}","${c.stylist?.name}","${c.stylist?.location}","${c.service}","${c.cancelledBy}"`).join("\n")
+      csv += drillDown.data.map((c: any) => `"${c.clientName}","${c.clientPhone || ""}","${c.appointmentDate || ""}","${c.appointmentTime}","${c.stylist?.name}","${c.stylist?.location}","${c.service}","${c.cancelledBy}","${c.cancelledAtFormatted || ""}"`).join("\n")
+    } else if (drillDown.type === "checkouts") {
+      csv = "Check-in,Checkout,Client,Stylist,Location,Services,Payment,Last4,Total\n"
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      csv += drillDown.data.map((t: any) => `"${t.checkInTime || ""}","${t.checkOutTime || t.time}","${t.client?.name}","${t.stylist?.name}","${t.stylist?.location}","${t.services?.map((s: { name: string }) => s.name).join("; ")}","${t.payment?.method}","${t.payment?.last4 || ""}",${t.amounts?.total}`).join("\n")
     } else {
       csv = "Time,Client,Stylist,Location,Services,Payment,Last4,Subtotal,Tips,Tax,Fee,Total\n"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -873,15 +877,29 @@ export default function DashboardPage() {
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {drillDown.data.map((c: any, i: number) => (
                       <div key={i} style={{ padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 600, color: "#FFFFFF" }}>{c.clientName || "Client"}</span>
-                          <span style={{ fontSize: "9px", padding: "3px 10px", borderRadius: "4px", backgroundColor: c.cancelledBy === "client" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)", color: c.cancelledBy === "client" ? "#ef4444" : "#f59e0b", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.cancelledBy === "client" ? "BY CLIENT" : "BY SALON"}</span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700, color: "#ef4444", flexShrink: 0 }}>{c.clientInitials || "?"}</div>
+                            <div>
+                              <div style={{ fontSize: "14px", fontWeight: 600, color: "#FFFFFF" }}>{c.clientName || "Client"}</div>
+                              {c.clientPhone && <div style={{ fontFamily: "'Fira Code', monospace", fontSize: "11px", color: "#7a8f96", marginTop: "1px" }}>{c.clientPhone}</div>}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: "9px", padding: "3px 10px", borderRadius: "4px", backgroundColor: c.cancelledBy === "client" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)", color: c.cancelledBy === "client" ? "#ef4444" : "#f59e0b", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", flexShrink: 0 }}>{c.cancelledBy === "client" ? "BY CLIENT" : "BY SALON"}</span>
                         </div>
-                        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-                          <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "11px", color: "#7a8f96" }}>{c.appointmentTime}</span>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "6px" }}>
+                          <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "11px", color: "#7a8f96" }}>{c.appointmentDate} {c.appointmentTime}</span>
                           <span style={{ fontSize: "11px", color: "#606E74" }}>{c.stylist?.name}</span>
                           <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", backgroundColor: c.stylist?.location === "CC" ? "rgba(99,102,241,0.12)" : "rgba(16,185,129,0.12)", color: c.stylist?.location === "CC" ? "#818CF8" : "#10B981", fontWeight: 700 }}>{c.stylist?.location}</span>
                         </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", padding: "3px 10px", borderRadius: "6px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "#7a8f96" }}>{c.service}</span>
+                          <button onClick={(e) => { e.stopPropagation(); window.open(`https://squareup.com/appointments/buyer/widget/${c.locationId === "LTJSA6QR1HGW6" ? "LTJSA6QR1HGW6" : "LXJYXDXWR0XZF"}`, "_blank") }} style={{ padding: "5px 14px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.2)", borderRadius: "6px", color: "#7a8f96", fontSize: "10px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>event_repeat</span>
+                            Rebook
+                          </button>
+                        </div>
+                        {c.cancelledAtFormatted && <div style={{ fontSize: "10px", color: "#606E74", marginTop: "6px", fontStyle: "italic" }}>Cancelled at {c.cancelledAtFormatted}</div>}
                       </div>
                     ))}
                   </div>
@@ -920,10 +938,18 @@ export default function DashboardPage() {
                         return (
                           <div key={t.id} onClick={() => setExpandedTxn(isExpanded ? null : t.id)} style={{ padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", backgroundColor: isExpanded ? "rgba(255,255,255,0.02)" : "transparent", transition: "background-color 0.1s" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
+                              {/* Avatar for checkouts */}
+                              {drillDown.type === "checkouts" && (
+                                <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: "rgba(205,201,192,0.08)", border: "1px solid rgba(205,201,192,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, color: "#CDC9C0", flexShrink: 0 }}>{t.client?.initials || "W"}</div>
+                              )}
                               {/* Left: time + client + services */}
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
-                                  <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "12px", color: "#7a8f96", flexShrink: 0 }}>{t.time}</span>
+                                  {drillDown.type === "checkouts" && t.checkInTime ? (
+                                    <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "11px", color: "#606E74", flexShrink: 0 }}>{t.checkInTime} <span style={{ color: "#22c55e" }}>&rarr;</span> <span style={{ color: "#22c55e" }}>{t.checkOutTime}</span></span>
+                                  ) : (
+                                    <span style={{ fontFamily: "'Fira Code', monospace", fontSize: "12px", color: "#7a8f96", flexShrink: 0 }}>{t.time}</span>
+                                  )}
                                   <span style={{ fontSize: "14px", fontWeight: 600, color: "#FFFFFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.client?.name}</span>
                                 </div>
                                 <div style={{ fontSize: "12px", color: "#606E74", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

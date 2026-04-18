@@ -169,10 +169,17 @@ async function handleTransactions(
     totalFees += fee
     totalDiscounts += discountAmt
 
+    const checkInTime = bestIdx >= 0
+      ? bookings[bestIdx].startAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })
+      : null
+    const checkOutTime = orderTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })
+
     transactions.push({
       id: o.id,
-      time: orderTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }),
+      time: checkOutTime,
       timeRaw: orderTime.toISOString(),
+      checkInTime,
+      checkOutTime,
       client: { id: customerId, name: clientName, initials: clientInitials },
       stylist: { name: stylistName, location: stylistLoc },
       services,
@@ -212,7 +219,7 @@ async function handleCancellations(
   locationIds: string[]
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cancellations: any[] = []
+  const rawBookings: { booking: any; locId: string }[] = []
 
   for (const locId of locationIds) {
     let page = await square.bookings.list({
@@ -224,38 +231,111 @@ async function handleCancellations(
 
     for (const b of page.data) {
       if (b.status !== "CANCELLED_BY_CUSTOMER" && b.status !== "CANCELLED_BY_SELLER") continue
-      const tmId = b.appointmentSegments?.[0]?.teamMemberId || ""
-      cancellations.push({
-        id: b.id,
-        clientName: b.customerNote || "Client",
-        appointmentTime: b.startAt ? new Date(b.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) : "",
-        appointmentTimeRaw: b.startAt,
-        stylist: { name: TEAM_MEMBER_NAMES[tmId] || "Unknown", location: locId === "LTJSA6QR1HGW6" ? "CC" : "SA" },
-        service: b.appointmentSegments?.[0]?.serviceVariationId || "Service",
-        cancelledBy: b.status === "CANCELLED_BY_CUSTOMER" ? "client" : "salon",
-        cancelledAt: b.updatedAt || b.createdAt,
-        locationId: locId,
-      })
+      rawBookings.push({ booking: b, locId })
     }
 
     while (page.hasNextPage()) {
       page = await page.getNextPage()
       for (const b of page.data) {
         if (b.status !== "CANCELLED_BY_CUSTOMER" && b.status !== "CANCELLED_BY_SELLER") continue
-        const tmId = b.appointmentSegments?.[0]?.teamMemberId || ""
-        cancellations.push({
-          id: b.id,
-          clientName: b.customerNote || "Client",
-          appointmentTime: b.startAt ? new Date(b.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) : "",
-          appointmentTimeRaw: b.startAt,
-          stylist: { name: TEAM_MEMBER_NAMES[tmId] || "Unknown", location: locId === "LTJSA6QR1HGW6" ? "CC" : "SA" },
-          service: b.appointmentSegments?.[0]?.serviceVariationId || "Service",
-          cancelledBy: b.status === "CANCELLED_BY_CUSTOMER" ? "client" : "salon",
-          cancelledAt: b.updatedAt || b.createdAt,
-          locationId: locId,
-        })
+        rawBookings.push({ booking: b, locId })
       }
     }
+  }
+
+  // Collect unique customer IDs and service variation IDs for batch resolution
+  const customerIds = new Set<string>()
+  const serviceVarIds = new Set<string>()
+  for (const { booking: b } of rawBookings) {
+    if (b.customerId) customerIds.add(b.customerId)
+    const svcId = b.appointmentSegments?.[0]?.serviceVariationId
+    if (svcId) serviceVarIds.add(svcId)
+  }
+
+  // Resolve customer names + phones in parallel
+  const customerMap = new Map<string, { name: string; phone: string; initials: string }>()
+  const customerPromises = [...customerIds].map(async (cid) => {
+    try {
+      const res = await square.customers.get({ customerId: cid })
+      const c = res.customer
+      if (c) {
+        const name = [c.givenName, c.familyName].filter(Boolean).join(" ") || "Client"
+        customerMap.set(cid, {
+          name,
+          phone: c.phoneNumber || "",
+          initials: name === "Client" ? "?" : name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+        })
+      }
+    } catch { /* customer lookup failed */ }
+  })
+
+  // Resolve service names from catalog via batch get
+  const serviceMap = new Map<string, string>()
+  let serviceSettled: Promise<PromiseSettledResult<void>[]> = Promise.resolve([])
+  if (serviceVarIds.size > 0) {
+    serviceSettled = Promise.allSettled([
+      (async () => {
+        try {
+          const res = await square.catalog.batchGet({ objectIds: [...serviceVarIds], includeRelatedObjects: true })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const obj of (res.objects || []) as any[]) {
+            const varName = obj.itemVariationData?.name
+            const itemName = obj.itemData?.name
+            if (obj.id) serviceMap.set(obj.id, varName || itemName || "Service")
+          }
+          // Also check related objects for parent item names
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const rel of (res.relatedObjects || []) as any[]) {
+            if (rel.type === "ITEM" && rel.itemData?.name && rel.id) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              for (const obj of (res.objects || []) as any[]) {
+                if (obj.itemVariationData?.itemId === rel.id && obj.id) {
+                  const current = serviceMap.get(obj.id)
+                  if (!current || current === "Service") {
+                    serviceMap.set(obj.id, rel.itemData.name)
+                  }
+                }
+              }
+            }
+          }
+        } catch { /* catalog batch get failed */ }
+      })(),
+    ])
+  }
+
+  await Promise.allSettled([...customerPromises])
+  await serviceSettled
+
+  // Build enriched cancellation records
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cancellations: any[] = []
+  for (const { booking: b, locId } of rawBookings) {
+    const tmId = b.appointmentSegments?.[0]?.teamMemberId || ""
+    const svcId = b.appointmentSegments?.[0]?.serviceVariationId || ""
+    const customer = b.customerId ? customerMap.get(b.customerId) : null
+
+    cancellations.push({
+      id: b.id,
+      clientName: customer?.name || "Client",
+      clientPhone: customer?.phone || "",
+      clientInitials: customer?.initials || "?",
+      appointmentTime: b.startAt
+        ? new Date(b.startAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })
+        : "",
+      appointmentDate: b.startAt
+        ? new Date(b.startAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
+        : "",
+      appointmentTimeRaw: b.startAt,
+      stylist: { name: TEAM_MEMBER_NAMES[tmId] || "Unknown", location: locId === "LTJSA6QR1HGW6" ? "CC" : "SA" },
+      service: serviceMap.get(svcId) || "Service",
+      cancelledBy: b.status === "CANCELLED_BY_CUSTOMER" ? "client" : "salon",
+      cancelledAt: b.updatedAt || b.createdAt,
+      cancelledAtFormatted: b.updatedAt
+        ? new Date(b.updatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })
+        : "",
+      customerId: b.customerId || null,
+      locationId: locId,
+    })
   }
 
   cancellations.sort((a, b) => new Date(b.appointmentTimeRaw || 0).getTime() - new Date(a.appointmentTimeRaw || 0).getTime())
