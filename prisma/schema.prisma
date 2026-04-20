@@ -9,6 +9,7 @@ datasource db {
 }
 
 enum UserRole {
+  SUPER_ADMIN
   OWNER
   MANAGER
   STYLIST
@@ -23,6 +24,7 @@ model User {
   locationId   String?
   inviteStatus String   @default("NOT_INVITED")
   createdAt    DateTime @default(now())
+  tenantId     String?
   updatedAt    DateTime @default(now()) @updatedAt
   location     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   staffMember  StaffMember?
@@ -47,6 +49,7 @@ model User {
   alertsCreated        AdminAlert[]    @relation("AlertsCreated")
   alertReads           AlertRead[]
   auditLogs            AuditLog[]
+  @@index([tenantId])
   @@map("users")
 }
 
@@ -74,6 +77,7 @@ model Location {
 
 model StaffMember {
   id                 String   @id @default(cuid())
+  tenantId           String?
   userId             String?  @unique
   locationId         String
   squareTeamMemberId String?  @unique
@@ -101,6 +105,7 @@ model StaffMember {
   user               User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   shifts             Shift[]
   conductRecords     ConductRecord[]
+  @@index([tenantId])
   @@map("staff_members")
 }
 
@@ -297,6 +302,7 @@ model ConductRecord {
 
 model OnboardingEnrollment {
   id                    String    @id @default(cuid())
+  tenantId              String?
   inviteToken           String    @unique @default(cuid())
   email                 String
   firstName             String
@@ -396,6 +402,7 @@ model OnboardingEnrollment {
   updatedAt             DateTime  @default(now()) @updatedAt
 
   location              Location  @relation(fields: [locationId], references: [id])
+  @@index([tenantId])
   @@map("onboarding_enrollments")
 }
 
@@ -676,6 +683,7 @@ model VideoSubmission {
 
 model PayrollPeriod {
   id              String         @id @default(cuid())
+  tenantId        String?
   locationId      String
   periodStart     DateTime
   periodEnd       DateTime
@@ -689,6 +697,7 @@ model PayrollPeriod {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @default(now()) @updatedAt
   entries         PayrollEntry[]
+  @@index([tenantId])
   @@map("payroll_periods")
 }
 
@@ -710,6 +719,7 @@ model PayrollEntry {
 
 model AuditLog {
   id         String    @id @default(cuid())
+  tenantId   String?
   action     String
   entity     String
   entityId   String?
@@ -722,6 +732,7 @@ model AuditLog {
   createdAt  DateTime  @default(now())
   user       User?     @relation(fields: [userId], references: [id])
   location   Location? @relation(fields: [locationId], references: [id])
+  @@index([tenantId])
   @@map("audit_logs")
 }
 
@@ -805,6 +816,7 @@ model SystemSetting {
 
 model WaitlistEntry {
   id                   String    @id @default(cuid())
+  tenantId             String?
   locationId           String
   customerName         String
   customerPhone        String
@@ -820,6 +832,7 @@ model WaitlistEntry {
   notificationToken    String?   @unique
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @default(now()) @updatedAt
+  @@index([tenantId])
   @@map("waitlist_entries")
 }
 
@@ -856,6 +869,7 @@ model TdlrCacheMetadata {
 
 model Client {
   id               String          @id @default(cuid())
+  tenantId         String?
   squareCustomerId String          @unique
   firstName        String?
   lastName         String?
@@ -873,11 +887,13 @@ model Client {
   updatedAt        DateTime        @updatedAt
   formulas         ClientFormula[]
 
+  @@index([tenantId])
   @@map("clients")
 }
 
 model ClientFormula {
   id              String   @id @default(cuid())
+  tenantId        String?
   clientId        String
   client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   appliedBy       String
@@ -897,6 +913,7 @@ model ClientFormula {
   updatedAt       DateTime @updatedAt
 
   @@index([clientId])
+  @@index([tenantId])
   @@map("client_formulas")
 }
 
@@ -979,6 +996,7 @@ model BankTransaction {
 
 model Expense {
   id                 String   @id @default(cuid())
+  tenantId           String?
   locationId         String
   date               DateTime
   vendor             String
@@ -999,11 +1017,13 @@ model Expense {
   @@index([locationId])
   @@index([date])
   @@index([category])
+  @@index([tenantId])
   @@map("expenses")
 }
 
 model Invoice {
   id               String    @id @default(cuid())
+  tenantId         String?
   invoiceNumber    String    @unique
   locationId       String
   clientName       String
@@ -1029,6 +1049,7 @@ model Invoice {
   @@index([locationId])
   @@index([status])
   @@index([squareCustomerId])
+  @@index([tenantId])
   @@map("invoices")
 }
 
@@ -1120,6 +1141,7 @@ model ContractorPayment {
 
 model BusinessModel {
   id               String   @id @default(cuid())
+  tenantId         String?
   locationId       String   @unique
   modelType        String
   commissionRate   Float    @default(0.40)
@@ -1132,11 +1154,13 @@ model BusinessModel {
   notes               String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  @@index([tenantId])
   @@map("business_models")
 }
 
 model OffboardingRecord {
   id                      String    @id @default(cuid())
+  tenantId                String?
   staffMemberId           String
   staffMemberName         String
   locationId              String
@@ -1157,11 +1181,13 @@ model OffboardingRecord {
   updatedAt               DateTime  @updatedAt
 
   @@index([staffMemberId])
+  @@index([tenantId])
   @@map("offboarding_records")
 }
 
 model SocialConnection {
   id                    String    @id @default(cuid())
+  tenantId              String?
   locationId            String
   platform              String
   platformUserId        String
@@ -1188,6 +1214,7 @@ model SocialConnection {
   @@unique([locationId, platform, pageId])
   @@index([locationId])
   @@index([platform])
+  @@index([tenantId])
   @@map("social_connections")
 }
 
@@ -1205,6 +1232,7 @@ model SocialOAuthState {
 
 model ApiKey {
   id            String    @id @default(cuid())
+  tenantId      String?
   name          String
   keyId         String    @unique
   keySecretHash String
@@ -1222,6 +1250,7 @@ model ApiKey {
 
   @@index([keyId])
   @@index([locationId])
+  @@index([tenantId])
   @@map("api_keys")
 }
 
@@ -1247,6 +1276,7 @@ model ApiKeyLog {
 
 model PerformanceGoal {
   id            String   @id @default(cuid())
+  tenantId      String?
   staffMemberId String
   locationId    String
   goalType      String
@@ -1266,6 +1296,7 @@ model PerformanceGoal {
   @@index([staffMemberId])
   @@index([locationId])
   @@index([periodStart, periodEnd])
+  @@index([tenantId])
   @@map("performance_goals")
 }
 
@@ -1312,6 +1343,7 @@ model RebookRecord {
 
 model ReviewRequest {
   id               String    @id @default(cuid())
+  tenantId         String?
   locationId       String
   clientSquareId   String
   clientName       String
@@ -1333,6 +1365,7 @@ model ReviewRequest {
 
   @@index([status, sendAt])
   @@index([locationId])
+  @@index([tenantId])
   @@map("review_requests")
 }
 
@@ -1342,6 +1375,7 @@ model ReviewRequest {
 
 model PortalPermission {
   id            String   @id @default(cuid())
+  tenantId      String?
   locationId    String?
   staffMemberId String?
   role          String
@@ -1355,6 +1389,7 @@ model PortalPermission {
   @@unique([locationId, staffMemberId, role, feature, action])
   @@index([role, feature])
   @@index([staffMemberId])
+  @@index([tenantId])
   @@map("portal_permissions")
 }
 
@@ -1364,6 +1399,7 @@ model PortalPermission {
 
 model ChurnPrediction {
   id                   String    @id @default(cuid())
+  tenantId             String?
   locationId           String
   clientSquareId       String
   clientName           String
@@ -1388,6 +1424,7 @@ model ChurnPrediction {
   @@unique([locationId, clientSquareId])
   @@index([locationId, riskLevel])
   @@index([riskScore])
+  @@index([tenantId])
   @@map("churn_predictions")
 }
 
@@ -1428,4 +1465,339 @@ model ReynaKnowledge {
   @@unique([category, key, locationId])
   @@index([category])
   @@map("reyna_knowledge")
+}
+
+// ═══════════════════════════════════════
+// RunMySalon Multi-Tenancy
+// ═══════════════════════════════════════
+
+model Tenant {
+  id                String    @id @default(cuid())
+  name              String
+  slug              String    @unique
+  subdomain         String    @unique
+  customDomain      String?
+
+  // Branding
+  logoUrl           String?
+  faviconUrl        String?
+  primaryColor      String    @default("#606E74")
+  accentColor       String    @default("#7a8f96")
+  brandName         String
+
+  // Business info
+  ownerName         String
+  ownerEmail        String
+  ownerPhone        String?
+  businessAddress   String?
+  businessCity      String?
+  businessState     String    @default("TX")
+  businessZip       String?
+  taxId             String?
+
+  // POS Integration
+  posProvider       String    @default("kasse")
+  posConnected      Boolean   @default(false)
+  posAccessToken    String?
+  posLocationIds    Json?
+  posWebhookSecret  String?
+
+  // Square specific
+  squareAccessToken String?
+  squareMerchantId  String?
+
+  // GlossGenius specific
+  glossGeniusApiKey String?
+
+  // Meevo specific
+  meevoApiKey       String?
+  meevoSiteId       String?
+
+  // Billing
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  subscriptionStatus   String   @default("trial")
+  trialEndsAt          DateTime?
+  subscriptionStartedAt DateTime?
+  subscriptionEndsAt   DateTime?
+  billingEmail         String?
+  planType             String   @default("starter")
+
+  // Settings
+  timezone          String    @default("America/Chicago")
+  currency          String    @default("USD")
+  commissionRate    Float     @default(0.40)
+  salesTaxRate      Float     @default(0.0825)
+  payPeriod         String    @default("weekly")
+  payDay            String    @default("tuesday")
+  onboardingComplete Boolean  @default(false)
+  onboardingStep    Int       @default(0)
+
+  // Status
+  isActive          Boolean   @default(true)
+  isSuspended       Boolean   @default(false)
+  suspendedReason   String?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  locations         TenantLocation[]
+  invites           TenantInvite[]
+  billingEvents     BillingEvent[]
+
+  @@index([slug])
+  @@index([subdomain])
+  @@index([subscriptionStatus])
+  @@map("tenants")
+}
+
+model TenantLocation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  name              String
+  address           String?
+  city              String?
+  state             String?
+  zip               String?
+  phone             String?
+  email             String?
+  posLocationId     String?
+  timezone          String   @default("America/Chicago")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("tenant_locations")
+}
+
+model TenantInvite {
+  id          String    @id @default(cuid())
+  tenantId    String
+  email       String
+  role        String    @default("STYLIST")
+  token       String    @unique @default(cuid())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([token])
+  @@map("tenant_invites")
+}
+
+model BillingEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  type          String
+  amount        Float?
+  currency      String   @default("USD")
+  stripeEventId String?  @unique
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("billing_events")
+}
+
+model SuperAdminLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([adminId])
+  @@map("super_admin_logs")
+}
+
+model GiftCard {
+  id             String    @id @default(cuid())
+  tenantId       String
+  code           String    @unique
+  initialAmount  Float
+  currentBalance Float
+  recipientName  String?
+  recipientEmail String?
+  personalMessage String?
+  locationId     String?
+  expiresAt      DateTime?
+  purchasedAt    DateTime  @default(now())
+  redeemedAt     DateTime?
+  status         String    @default("active")
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([code])
+  @@map("gift_cards")
+}
+
+model ReferralCode {
+  id            String   @id @default(cuid())
+  tenantId      String
+  clientId      String?
+  code          String   @unique
+  totalReferrals Int     @default(0)
+  totalRewards  Float    @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([code])
+  @@map("referral_codes")
+}
+
+model Referral {
+  id              String    @id @default(cuid())
+  tenantId        String
+  referrerCodeId  String
+  referredClientId String?
+  referredName    String?
+  referredEmail   String?
+  rewardType      String?
+  rewardAmount    Float?
+  rewardIssued    Boolean   @default(false)
+  rewardIssuedAt  DateTime?
+  bookingId       String?
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("referrals")
+}
+
+model LoyaltyAccount {
+  id             String   @id @default(cuid())
+  tenantId       String
+  clientId       String?
+  clientName     String
+  pointsBalance  Int      @default(0)
+  totalEarned    Int      @default(0)
+  totalRedeemed  Int      @default(0)
+  tier           String   @default("bronze")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  transactions   LoyaltyTransaction[]
+
+  @@index([tenantId])
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id               String         @id @default(cuid())
+  loyaltyAccountId String
+  type             String
+  points           Int
+  description      String?
+  orderId          String?
+  createdAt        DateTime       @default(now())
+  account          LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+
+  @@index([loyaltyAccountId])
+  @@map("loyalty_transactions")
+}
+
+model Membership {
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  price         Float
+  billingCycle  String   @default("monthly")
+  benefits      Json
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  members       MemberSubscription[]
+
+  @@index([tenantId])
+  @@map("memberships")
+}
+
+model MemberSubscription {
+  id                   String     @id @default(cuid())
+  membershipId         String
+  clientId             String?
+  clientName           String
+  clientEmail          String?
+  stripeSubscriptionId String?
+  status               String     @default("active")
+  startDate            DateTime   @default(now())
+  nextBillingDate      DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  membership           Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+  @@map("member_subscriptions")
+}
+
+model MarketingCampaign {
+  id            String    @id @default(cuid())
+  tenantId      String
+  name          String
+  segmentType   String
+  channel       String
+  messageTemplate String  @db.Text
+  status        String    @default("draft")
+  isAlwaysOn    Boolean   @default(false)
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  recipientCount Int      @default(0)
+  openCount     Int       @default(0)
+  clickCount    Int       @default(0)
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("marketing_campaigns")
+}
+
+model KioskSession {
+  id            String    @id @default(cuid())
+  tenantId      String
+  locationId    String?
+  clientName    String?
+  clientPhone   String?
+  clientEmail   String?
+  checkInType   String
+  appointmentId String?
+  stylistId     String?
+  status        String    @default("checked_in")
+  checkedInAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("kiosk_sessions")
+}
+
+model VoiceCallLog {
+  id            String    @id @default(cuid())
+  tenantId      String
+  callSid       String?   @unique
+  callerNumber  String?
+  calledNumber  String?
+  direction     String    @default("inbound")
+  duration      Int?
+  transcript    String?   @db.Text
+  aiResponse    String?   @db.Text
+  bookingCreated Boolean  @default(false)
+  bookingId     String?
+  status        String    @default("completed")
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("voice_call_logs")
 }

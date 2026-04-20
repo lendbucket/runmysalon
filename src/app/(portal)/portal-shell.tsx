@@ -19,18 +19,26 @@ const OWNER_NAV: NavItem[] = [
   { href: "/cancellations", icon: "event_busy", label: "Cancellations" },
   { href: "/schedule", icon: "calendar_month", label: "Schedule" },
   { href: "/staff", icon: "group", label: "Staff" },
+  { href: "/clients", icon: "person", label: "Clients" },
   { href: "/inventory", icon: "inventory_2", label: "Inventory" },
   { href: "/pos", icon: "point_of_sale", label: "Kasse POS" },
+  { href: "/kiosk", icon: "tablet", label: "Kiosk" },
   { href: "/reviews", icon: "star", label: "Reviews" },
   { href: "/purchase-orders", icon: "shopping_cart", label: "Purchase Orders" },
   { href: "/payroll", icon: "account_balance_wallet", label: "Payroll" },
   { href: "/financials", icon: "account_balance", label: "Financials" },
+  { href: "/marketing", icon: "campaign", label: "Marketing" },
+  { href: "/gift-cards", icon: "card_giftcard", label: "Gift Cards" },
+  { href: "/loyalty", icon: "loyalty", label: "Loyalty" },
+  { href: "/memberships", icon: "card_membership", label: "Memberships" },
+  { href: "/referrals", icon: "share", label: "Referrals" },
   { href: "/complaints", icon: "report", label: "Complaints" },
   { href: "/conduct", icon: "gavel", label: "Conduct" },
   { href: "/onboarding", icon: "person_add", label: "Onboarding" },
   { href: "/alerts", icon: "notifications", label: "Alerts", badge: true },
   { href: "/social", icon: "share", label: "Social Media" },
   { href: "/reyna-ai", icon: "auto_awesome", label: "Reyna AI", highlight: true },
+  { href: "/billing", icon: "credit_card", label: "Billing" },
   { href: "/permissions", icon: "admin_panel_settings", label: "Permissions" },
   { href: "/settings", icon: "settings", label: "Settings" },
   { href: "/suite", icon: "", label: "Envy Suite®" },
@@ -91,13 +99,20 @@ const STYLIST_BOTTOM: NavItem[] = [
 ]
 
 /* ── Allowed pages per role for stylist redirect ── */
-const STYLIST_ALLOWED = ["/dashboard", "/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/reviews", "/suite", "/performance", "/permissions"]
+const STYLIST_ALLOWED = ["/dashboard", "/my-schedule", "/reyna-ai", "/profile", "/preferences", "/submit-complaint", "/conduct", "/pos", "/appointments", "/reviews", "/suite", "/performance", "/permissions", "/loyalty", "/settings"]
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { data: session } = useSession()
   const { role, isOwner, isStylist, isManager, locationName } = useUserRole()
+
+  // Tenant branding from session
+  const tenant = (session?.user as any)?.tenant as { brandName?: string; logoUrl?: string; primaryColor?: string; accentColor?: string; subscriptionStatus?: string; trialEndsAt?: string; slug?: string } | undefined
+  const brandName = tenant?.brandName || "Salon Envy"
+  const subscriptionStatus = tenant?.subscriptionStatus || "active"
+  const trialEndsAt = tenant?.trialEndsAt ? new Date(tenant.trialEndsAt) : null
+  const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0
 
   const userName = session?.user?.name || "User"
   const userRole = role
@@ -523,11 +538,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           flexDirection: "column",
           justifyContent: "center",
         }}>
-          <img
-            src="/images/logo-white.png"
-            alt="Salon Envy"
-            style={{ width: "120px", height: "auto", objectFit: "contain", display: "block" }}
-          />
+          {tenant?.logoUrl ? (
+            <img src={tenant.logoUrl} alt={brandName} style={{ width: "120px", height: "auto", objectFit: "contain", display: "block" }} />
+          ) : (
+            <img src="/images/logo-white.png" alt={brandName} style={{ width: "120px", height: "auto", objectFit: "contain", display: "block" }} />
+          )}
           <div style={{
             marginTop: "8px",
             fontSize: "8px",
@@ -557,6 +572,13 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         <nav style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
           {navItems.map(item => navLink(item))}
         </nav>
+
+        {/* Powered by RunMySalon */}
+        <div style={{ padding: "8px 20px", textAlign: "center" }}>
+          <a href="https://runmysalon.com" target="_blank" rel="noopener noreferrer" style={{ fontSize: "8px", color: "rgba(205,201,192,0.2)", textDecoration: "none", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
+            Powered by RunMySalon
+          </a>
+        </div>
 
         {/* User section */}
         <div style={{
@@ -682,6 +704,35 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             Reyna AI
           </Link>
         </header>
+
+        {/* SUBSCRIPTION WARNING BANNER */}
+        {subscriptionStatus === "trial" && (
+          <div style={{ padding: "10px 20px", backgroundColor: "rgba(245,158,11,0.08)", borderBottom: "1px solid rgba(245,158,11,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 600 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: "14px", verticalAlign: "middle", marginRight: "6px" }}>hourglass_top</span>
+              Free trial &mdash; {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
+            </span>
+            <Link href="/billing" style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b", textDecoration: "none", padding: "4px 12px", border: "1px solid rgba(245,158,11,0.3)", borderRadius: "6px" }}>Add Payment</Link>
+          </div>
+        )}
+        {subscriptionStatus === "past_due" && (
+          <div style={{ padding: "10px 20px", backgroundColor: "rgba(239,68,68,0.08)", borderBottom: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: 600 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: "14px", verticalAlign: "middle", marginRight: "6px" }}>error</span>
+              Payment failed. Update billing to restore full access.
+            </span>
+            <Link href="/billing" style={{ fontSize: "11px", fontWeight: 700, color: "#ef4444", textDecoration: "none", padding: "4px 12px", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px" }}>Update Billing</Link>
+          </div>
+        )}
+        {subscriptionStatus === "cancelled" && (
+          <div style={{ padding: "10px 20px", backgroundColor: "rgba(239,68,68,0.08)", borderBottom: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: 600 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: "14px", verticalAlign: "middle", marginRight: "6px" }}>cancel</span>
+              Subscription cancelled. Reactivate to restore access.
+            </span>
+            <Link href="/billing" style={{ fontSize: "11px", fontWeight: 700, color: "#ef4444", textDecoration: "none", padding: "4px 12px", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px" }}>Reactivate</Link>
+          </div>
+        )}
 
         {/* PAGE CONTENT */}
         <main style={{

@@ -31,5 +31,17 @@ export const config = {
     "/payroll/:path*",
     "/suite/:path*",
     "/social/:path*",
+    "/billing/:path*",
+    "/kiosk/:path*",
+    "/marketing/:path*",
+    "/gift-cards/:path*",
+    "/referrals/:path*",
+    "/loyalty/:path*",
+    "/memberships/:path*",
+    "/admin/:path*",
+    "/settings/:path*",
+    "/performance/:path*",
+    "/financials/:path*",
+    "/clients/:path*",
   ]
 }

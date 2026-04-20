@@ -122,7 +122,8 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === "google") {
         let dbUser = await prisma.user.findUnique({ where: { email } });
         if (!dbUser) {
-          const role = email === "ceo@36west.org" ? "OWNER" : "STYLIST";
+          const superAdminEmail = process.env.RUNMYSALON_SUPER_ADMIN_EMAIL || "ceo@36west.org"
+          const role = email === superAdminEmail ? "OWNER" : email === "ceo@36west.org" ? "OWNER" : "STYLIST";
           const inviteStatus = email === "ceo@36west.org" ? "ACCEPTED" : "INVITED";
           dbUser = await prisma.user.create({
             data: {
@@ -160,6 +161,18 @@ export const authOptions: NextAuthOptions = {
           token.role = dbUser.role;
           token.locationId = dbUser.locationId;
           token.locationName = dbUser.location?.name;
+          token.tenantId = (dbUser as any).tenantId
+          if ((dbUser as any).tenantId) {
+            const tenant = await prisma.tenant.findUnique({
+              where: { id: (dbUser as any).tenantId },
+              select: {
+                id: true, brandName: true, logoUrl: true, primaryColor: true,
+                accentColor: true, posProvider: true, subscriptionStatus: true,
+                planType: true, trialEndsAt: true, slug: true,
+              }
+            })
+            token.tenant = tenant
+          }
         }
       }
       return token;
@@ -170,6 +183,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as UserRole;
         (session.user as any).locationId = token.locationId;
         (session.user as any).locationName = token.locationName;
+        (session.user as any).tenantId = token.tenantId as string | undefined;
+        (session.user as any).tenant = token.tenant;
       }
       return session;
     },

@@ -16,14 +16,14 @@ const notoSerif = Noto_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "Salon Envy\u00ae Portal",
-  description: "Salon Envy Management Portal",
+  title: "RunMySalon — Salon Management Platform",
+  description: "The complete management platform for modern salons. Appointments, staff, payroll, clients, and AI insights — all in one place.",
   manifest: "/manifest.json",
-  applicationName: "SE Portal",
+  applicationName: "RunMySalon",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SE Portal",
+    title: "RunMySalon",
   },
   icons: {
     apple: "/images/logo-white.png",
