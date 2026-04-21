@@ -28,7 +28,8 @@
       "Bash(cp -r \"\\(portal\\)\" \"\\(tenant\\)\")",
       "Bash(rm -rf \"\\(portal\\)\")",
       "Bash(npx tsc:*)",
-      "Bash(grep -n \"tenantId.*String$\" prisma/schema.prisma)"
+      "Bash(grep -n \"tenantId.*String$\" prisma/schema.prisma)",
+      "Bash(grep -v \"//.*User\")"
     ]
   }
 }
