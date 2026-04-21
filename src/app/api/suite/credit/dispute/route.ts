@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import Anthropic from "@anthropic-ai/sdk"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 export async function GET(_req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const userId = (session.user as Record<string, unknown>).id as string
@@ -19,6 +20,7 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const userId = (session.user as Record<string, unknown>).id as string

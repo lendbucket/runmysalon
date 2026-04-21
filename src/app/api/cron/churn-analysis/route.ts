@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
@@ -22,6 +22,7 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   // Verify cron secret
   const authHeader = req.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

@@ -1,6 +1,5 @@
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-
 export const maxDuration = 60
 
 function parseCSVLine(line: string): string[] {
@@ -18,6 +17,7 @@ function parseCSVLine(line: string): string[] {
 }
 
 export async function GET(req: Request) {
+  const { db: prisma } = await getTenantPrisma()
   const authHeader = req.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 export async function GET() {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -18,6 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const { db: prisma } = await getTenantPrisma()
   // No auth required — anonymous submission
   let body: any
   try { body = await req.json() } catch {
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 

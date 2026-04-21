@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { logAction, AUDIT_ACTIONS } from "@/lib/auditLogger"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const user = session.user as Record<string, unknown>

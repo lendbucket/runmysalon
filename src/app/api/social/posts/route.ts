@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 async function publishPostToMeta(post: { locationId: string; platform: string; content: string; imageUrls: unknown }) {
   const result: { fbPostId?: string; igPostId?: string } = {}
   const locations = post.locationId === "BOTH" ? ["CC", "SA"] : [post.locationId]
@@ -46,6 +45,7 @@ async function publishPostToMeta(post: { locationId: string; platform: string; c
 }
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { searchParams } = new URL(req.url)
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const userId = (session.user as Record<string, unknown>).id as string

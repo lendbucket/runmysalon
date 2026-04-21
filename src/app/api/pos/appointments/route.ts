@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { SquareClient, SquareEnvironment } from "square";
 
 import { CC_LOCATION_ID, SA_LOCATION_ID, CC_STYLISTS_MAP, SA_STYLISTS_MAP, TEAM_NAMES } from "@/lib/staff";
 import { getFullCache } from "@/lib/catalogCache";
 import { resolveStatuses } from "@/lib/square-appointment-status";
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 const LOCATION_MAP: Record<string, string> = {
   "Corpus Christi": CC_LOCATION_ID,
@@ -21,6 +21,7 @@ function getSquare() {
 }
 
 export async function GET(request: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import Stripe from "stripe"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const { token } = await req.json() as { token: string }
     if (!token) return NextResponse.json({ error: "Token required" }, { status: 400 })

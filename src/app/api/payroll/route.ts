@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
 import { CC_LOCATION_ID, SA_LOCATION_ID } from "@/lib/staff"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 const LOCATION_IDS = [CC_LOCATION_ID, SA_LOCATION_ID] as const
 
@@ -13,6 +13,7 @@ function getSquare() {
 
 /** Legacy GET endpoint — kept for backwards compatibility with dashboard */
 export async function GET(request: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const user = session.user as Record<string, unknown>

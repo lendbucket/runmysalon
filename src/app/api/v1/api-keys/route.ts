@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { hash } from "bcryptjs"
 import crypto from "crypto"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function GET() {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const role = (session.user as Record<string, unknown>).role as string
@@ -24,6 +25,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const role = (session.user as Record<string, unknown>).role as string
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const role = (session.user as Record<string, unknown>).role as string

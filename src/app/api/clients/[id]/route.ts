@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
 import { CC_LOCATION_ID, SA_LOCATION_ID } from "@/lib/staff"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 function getSquare() {
   return new SquareClient({ token: process.env.SQUARE_ACCESS_TOKEN!, environment: SquareEnvironment.Production })
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db: prisma } = await getTenantPrisma()
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 

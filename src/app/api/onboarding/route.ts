@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/api-auth";
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 // GET: List all enrollments (owner/manager only)
 export async function GET() {
+  const { db: prisma } = await getTenantPrisma()
   const { session, response } = await requireSession();
   if (response) return response;
 
@@ -22,6 +23,7 @@ export async function GET() {
 
 // POST: Create a new enrollment invitation
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const { session, response } = await requireSession();
   if (response) return response;
 

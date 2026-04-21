@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { CC_LOCATION_ID, SA_LOCATION_ID, ALL_STAFF } from "@/lib/staff"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -167,7 +170,7 @@ export async function PATCH(req: NextRequest) {
 
     const bonus = await prisma.performanceBonus.update({
       where: { id },
-      data: updateData,
+      data: updateData as any,
     })
 
     return NextResponse.json({ bonus })

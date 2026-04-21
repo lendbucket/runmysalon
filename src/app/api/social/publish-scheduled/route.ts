@@ -1,7 +1,7 @@
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-
 export async function POST() {
+  const { db: prisma } = await getTenantPrisma()
   const now = new Date()
   const duePosts = await prisma.socialPost.findMany({
     where: { status: "scheduled", scheduledAt: { lte: now } },

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 // verifyTDLRLicense import removed — manual method uses inline Socrata call
 import type { TDLRResult } from "@/lib/tdlr"
 
@@ -9,8 +8,10 @@ export const maxDuration = 60
 import { sendSMS } from "@/lib/twilio"
 import { logAction, AUDIT_ACTIONS } from "@/lib/auditLogger"
 import crypto from "crypto"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db: prisma } = await getTenantPrisma()
   const { id: rawId } = await params
   try { const debugBody = await req.clone().json(); console.log("[verify-license] Route hit - id:", rawId, "body:", JSON.stringify(debugBody)) } catch { console.log("[verify-license] Route hit - id:", rawId, "body: unparseable") }
 

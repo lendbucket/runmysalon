@@ -1,6 +1,5 @@
+import { prisma } from "@/lib/prisma"
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://www.salonenvyusa.com",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -68,6 +67,7 @@ async function verifyLicenseToken(token: string | null): Promise<VerifyResult> {
 
 // GET: ?token= — public, for marketing site cross-origin checks
 export async function GET(req: NextRequest) {
+
   const token = req.nextUrl.searchParams.get("token");
   const result = await verifyLicenseToken(token);
   return NextResponse.json(result.data, {
@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
 
 // POST: { token } — same as GET
 export async function POST(req: NextRequest) {
+
   let token: string | null = null;
   try {
     const body = (await req.json()) as { token?: unknown };

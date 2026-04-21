@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { sendSMS } from "@/lib/twilio"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const { token, paymentMethodId, customerId } = await req.json() as {
       token: string

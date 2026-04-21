@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
 import {
   TEAM_NAMES,
@@ -9,6 +8,7 @@ import {
   SA_LOCATION_ID,
   ALL_STAFF,
 } from "@/lib/staff"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 function getSquare() {
   return new SquareClient({
@@ -50,6 +50,7 @@ function maskName(name: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {

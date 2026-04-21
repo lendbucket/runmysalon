@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server"
 import { validateApiKey, apiResponse, apiError } from "@/lib/api-v1-auth"
-import { prisma } from "@/lib/prisma"
-
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const auth = await validateApiKey(req)
   if (!auth.valid) return apiError(auth.error!, auth.status || 401)
   if (!auth.apiKey!.permissions.includes("clients:read")) {

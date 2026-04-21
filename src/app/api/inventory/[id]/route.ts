@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { requireSession } from "@/lib/api-auth"
-import { prisma } from "@/lib/prisma"
-
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db: prisma } = await getTenantPrisma()
   const { response } = await requireSession()
   if (response) return response
 
@@ -61,6 +61,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db: prisma } = await getTenantPrisma()
   const { response } = await requireSession()
   if (response) return response
 

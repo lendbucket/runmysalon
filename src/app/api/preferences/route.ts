@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/api-auth"
-import { prisma } from "@/lib/prisma"
-
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 export async function GET() {
+  const { db: prisma } = await getTenantPrisma()
   const { session, response } = await requireSession()
   if (response) return response
   const userId = (session!.user as { id: string }).id
@@ -15,6 +15,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const { session, response } = await requireSession()
   if (response) return response
   const userId = (session!.user as { id: string }).id

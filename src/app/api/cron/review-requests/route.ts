@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { sendSMS } from "@/lib/twilio"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

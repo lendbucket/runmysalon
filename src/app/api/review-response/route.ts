@@ -1,6 +1,5 @@
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-
 // Google review URLs per location
 const GOOGLE_REVIEW_URLS: Record<string, string> = {
   CC: "https://search.google.com/local/writereview?placeid=ChIJH_SrmdP1aIYRNxsROAU2fJg",
@@ -8,6 +7,7 @@ const GOOGLE_REVIEW_URLS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const body = await req.json()
   const { requestId, rating, feedback } = body
 

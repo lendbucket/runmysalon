@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { requireSession } from "@/lib/api-auth"
 import { logAction, AUDIT_ACTIONS } from "@/lib/auditLogger"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db: prisma } = await getTenantPrisma()
   const { session, response } = await requireSession()
   if (response) return response
 

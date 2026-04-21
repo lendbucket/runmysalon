@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import { SquareClient, SquareEnvironment } from "square"
 import { LOCATION_IDS } from "@/lib/square-metrics"
 import { calculateEstimatedTaxes } from "@/lib/financial-constants"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export const maxDuration = 30
 
@@ -13,6 +13,7 @@ function getSquare() {
 }
 
 export async function GET(request: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

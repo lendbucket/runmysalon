@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createSquareTeamMember, assignTeamMemberToAllServices } from "@/lib/square-team";
 import { getStylistAgreement, getManagerAgreement } from "@/lib/agreements";
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 // GET: Fetch enrollment by token (NO auth required - public)
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const { db: prisma } = await getTenantPrisma()
   const { token } = await params;
 
   const enrollment = await prisma.onboardingEnrollment.findUnique({
@@ -92,6 +93,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const { db: prisma } = await getTenantPrisma()
   const { token } = await params;
   console.log("[onboarding-api] PATCH /api/onboarding/enroll/" + token + " — request received at", new Date().toISOString());
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "Unknown";

@@ -1,7 +1,7 @@
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-
 export async function POST(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   try {
     const body = await req.json()
     const { email, enrollmentId, action, code } = body as {

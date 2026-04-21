@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { sendSMS } from "@/lib/twilio"
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const token = req.nextUrl.searchParams.get("token")
 
   if (!token) {

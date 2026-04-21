@@ -1,170 +1,111 @@
 /**
- * Route Migration Script
+ * Route Migration Script — Drop-in tenant isolation
  *
- * Transforms API routes from raw prisma imports to withTenant wrapper.
- * Run with: npx tsx scripts/migrate-routes.ts
+ * Replaces `import { prisma } from "@/lib/prisma"` with getTenantPrisma()
+ * and injects `const { db: prisma } = await getTenantPrisma()` at the top
+ * of each exported handler function.
  *
- * What it does for each tenant-scoped route:
- * 1. Replaces `import { prisma } from '@/lib/prisma'` with withTenant import
- * 2. Removes session/auth imports (withTenant handles auth)
- * 3. Wraps exported GET/POST/PATCH/PUT/DELETE in withTenant
- * 4. Replaces `prisma.` with `db.` inside handlers
- * 5. Removes manual session checking boilerplate
+ * Run: npx tsx scripts/migrate-routes.ts
  */
-
 import * as fs from "fs"
 import * as path from "path"
 
-// Routes that should NOT be migrated (they legitimately use raw prisma)
-const SKIP_ROUTES = new Set([
-  // Auth — NextAuth internals
+const SKIP = new Set([
+  // Auth internals — do not touch
   "src/app/api/auth/[...nextauth]/route.ts",
   "src/app/api/auth/forgot-password/route.ts",
   "src/app/api/auth/reset-password/route.ts",
-  // Public
+  // Public — no tenant context
   "src/app/api/signup/route.ts",
-  // Super admin
+  "src/app/api/health/route.ts",
+  "src/app/api/v1/health/route.ts",
+  // Super admin — legitimately cross-tenant
   "src/app/api/admin/tenants/route.ts",
   "src/app/api/admin/tenants/[id]/route.ts",
-  // Webhooks — need special handling
+  // Webhooks — tenant resolved from payload, not headers
   "src/app/api/webhooks/stripe/route.ts",
-  // Billing — uses TenantSubscription which needs raw prisma for cross-tenant lookup
+  // Voice inbound — webhook-style, tenant resolved from phone number
+  "src/app/api/voice/inbound/route.ts",
+  // Billing — uses TenantSubscription cross-tenant lookup
   "src/app/api/billing/create-subscription/route.ts",
   "src/app/api/billing/portal/route.ts",
-  // Voice — webhook-style
-  "src/app/api/voice/inbound/route.ts",
-  // Already migrated or no prisma
-  "src/app/api/v1/health/route.ts",
 ])
 
-// Routes that don't import prisma
-const NO_PRISMA = new Set([
-  "src/app/api/appointments/[id]/reminder/route.ts",
-  "src/app/api/bookings/[id]/cancel/route.ts",
-  "src/app/api/bookings/[id]/reschedule/route.ts",
-  "src/app/api/bookings/block/route.ts",
-  "src/app/api/bookings/check-conflict/route.ts",
-  "src/app/api/bookings/create/route.ts",
-  "src/app/api/cancellations/route.ts",
-  "src/app/api/catalog/services/route.ts",
-  "src/app/api/customers/[id]/history/route.ts",
-  "src/app/api/customers/search/route.ts",
-  "src/app/api/financials/stripe-connect/route.ts",
-  "src/app/api/inventory/route.ts",
-  "src/app/api/meta/webhook/route.ts",
-  "src/app/api/metrics/ai-insights/route.ts",
-  "src/app/api/metrics/comparison/route.ts",
-  "src/app/api/metrics/drill-down/route.ts",
-  "src/app/api/metrics/live/route.ts",
-  "src/app/api/metrics/team-members/route.ts",
-  "src/app/api/metrics/test/route.ts",
-  "src/app/api/onboarding/test/route.ts",
-  "src/app/api/payroll/debug/route.ts",
-  "src/app/api/pos/catalog/route.ts",
-  "src/app/api/pos/checkout/route.ts",
-  "src/app/api/retention/diagnostic/route.ts",
-  "src/app/api/retention/route.ts",
-  "src/app/api/retention/send-outreach/route.ts",
-  "src/app/api/reviews/route.ts",
-  "src/app/api/reyna/route.ts",
-  "src/app/api/schedule/check-availability/route.ts",
-  "src/app/api/schedule/square-sync/route.ts",
-  "src/app/api/sms/send/route.ts",
-  "src/app/api/social/analytics/route.ts",
-  "src/app/api/social/generate-caption/route.ts",
-  "src/app/api/social/hashtags/route.ts",
-  "src/app/api/social/insights/route.ts",
-  "src/app/api/staff/route.ts",
-  "src/app/api/test-tdlr/route.ts",
-  "src/app/api/transactions/route.ts",
-  "src/app/api/v1/appointments/route.ts",
-  "src/app/api/v1/metrics/route.ts",
-  "src/app/api/v1/services/route.ts",
-])
-
-function findAllRoutes(dir: string): string[] {
-  const routes: string[] = []
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      routes.push(...findAllRoutes(full))
-    } else if (entry.name === "route.ts") {
-      routes.push(full.replace(/\\/g, "/"))
-    }
+function findRoutes(dir: string): string[] {
+  const out: string[] = []
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name)
+    if (e.isDirectory()) out.push(...findRoutes(full))
+    else if (e.name === "route.ts") out.push(full.replace(/\\/g, "/"))
   }
-  return routes
+  return out
 }
 
-function migrateRoute(filePath: string): { migrated: boolean; reason: string } {
-  const relative = filePath.replace(/.*src\/app\//, "src/app/")
+function normalize(p: string): string {
+  return p.replace(/.*?src\/app\//, "src/app/")
+}
 
-  if (SKIP_ROUTES.has(relative)) return { migrated: false, reason: "skip-list" }
-  if (NO_PRISMA.has(relative)) return { migrated: false, reason: "no-prisma-import" }
+function migrate(filePath: string): string {
+  const rel = normalize(filePath)
+  if (SKIP.has(rel)) return "SKIP"
 
-  let content = fs.readFileSync(filePath, "utf-8")
+  let src = fs.readFileSync(filePath, "utf-8")
 
-  // Check if already migrated
-  if (content.includes("withTenant") || content.includes("withSuperAdmin")) {
-    return { migrated: false, reason: "already-migrated" }
-  }
+  // Already migrated?
+  if (src.includes("getTenantPrisma")) return "ALREADY"
 
-  // Check if it imports prisma
-  if (!content.includes("@/lib/prisma") && !content.includes("lib/prisma")) {
-    return { migrated: false, reason: "no-prisma-import" }
-  }
+  // No prisma import? Nothing to do.
+  if (!src.includes("@/lib/prisma") && !src.includes("lib/prisma")) return "NO_PRISMA"
 
-  // Step 1: Replace prisma import with withTenant import
-  content = content.replace(
-    /import\s*\{\s*prisma\s*\}\s*from\s*["']@\/lib\/prisma["'];?\n?/g,
-    'import { withTenant } from "@/lib/tenant/route-wrappers"\n'
-  )
+  // Step 1: Replace the prisma import line
+  const hadPrisma = src.includes("from \"@/lib/prisma\"") || src.includes("from '@/lib/prisma'")
+  if (!hadPrisma) return "NO_PRISMA"
 
-  // Step 2: Remove session/auth imports (withTenant handles auth)
-  content = content.replace(
-    /import\s*\{\s*getServerSession\s*\}\s*from\s*["']next-auth["'];?\n?/g,
+  src = src.replace(
+    /import\s*\{[^}]*prisma[^}]*\}\s*from\s*["']@\/lib\/prisma["'];?\s*\n/g,
     ""
   )
-  content = content.replace(
-    /import\s*\{\s*authOptions\s*\}\s*from\s*["']@\/lib\/auth["'];?\n?/g,
-    ""
-  )
-  content = content.replace(
-    /import\s*\{\s*NextResponse\s*\}\s*from\s*["']next\/server["'];?\n?/g,
-    'import { NextResponse } from "next/server"\n'
-  )
 
-  // Step 3: Replace prisma. with db. (but not in import statements)
-  content = content.replace(/(?<!import.*)prisma\./g, "db.")
-
-  // Step 4: Add NextResponse import if not present
-  if (!content.includes("NextResponse")) {
-    content = 'import { NextResponse } from "next/server"\n' + content
+  // Step 2: Add getTenantPrisma import after the last import
+  const lastImportIdx = src.lastIndexOf("\nimport ")
+  if (lastImportIdx === -1) {
+    // No imports? Add at top
+    src = 'import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"\n' + src
+  } else {
+    const endOfImportLine = src.indexOf("\n", lastImportIdx + 1)
+    src = src.slice(0, endOfImportLine + 1) +
+      'import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"\n' +
+      src.slice(endOfImportLine + 1)
   }
 
-  fs.writeFileSync(filePath, content, "utf-8")
-  return { migrated: true, reason: "success" }
+  // Step 3: Inject `const { db: prisma } = await getTenantPrisma()` at start of each handler
+  // Match: export async function NAME(
+  // Also match: export const NAME = async (
+  src = src.replace(
+    /export\s+async\s+function\s+(\w+)\s*\(([^)]*)\)\s*\{/g,
+    (match, name, args) => {
+      return `export async function ${name}(${args}) {\n  const { db: prisma } = await getTenantPrisma()`
+    }
+  )
+
+  fs.writeFileSync(filePath, src, "utf-8")
+  return "MIGRATED"
 }
 
 // Main
-const rootDir = path.resolve(__dirname, "..", "src", "app", "api")
-const routes = findAllRoutes(rootDir)
+const root = path.resolve(__dirname, "..", "src", "app", "api")
+const routes = findRoutes(root).sort()
+let migrated = 0, skipped = 0, noPrisma = 0, already = 0
 
-let migrated = 0
-let skipped = 0
-const results: { file: string; status: string; reason: string }[] = []
-
-for (const route of routes) {
-  const relative = route.replace(/.*src\/app\//, "src/app/")
-  const result = migrateRoute(route)
-  results.push({ file: relative, status: result.migrated ? "MIGRATED" : "SKIPPED", reason: result.reason })
-  if (result.migrated) migrated++
-  else skipped++
+for (const r of routes) {
+  const rel = normalize(r)
+  const result = migrate(r)
+  const icon = result === "MIGRATED" ? "✓" : "·"
+  if (result === "MIGRATED") migrated++
+  else if (result === "SKIP") skipped++
+  else if (result === "NO_PRISMA") noPrisma++
+  else if (result === "ALREADY") already++
+  console.log(`${icon} ${rel} — ${result}`)
 }
 
-console.log(`\nMigration complete: ${migrated} migrated, ${skipped} skipped\n`)
-console.log("Details:")
-for (const r of results) {
-  const icon = r.status === "MIGRATED" ? "✓" : "·"
-  console.log(`  ${icon} ${r.file} — ${r.reason}`)
-}
+console.log(`\nDone: ${migrated} migrated, ${skipped} skipped, ${noPrisma} no prisma, ${already} already done`)

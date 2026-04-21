@@ -1,9 +1,9 @@
+import { getTenantPrisma } from "@/lib/tenant/get-tenant-prisma"
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
+  const { db: prisma } = await getTenantPrisma()
   const code = req.nextUrl.searchParams.get("code")
   const state = req.nextUrl.searchParams.get("state")
   const error = req.nextUrl.searchParams.get("error")
