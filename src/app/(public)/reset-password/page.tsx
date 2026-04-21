@@ -20,7 +20,7 @@ const strengthColor = ["#ef4444", "#ef4444", "#f59e0b", "#22c55e"]
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", backgroundColor: "#06080d" }} />}>
+    <Suspense fallback={null}>
       <ResetPasswordForm />
     </Suspense>
   )
@@ -71,9 +71,8 @@ function ResetPasswordForm() {
 
   return (
     <div style={{
-      minHeight: "100vh", backgroundColor: "#06080d",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "24px",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      width: "100%",
       fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
     }}>
       <div style={{

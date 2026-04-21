@@ -43,9 +43,8 @@ export default function ForgotPasswordPage() {
 
   return (
     <div style={{
-      minHeight: "100vh", backgroundColor: "#06080d",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "24px",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      width: "100%",
       fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
     }}>
       <div style={{

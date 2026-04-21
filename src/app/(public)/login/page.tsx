@@ -9,7 +9,7 @@ const emailRegex = /.+@.+\..+/
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", backgroundColor: "#06080d" }} />}>
+    <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
   )
@@ -71,13 +71,10 @@ function LoginForm() {
 
   return (
     <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#06080d",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "center",
-      padding: "24px",
+      width: "100%",
       fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
     }}>
       {/* Logo mark */}
