@@ -1,11 +1,26 @@
-import { Prisma, PrismaClient } from "@prisma/client"
+/**
+ * tenantDb(tenantId) is the ONLY safe way to query tenant-scoped data.
+ *
+ * NEVER import the raw prisma client in:
+ *   - src/app/api/** (except webhooks/, auth/, signup/, admin/)
+ *   - src/app/(tenant)/**
+ *
+ * Doing so is a P0 data leak bug. ESLint will fail the build if you try.
+ */
+
 import { prisma } from "@/lib/prisma"
 import { TENANT_SCOPED_MODELS } from "./tenant-scoped-models"
 
-// CRITICAL: this is the ONLY safe way to query tenant-scoped data.
-// Using the raw prisma client in feature code is a P0 data leak bug.
-
 type TenantScopedClient = ReturnType<typeof createTenantClient>
+
+/**
+ * Asserts tenantId is a non-empty string. Throws if undefined, null, or empty.
+ */
+export function assertTenantId(id: string | null | undefined): asserts id is string {
+  if (!id || typeof id !== "string" || id.trim().length === 0) {
+    throw new Error("tenantDb called with empty tenantId — this is a bug. Check that the request has x-tenant-id header set by middleware.")
+  }
+}
 
 function createTenantClient(tenantId: string) {
   return prisma.$extends({
@@ -15,21 +30,38 @@ function createTenantClient(tenantId: string) {
         async findMany({ model, args, query }) {
           if (TENANT_SCOPED_MODELS.has(model)) {
             args.where = { ...args.where, tenantId }
+            if (process.env.TENANT_DB_DEBUG === "1") console.log(`[tenantDb] ${model}.findMany tenantId=${tenantId}`)
           }
           return query(args)
         },
         async findFirst({ model, args, query }) {
           if (TENANT_SCOPED_MODELS.has(model)) {
             args.where = { ...args.where, tenantId }
+            if (process.env.TENANT_DB_DEBUG === "1") console.log(`[tenantDb] ${model}.findFirst tenantId=${tenantId}`)
           }
           return query(args)
         },
         async findUnique({ model, args, query }) {
-          // findUnique uses unique fields so we can't inject tenantId into where
-          // but we verify after fetch that it belongs to the tenant
+          // findUnique uses unique keys — Prisma won't allow extra where fields.
+          // We verify post-fetch that the row belongs to the correct tenant.
+          // This is safe because the caller can only read, not mutate, with findUnique.
           const result = await query(args)
           if (result && TENANT_SCOPED_MODELS.has(model) && (result as any).tenantId !== tenantId) {
-            return null // tenant mismatch — treat as not found
+            if (process.env.TENANT_DB_DEBUG === "1") console.log(`[tenantDb] ${model}.findUnique BLOCKED — row belongs to different tenant`)
+            return null
+          }
+          return result
+        },
+        async findFirstOrThrow({ model, args, query }) {
+          if (TENANT_SCOPED_MODELS.has(model)) {
+            args.where = { ...args.where, tenantId }
+          }
+          return query(args)
+        },
+        async findUniqueOrThrow({ model, args, query }) {
+          const result = await query(args)
+          if (result && TENANT_SCOPED_MODELS.has(model) && (result as any).tenantId !== tenantId) {
+            throw new Error(`${model} not found`)
           }
           return result
         },
@@ -53,6 +85,10 @@ function createTenantClient(tenantId: string) {
         },
         async create({ model, args, query }) {
           if (TENANT_SCOPED_MODELS.has(model)) {
+            // Guard against mismatched tenantId in create data
+            if ((args.data as any).tenantId && (args.data as any).tenantId !== tenantId) {
+              throw new Error(`tenantDb create called with mismatched tenantId: expected ${tenantId}, got ${(args.data as any).tenantId}`)
+            }
             args.data = { ...args.data, tenantId }
           }
           return query(args)
@@ -75,7 +111,8 @@ function createTenantClient(tenantId: string) {
         },
         async updateMany({ model, args, query }) {
           if (TENANT_SCOPED_MODELS.has(model)) {
-            args.where = { ...args.where, tenantId }
+            // Always use AND to prevent accidental scope bypass
+            args.where = { AND: [{ tenantId }, args.where || {}] } as any
           }
           return query(args)
         },
@@ -87,7 +124,7 @@ function createTenantClient(tenantId: string) {
         },
         async deleteMany({ model, args, query }) {
           if (TENANT_SCOPED_MODELS.has(model)) {
-            args.where = { ...args.where, tenantId }
+            args.where = { AND: [{ tenantId }, args.where || {}] } as any
           }
           return query(args)
         },
@@ -110,11 +147,11 @@ const clientCache = new Map<string, TenantScopedClient>()
  * Feature code should ALWAYS use this — never the raw prisma client.
  */
 export function tenantDb(tenantId: string): TenantScopedClient {
+  assertTenantId(tenantId)
   let client = clientCache.get(tenantId)
   if (!client) {
     client = createTenantClient(tenantId)
     clientCache.set(tenantId, client)
-    // Prevent unbounded cache growth
     if (clientCache.size > 100) {
       const firstKey = clientCache.keys().next().value
       if (firstKey) clientCache.delete(firstKey)
