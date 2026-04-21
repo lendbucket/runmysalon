@@ -165,14 +165,22 @@ export const authOptions: NextAuthOptions = {
           if ((dbUser as any).tenantId) {
             const tenant = await prisma.tenant.findUnique({
               where: { id: (dbUser as any).tenantId },
-              select: {
-                id: true, brandName: true, logoUrl: true, primaryColor: true,
-                accentColor: true, posProvider: true, subscriptionStatus: true,
-                planType: true, trialEndsAt: true, slug: true,
-              }
+              select: { id: true, name: true, slug: true, status: true, trialEndsAt: true },
             })
-            token.tenant = tenant
+            const branding = tenant ? await prisma.tenantBranding.findUnique({
+              where: { tenantId: tenant.id },
+            }) : null
+            // Map to the shape expected by portal-shell for backward compat
+            token.tenant = tenant ? {
+              ...tenant,
+              brandName: tenant.name,
+              subscriptionStatus: tenant.status.toLowerCase(),
+              logoUrl: branding?.logoUrl || null,
+              primaryColor: branding?.primaryColor || "#606E74",
+              accentColor: branding?.accentColor || "#7a8f96",
+            } : null
           }
+          token.superAdmin = (dbUser as any).superAdmin || false
         }
       }
       return token;
@@ -185,6 +193,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).locationName = token.locationName;
         (session.user as any).tenantId = token.tenantId as string | undefined;
         (session.user as any).tenant = token.tenant;
+        (session.user as any).superAdmin = token.superAdmin as boolean;
       }
       return session;
     },

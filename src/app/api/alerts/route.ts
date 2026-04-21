@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
 
   const alert = await prisma.adminAlert.create({
     data: {
+      tenantId: (user as any).tenantId || "clsalonenvy000000000000000",
       type: "broadcast",
       title,
       body,

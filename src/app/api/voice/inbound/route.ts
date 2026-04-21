@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   // Find tenant by phone number
   // For now, use a basic lookup — in production, map Twilio numbers to tenants
   const tenant = await prisma.tenant.findFirst({
-    where: { isActive: true },
+    where: { status: "ACTIVE" },
   })
 
   if (!tenant) {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   }
 
   const aiName = "Nova"
-  const greeting = `Thank you for calling ${tenant.brandName}. I'm ${aiName}, your virtual receptionist. How can I help you today?`
+  const greeting = `Thank you for calling ${tenant.name}. I'm ${aiName}, your virtual receptionist. How can I help you today?`
 
   // Log the call
   await prisma.voiceCallLog.create({

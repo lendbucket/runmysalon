@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-04-30.basil" as any })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "")
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -12,8 +12,7 @@ export async function POST(req: Request) {
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET || "")
-  } catch (err) {
-    console.error("[stripe webhook] Signature verification failed:", err)
+  } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
@@ -23,47 +22,44 @@ export async function POST(req: Request) {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id
-        const tenant = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-        if (tenant) {
-          await prisma.tenant.update({
-            where: { id: tenant.id },
+        const subscription = await prisma.tenantSubscription.findUnique({ where: { stripeCustomerId: customerId } })
+        if (subscription) {
+          const statusMap: Record<string, string> = {
+            active: "ACTIVE", past_due: "PAST_DUE", trialing: "TRIAL", canceled: "CANCELED",
+          }
+          const tenantStatus = statusMap[sub.status] || sub.status
+          await prisma.tenantSubscription.update({
+            where: { tenantId: subscription.tenantId },
             data: {
               stripeSubscriptionId: sub.id,
-              subscriptionStatus: sub.status === "active" ? "active" : sub.status === "past_due" ? "past_due" : sub.status === "trialing" ? "trial" : sub.status,
-              subscriptionStartedAt: new Date(sub.start_date * 1000),
+              status: sub.status,
+              currentPeriodStart: (sub as any).current_period_start ? new Date((sub as any).current_period_start * 1000) : undefined,
+              currentPeriodEnd: (sub as any).current_period_end ? new Date((sub as any).current_period_end * 1000) : undefined,
             },
           })
+          // Sync tenant status
+          if (tenantStatus === "ACTIVE" || tenantStatus === "TRIAL" || tenantStatus === "PAST_DUE" || tenantStatus === "CANCELED") {
+            await prisma.tenant.update({
+              where: { id: subscription.tenantId },
+              data: { status: tenantStatus as any },
+            })
+          }
         }
         break
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id
-        const tenant = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-        if (tenant) {
-          await prisma.tenant.update({
-            where: { id: tenant.id },
-            data: { subscriptionStatus: "cancelled" },
+        const subscription = await prisma.tenantSubscription.findUnique({ where: { stripeCustomerId: customerId } })
+        if (subscription) {
+          await prisma.tenantSubscription.update({
+            where: { tenantId: subscription.tenantId },
+            data: { status: "canceled", canceledAt: new Date() },
           })
-        }
-        break
-      }
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice
-        const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id
-        if (customerId) {
-          const tenant = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-          if (tenant) {
-            await prisma.billingEvent.create({
-              data: {
-                tenantId: tenant.id,
-                type: "payment_succeeded",
-                amount: (invoice.amount_paid || 0) / 100,
-                stripeEventId: event.id,
-                metadata: { invoiceId: invoice.id },
-              },
-            })
-          }
+          await prisma.tenant.update({
+            where: { id: subscription.tenantId },
+            data: { status: "CANCELED" },
+          })
         }
         break
       }
@@ -71,19 +67,15 @@ export async function POST(req: Request) {
         const invoice = event.data.object as Stripe.Invoice
         const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id
         if (customerId) {
-          const tenant = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } })
-          if (tenant) {
-            await prisma.tenant.update({
-              where: { id: tenant.id },
-              data: { subscriptionStatus: "past_due" },
+          const subscription = await prisma.tenantSubscription.findUnique({ where: { stripeCustomerId: customerId } })
+          if (subscription) {
+            await prisma.tenantSubscription.update({
+              where: { tenantId: subscription.tenantId },
+              data: { status: "past_due" },
             })
-            await prisma.billingEvent.create({
-              data: {
-                tenantId: tenant.id,
-                type: "payment_failed",
-                amount: (invoice.amount_due || 0) / 100,
-                stripeEventId: event.id,
-              },
+            await prisma.tenant.update({
+              where: { id: subscription.tenantId },
+              data: { status: "PAST_DUE" },
             })
           }
         }

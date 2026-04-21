@@ -8,18 +8,13 @@ interface TenantRow {
   id: string
   name: string
   slug: string
-  brandName: string
-  ownerName: string
   ownerEmail: string
-  posProvider: string
-  planType: string
-  subscriptionStatus: string
-  isActive: boolean
-  isSuspended: boolean
-  staffCount: number
+  status: string
+  memberCount: number
   locationCount: number
   createdAt: string
-  logoUrl: string | null
+  trialEndsAt: string | null
+  subscriptionStatus: string | null
 }
 
 interface Stats {
@@ -36,13 +31,6 @@ const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }>
   cancelled: { bg: "rgba(148,163,184,0.12)", color: "#94A3B8", label: "Cancelled" },
 }
 
-const POS_BADGE: Record<string, string> = {
-  kasse: "#CDC9C0",
-  square: "#3693F5",
-  glossgenius: "#E91E63",
-  meevo: "#FF9800",
-}
-
 export default function AdminPage() {
   const { data: session } = useSession()
   const router = useRouter()
@@ -50,7 +38,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, trial: 0, mrr: 0 })
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ name: "", ownerName: "", ownerEmail: "", posProvider: "kasse" })
+  const [createForm, setCreateForm] = useState({ name: "", ownerEmail: "" })
   const [creating, setCreating] = useState(false)
 
   const userEmail = session?.user?.email
@@ -84,7 +72,7 @@ export default function AdminPage() {
         setTenants(prev => [d.tenant, ...prev])
         setStats(prev => ({ ...prev, total: prev.total + 1, trial: prev.trial + 1 }))
         setShowCreate(false)
-        setCreateForm({ name: "", ownerName: "", ownerEmail: "", posProvider: "kasse" })
+        setCreateForm({ name: "", ownerEmail: "" })
       }
     } catch {}
     setCreating(false)
@@ -94,9 +82,9 @@ export default function AdminPage() {
     await fetch(`/api/admin/tenants/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isSuspended: suspend }),
+      body: JSON.stringify({ status: suspend ? "SUSPENDED" : "ACTIVE", suspendedAt: suspend ? new Date().toISOString() : null }),
     })
-    setTenants(prev => prev.map(t => t.id === id ? { ...t, isSuspended: suspend } : t))
+    setTenants(prev => prev.map(t => t.id === id ? { ...t, status: suspend ? "SUSPENDED" : "ACTIVE" } : t))
   }
 
   if (!isAdmin) {
@@ -165,14 +153,15 @@ export default function AdminPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    {["Salon", "Owner", "POS", "Plan", "Status", "Locations", "Staff", "MRR", "Joined", "Actions"].map(h => (
+                    {["Salon", "Owner", "Status", "Members", "Locations", "Joined", "Actions"].map(h => (
                       <th key={h} style={{ padding: "12px 16px", fontSize: "9px", fontWeight: 700, color: "rgba(205,201,192,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "left" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {tenants.map(t => {
-                    const sb = STATUS_BADGE[t.subscriptionStatus] || STATUS_BADGE.cancelled
+                    const sb = STATUS_BADGE[t.status.toLowerCase()] || STATUS_BADGE.cancelled
+                    const isSuspended = t.status === "SUSPENDED"
                     return (
                       <tr key={t.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                         <td style={{ padding: "14px 16px" }}>
@@ -187,34 +176,23 @@ export default function AdminPage() {
                           </div>
                         </td>
                         <td style={{ padding: "14px 16px" }}>
-                          <div style={{ fontSize: "13px", color: "#CDC9C0" }}>{t.ownerName}</div>
                           <div style={{ fontSize: "11px", color: "#606E74" }}>{t.ownerEmail}</div>
                         </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px", backgroundColor: `${POS_BADGE[t.posProvider] || "#94A3B8"}20`, color: POS_BADGE[t.posProvider] || "#94A3B8", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                            {t.posProvider}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 16px", fontSize: "12px", color: "#94A3B8", textTransform: "capitalize" }}>{t.planType}</td>
                         <td style={{ padding: "14px 16px" }}>
                           <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 10px", borderRadius: "4px", backgroundColor: sb.bg, color: sb.color, letterSpacing: "0.05em", textTransform: "uppercase" }}>
                             {sb.label}
                           </span>
-                          {t.isSuspended && <span style={{ fontSize: "9px", color: "#ef4444", marginLeft: "6px" }}>SUSPENDED</span>}
                         </td>
+                        <td style={{ padding: "14px 16px", fontSize: "13px", color: "#94A3B8", fontFamily: "'Fira Code', monospace" }}>{t.memberCount}</td>
                         <td style={{ padding: "14px 16px", fontSize: "13px", color: "#94A3B8", fontFamily: "'Fira Code', monospace" }}>{t.locationCount}</td>
-                        <td style={{ padding: "14px 16px", fontSize: "13px", color: "#94A3B8", fontFamily: "'Fira Code', monospace" }}>{t.staffCount}</td>
-                        <td style={{ padding: "14px 16px", fontSize: "13px", color: "#FFFFFF", fontFamily: "'Fira Code', monospace", fontWeight: 600 }}>
-                          {t.subscriptionStatus === "active" ? "$99" : "$0"}
-                        </td>
                         <td style={{ padding: "14px 16px", fontSize: "11px", color: "#606E74" }}>
                           {new Date(t.createdAt).toLocaleDateString()}
                         </td>
                         <td style={{ padding: "14px 16px" }}>
                           <div style={{ display: "flex", gap: "6px" }}>
                             <button onClick={() => router.push(`/admin?impersonate=${t.id}`)} style={{ padding: "4px 10px", backgroundColor: "transparent", border: "1px solid rgba(205,201,192,0.2)", borderRadius: "5px", color: "#7a8f96", fontSize: "10px", fontWeight: 600, cursor: "pointer" }}>View</button>
-                            <button onClick={() => handleSuspend(t.id, !t.isSuspended)} style={{ padding: "4px 10px", backgroundColor: "transparent", border: `1px solid ${t.isSuspended ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: "5px", color: t.isSuspended ? "#22c55e" : "#ef4444", fontSize: "10px", fontWeight: 600, cursor: "pointer" }}>
-                              {t.isSuspended ? "Restore" : "Suspend"}
+                            <button onClick={() => handleSuspend(t.id, !isSuspended)} style={{ padding: "4px 10px", backgroundColor: "transparent", border: `1px solid ${isSuspended ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: "5px", color: isSuspended ? "#22c55e" : "#ef4444", fontSize: "10px", fontWeight: 600, cursor: "pointer" }}>
+                              {isSuspended ? "Restore" : "Suspend"}
                             </button>
                           </div>
                         </td>
@@ -240,21 +218,8 @@ export default function AdminPage() {
                 <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} style={{ width: "100%", padding: "12px 14px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#CDC9C0", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6px" }}>Owner Name</label>
-                <input value={createForm.ownerName} onChange={e => setCreateForm(f => ({ ...f, ownerName: e.target.value }))} style={{ width: "100%", padding: "12px 14px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#CDC9C0", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6px" }}>Owner Email</label>
+                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#CDC9C0", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6px" }}>Owner Email *</label>
                 <input type="email" value={createForm.ownerEmail} onChange={e => setCreateForm(f => ({ ...f, ownerEmail: e.target.value }))} style={{ width: "100%", padding: "12px 14px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#CDC9C0", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6px" }}>POS Provider</label>
-                <select value={createForm.posProvider} onChange={e => setCreateForm(f => ({ ...f, posProvider: e.target.value }))} style={{ width: "100%", padding: "12px 14px", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "14px", outline: "none", boxSizing: "border-box" }}>
-                  <option value="kasse">Kasse (RunMySalon POS)</option>
-                  <option value="square">Square</option>
-                  <option value="glossgenius">GlossGenius</option>
-                  <option value="meevo">Meevo</option>
-                </select>
               </div>
             </div>
             <div style={{ display: "flex", gap: "12px", marginTop: "28px" }}>

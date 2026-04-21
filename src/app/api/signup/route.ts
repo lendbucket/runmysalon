@@ -5,25 +5,18 @@ import { hash } from "bcryptjs"
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const {
-      salonName, ownerName, email, phone, address, city, state, zip,
-      posProvider, posToken, posApiKey, meevoSiteId,
-      businessModel, commissionRate, stylistCount, locationCount,
-      password,
-    } = body
+    const { salonName, ownerName, email, phone, address, city, state, zip, password } = body
 
-    // Validate required fields
     if (!salonName || !ownerName || !email || !password) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Check if email already exists
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 })
     }
 
-    // Generate slug from salon name
+    // Generate unique slug
     const baseSlug = salonName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
     let slug = baseSlug
     let counter = 1
@@ -32,33 +25,33 @@ export async function POST(req: Request) {
       counter++
     }
 
-    // Create tenant
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
+    // Create tenant with new schema
     const tenant = await prisma.tenant.create({
       data: {
         name: salonName,
         slug,
-        subdomain: `${slug}.runmysalon.com`,
-        brandName: salonName,
-        ownerName,
         ownerEmail: email,
         ownerPhone: phone || null,
-        businessAddress: address || null,
-        businessCity: city || null,
-        businessState: state || "TX",
-        businessZip: zip || null,
-        posProvider: posProvider || "kasse",
-        posConnected: posProvider === "kasse",
-        squareAccessToken: posProvider === "square" ? posToken : null,
-        glossGeniusApiKey: posProvider === "glossgenius" ? posApiKey : null,
-        meevoApiKey: posProvider === "meevo" ? posApiKey : null,
-        meevoSiteId: posProvider === "meevo" ? meevoSiteId : null,
-        commissionRate: commissionRate ? commissionRate / 100 : 0.40,
+        addressLine1: address || null,
+        city: city || null,
+        state: state || "TX",
+        postalCode: zip || null,
+        status: "TRIAL",
         trialEndsAt,
-        subscriptionStatus: "trial",
       },
+    })
+
+    // Create branding with defaults
+    await prisma.tenantBranding.create({
+      data: { tenantId: tenant.id, emailFromName: salonName },
+    })
+
+    // Create subscription record
+    await prisma.tenantSubscription.create({
+      data: { tenantId: tenant.id, status: "trialing", trialEndsAt },
     })
 
     // Create owner user
@@ -74,16 +67,9 @@ export async function POST(req: Request) {
       },
     })
 
-    // Create default location
-    await prisma.tenantLocation.create({
-      data: {
-        tenantId: tenant.id,
-        name: "Main Location",
-        address: address || null,
-        city: city || null,
-        state: state || "TX",
-        zip: zip || null,
-      },
+    // Create tenant membership
+    await prisma.tenantMembership.create({
+      data: { tenantId: tenant.id, userId: user.id, role: "OWNER" },
     })
 
     // Send welcome email (non-blocking)
@@ -91,7 +77,7 @@ export async function POST(req: Request) {
       const { Resend } = await import("resend")
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: "RunMySalon <welcome@runmysalon.com>",
+        from: process.env.EMAIL_FROM || "RunMySalon <noreply@runmysalon.com>",
         to: email,
         subject: `Welcome to RunMySalon — your portal is ready!`,
         html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#06080d;color:#fff;padding:40px;">
@@ -99,23 +85,16 @@ export async function POST(req: Request) {
           <p>Hi ${ownerName},</p>
           <p>Your salon portal for <strong>${salonName}</strong> is ready.</p>
           <p>Your portal URL: <a href="https://${slug}.runmysalon.com" style="color:#7a8f96;">${slug}.runmysalon.com</a></p>
-          <p>Your 14-day free trial has started. Here's how to get started:</p>
-          <ol>
-            <li>Log in to your portal</li>
-            <li>Customize your branding (logo, colors)</li>
-            <li>Add your first location</li>
-            <li>Invite your stylists</li>
-          </ol>
-          <a href="https://portal.runmysalon.com/login" style="display:inline-block;background:#CDC9C0;color:#06080d;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:20px;">Log In Now</a>
-          <p style="color:#666;font-size:12px;margin-top:40px;">RunMySalon — Powered by Reyna Technology</p>
+          <p>Your 14-day free trial has started.</p>
         </div>`,
       })
       // Notify super admin
+      const adminEmail = process.env.SUPER_ADMIN_EMAIL || "ceo@36west.org"
       await resend.emails.send({
-        from: "RunMySalon <alerts@runmysalon.com>",
-        to: process.env.RUNMYSALON_SUPER_ADMIN_EMAIL || "ceo@36west.org",
+        from: process.env.EMAIL_FROM || "RunMySalon <alerts@runmysalon.com>",
+        to: adminEmail,
         subject: `New RunMySalon signup: ${salonName}`,
-        html: `<p>New salon: ${salonName}<br>Owner: ${ownerName} (${email})<br>POS: ${posProvider || "kasse"}<br>Slug: ${slug}</p>`,
+        html: `<p>New salon: ${salonName}<br>Owner: ${ownerName} (${email})<br>Slug: ${slug}</p>`,
       })
     } catch (emailErr) {
       console.error("[signup] Email error:", emailErr)

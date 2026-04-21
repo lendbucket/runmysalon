@@ -16,20 +16,20 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String?
-  role         UserRole @default(STYLIST)
-  locationId   String?
-  inviteStatus String   @default("NOT_INVITED")
-  createdAt    DateTime @default(now())
-  tenantId     String?
-  updatedAt    DateTime @default(now()) @updatedAt
-  location     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  staffMember  StaffMember?
-  accounts     Account[]
-  sessions     Session[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  name                String?
+  passwordHash        String?
+  role                UserRole             @default(STYLIST)
+  locationId          String?
+  inviteStatus        String               @default("NOT_INVITED")
+  createdAt           DateTime             @default(now())
+  tenantId            String?
+  updatedAt           DateTime             @default(now()) @updatedAt
+  location            Location?            @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  staffMember         StaffMember?
+  accounts            Account[]
+  sessions            Session[]
   suiteSubscription   SuiteSubscription?
   taxReceipts         TaxReceipt[]
   mileageLogs         MileageLog[]
@@ -41,84 +41,96 @@ model User {
   insuranceProfile    InsuranceProfile?
   incidentReports     IncidentReport[]
   otherIncome         OtherIncome[]
-  courseCompletions    CourseCompletion[]
+  courseCompletions   CourseCompletion[]
   tdlrLicenseRenewal  TdlrLicenseRenewal?
-  healthProfile        HealthProfile?
-  videoSubmissions     VideoSubmission[] @relation("VideoSubmissions")
+  healthProfile       HealthProfile?
+  videoSubmissions    VideoSubmission[]    @relation("VideoSubmissions")
   // payrollPeriodsPaid removed — PayrollPeriod no longer has User relation
-  alertsCreated        AdminAlert[]    @relation("AlertsCreated")
-  alertReads           AlertRead[]
-  auditLogs            AuditLog[]
+  alertsCreated       AdminAlert[]         @relation("AlertsCreated")
+  alertReads          AlertRead[]
+  auditLogs           AuditLog[]
+  superAdmin          Boolean              @default(false)
+  memberships         TenantMembership[]
+
   @@index([tenantId])
   @@map("users")
 }
 
 model Location {
-  id               String @id @default(cuid())
-  name             String
-  squareLocationId String @unique
-  address          String
-  phone            String
-  staffMembers           StaffMember[]
-  inventoryItems         InventoryItem[]
-  users                  User[]
-  schedules              Schedule[]
-  purchaseOrders         PurchaseOrder[]
-  onboardingEnrollments  OnboardingEnrollment[]
-  videoSubmissions       VideoSubmission[]
+  id                    String                 @id @default(cuid())
+  tenantId              String?
+  tenant                Tenant?                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name                  String
+  squareLocationId      String
+  address               String
+  phone                 String
+  staffMembers          StaffMember[]
+  inventoryItems        InventoryItem[]
+  users                 User[]
+  schedules             Schedule[]
+  purchaseOrders        PurchaseOrder[]
+  onboardingEnrollments OnboardingEnrollment[]
+  videoSubmissions      VideoSubmission[]
   // payrollPeriods removed — PayrollPeriod no longer has Location relation
-  alerts                 AdminAlert[]
-  auditLogs              AuditLog[]
-  socialToken            SocialToken?
-  socialComments         SocialComment[]
-  socialAnalytics        SocialAnalytics[]
+  alerts                AdminAlert[]
+  auditLogs             AuditLog[]
+  socialToken           SocialToken?
+  socialComments        SocialComment[]
+  socialAnalytics       SocialAnalytics[]
+
+  @@unique([tenantId, squareLocationId])
+  @@index([tenantId])
   @@map("locations")
 }
 
 model StaffMember {
-  id                 String   @id @default(cuid())
-  tenantId           String?
-  userId             String?  @unique
-  locationId         String
-  squareTeamMemberId String?  @unique
-  fullName           String
-  email              String?
-  phone              String?
-  position           String   @default("stylist")
-  isActive           Boolean  @default(true)
-  inviteStatus       String   @default("not_invited")
-  onboardingCompleted   Boolean  @default(false)
-  onboardingCompletedAt DateTime?
-  terminatedAt       DateTime?
-  terminationReason  String?
-  tdlrLicenseNumber  String?
-  tdlrStatus         String?
-  tdlrExpirationDate DateTime?
-  tdlrVerifiedAt     DateTime?
-  tdlrHolderName     String?
-  licenseVerificationToken       String?  @unique
+  id                             String          @id @default(cuid())
+  tenantId                       String?
+  tenant                         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId                         String?         @unique
+  locationId                     String
+  squareTeamMemberId             String?         @unique
+  fullName                       String
+  email                          String?
+  phone                          String?
+  position                       String          @default("stylist")
+  isActive                       Boolean         @default(true)
+  inviteStatus                   String          @default("not_invited")
+  onboardingCompleted            Boolean         @default(false)
+  onboardingCompletedAt          DateTime?
+  terminatedAt                   DateTime?
+  terminationReason              String?
+  tdlrLicenseNumber              String?
+  tdlrStatus                     String?
+  tdlrExpirationDate             DateTime?
+  tdlrVerifiedAt                 DateTime?
+  tdlrHolderName                 String?
+  licenseVerificationToken       String?         @unique
   licenseVerificationTokenExpiry DateTime?
   licenseVerificationMethod      String?
   licenseVerifiedBy              String?
-  createdAt          DateTime @default(now())
-  location           Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  user               User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shifts             Shift[]
-  conductRecords     ConductRecord[]
+  createdAt                      DateTime        @default(now())
+  location                       Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  user                           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shifts                         Shift[]
+  conductRecords                 ConductRecord[]
+
   @@index([tenantId])
   @@map("staff_members")
 }
 
 model InventoryItem {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
+  tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId       String
   brand            String
   productName      String
   category         String
   shadeOrVolume    String?
   unitType         String?
-  quantityOnHand   Float    @default(0)
-  reorderThreshold Float    @default(2)
+  quantityOnHand   Float     @default(0)
+  reorderThreshold Float     @default(2)
   costPerUnit      Float?
   ouncesPerUnit    Float?
   ouncesPerService Float?
@@ -127,18 +139,22 @@ model InventoryItem {
   sku              String?
   expirationDate   DateTime?
   lastRestocked    DateTime?
-  reorderQty       Int      @default(6)
-  approvalStatus   String   @default("pending")
-  isLowStock       Boolean  @default(false)
+  reorderQty       Int       @default(6)
+  approvalStatus   String    @default("pending")
+  isLowStock       Boolean   @default(false)
   notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @default(now()) @updatedAt
-  location         Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  location         Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
   @@map("inventory_items")
 }
 
 model Schedule {
   id            String    @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId    String
   weekStart     DateTime
   weekEnd       DateTime
@@ -154,11 +170,15 @@ model Schedule {
   updatedAt     DateTime  @default(now()) @updatedAt
   shifts        Shift[]
   location      Location  @relation(fields: [locationId], references: [id])
+
+  @@index([tenantId])
   @@map("schedules")
 }
 
 model Shift {
   id            String      @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   scheduleId    String
   staffMemberId String
   date          DateTime
@@ -169,6 +189,8 @@ model Shift {
   createdAt     DateTime    @default(now())
   schedule      Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   staffMember   StaffMember @relation(fields: [staffMemberId], references: [id])
+
+  @@index([tenantId])
   @@map("shifts")
 }
 
@@ -176,6 +198,7 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
@@ -194,6 +217,7 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
@@ -204,11 +228,14 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("sessions")
 }
 
 model AdminAlert {
   id          String      @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type        String      @default("broadcast")
   title       String
   body        String
@@ -220,6 +247,8 @@ model AdminAlert {
   location    Location?   @relation(fields: [locationId], references: [id])
   createdBy   User?       @relation("AlertsCreated", fields: [createdById], references: [id])
   reads       AlertRead[]
+
+  @@index([tenantId])
   @@map("admin_alerts")
 }
 
@@ -230,118 +259,130 @@ model AlertRead {
   readAt  DateTime   @default(now())
   alert   AdminAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
   user    User       @relation(fields: [userId], references: [id])
+
   @@unique([alertId, userId])
   @@map("alert_reads")
 }
 
 model PurchaseOrder {
-  id              String   @id @default(cuid())
-  poNumber        String   @unique
-  locationId      String
-  status          String   @default("draft")
-  supplier        String
-  totalAmount     Float    @default(0)
-  notes           String?
-  createdById     String
-  approvedById    String?
-  approvedAt      DateTime?
-  orderedAt       DateTime?
-  receivedAt      DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
-  items           PurchaseOrderItem[]
-  location        Location @relation(fields: [locationId], references: [id])
+  id           String              @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  poNumber     String              @unique
+  locationId   String
+  status       String              @default("draft")
+  supplier     String
+  totalAmount  Float               @default(0)
+  notes        String?
+  createdById  String
+  approvedById String?
+  approvedAt   DateTime?
+  orderedAt    DateTime?
+  receivedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @default(now()) @updatedAt
+  items        PurchaseOrderItem[]
+  location     Location            @relation(fields: [locationId], references: [id])
+
+  @@index([tenantId])
   @@map("purchase_orders")
 }
 
 model PurchaseOrderItem {
-  id                String        @id @default(cuid())
-  purchaseOrderId   String
-  inventoryItemId   String?
-  brand             String
-  productName       String
-  shadeOrVolume     String?
-  unitType          String?
-  quantityOrdered   Int
-  quantityReceived  Int           @default(0)
-  costPerUnit       Float         @default(0)
-  totalCost         Float         @default(0)
-  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  id               String        @id @default(cuid())
+  purchaseOrderId  String
+  inventoryItemId  String?
+  brand            String
+  productName      String
+  shadeOrVolume    String?
+  unitType         String?
+  quantityOrdered  Int
+  quantityReceived Int           @default(0)
+  costPerUnit      Float         @default(0)
+  totalCost        Float         @default(0)
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
   @@map("purchase_order_items")
 }
 
 model AnonymousComplaint {
-  id          String   @id @default(cuid())
-  category    String
-  locationId  String?
-  message     String
-  isReviewed  Boolean  @default(false)
-  reviewedAt  DateTime?
-  reviewNote  String?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  category   String
+  locationId String?
+  message    String
+  isReviewed Boolean   @default(false)
+  reviewedAt DateTime?
+  reviewNote String?
+  createdAt  DateTime  @default(now())
+
   @@map("anonymous_complaints")
 }
 
 model ConductRecord {
-  id              String   @id @default(cuid())
-  staffMemberId   String
-  issuedById      String
-  severity        String
-  category        String
-  title           String
-  description     String
-  actionTaken     String?
-  followUpDate    DateTime?
-  isAcknowledged  Boolean  @default(false)
-  acknowledgedAt  DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
-  staffMember     StaffMember @relation(fields: [staffMemberId], references: [id])
+  id             String      @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staffMemberId  String
+  issuedById     String
+  severity       String
+  category       String
+  title          String
+  description    String
+  actionTaken    String?
+  followUpDate   DateTime?
+  isAcknowledged Boolean     @default(false)
+  acknowledgedAt DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now()) @updatedAt
+  staffMember    StaffMember @relation(fields: [staffMemberId], references: [id])
+
+  @@index([tenantId])
   @@map("conduct_records")
 }
 
 model OnboardingEnrollment {
-  id                    String    @id @default(cuid())
-  tenantId              String?
-  inviteToken           String    @unique @default(cuid())
-  email                 String
-  firstName             String
-  lastName              String
-  locationId            String
-  role                  UserRole  @default(STYLIST)
-  status                String    @default("pending")
+  id          String   @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inviteToken String   @unique @default(cuid())
+  email       String
+  firstName   String
+  lastName    String
+  locationId  String
+  role        UserRole @default(STYLIST)
+  status      String   @default("pending")
 
   // Personal Info
-  phone                 String?
-  dateOfBirth           String?
-  address               String?
-  city                  String?
-  state                 String?
-  zip                   String?
+  phone       String?
+  dateOfBirth String?
+  address     String?
+  city        String?
+  state       String?
+  zip         String?
 
   // W-9 Info
-  w9LegalName           String?
-  w9BusinessName        String?
-  w9TaxClassification   String?
-  w9Ssn                 String?
-  w9Ein                 String?
-  w9Address             String?
-  w9CertifiedAt         DateTime?
+  w9LegalName         String?
+  w9BusinessName      String?
+  w9TaxClassification String?
+  w9Ssn               String?
+  w9Ein               String?
+  w9Address           String?
+  w9CertifiedAt       DateTime?
 
   // Direct Deposit
-  ddBankName            String?
-  ddRoutingNumber       String?
-  ddAccountNumber       String?
-  ddAccountType         String?
-  ddNameOnAccount       String?
+  ddBankName      String?
+  ddRoutingNumber String?
+  ddAccountNumber String?
+  ddAccountType   String?
+  ddNameOnAccount String?
 
   // License Info
-  licenseNumber         String?
-  licenseState          String?
-  licenseExpiration     String?
-  licenseType           String?
-  yearsOfExperience     Int?
-  specialties           String?
+  licenseNumber     String?
+  licenseState      String?
+  licenseExpiration String?
+  licenseType       String?
+  yearsOfExperience Int?
+  specialties       String?
 
   // Emergency Contact
   emergencyName         String?
@@ -349,18 +390,18 @@ model OnboardingEnrollment {
   emergencyPhone        String?
 
   // Agreement / Signature
-  signatureData         String?   @db.Text
-  signedLegalName       String?
-  signedSsnLast4        String?
-  signedDate            String?
-  agreementSignedAt     DateTime?
+  signatureData     String?   @db.Text
+  signedLegalName   String?
+  signedSsnLast4    String?
+  signedDate        String?
+  agreementSignedAt DateTime?
 
   // Compliance Acknowledgments
-  ackPolicies           Boolean   @default(false)
-  ackConfidentiality    Boolean   @default(false)
-  ackAtWill             Boolean   @default(false)
-  ackSafetyProtocol     Boolean   @default(false)
-  ackTechPolicy         Boolean   @default(false)
+  ackPolicies        Boolean @default(false)
+  ackConfidentiality Boolean @default(false)
+  ackAtWill          Boolean @default(false)
+  ackSafetyProtocol  Boolean @default(false)
+  ackTechPolicy      Boolean @default(false)
 
   // Email/Phone Verification
   emailVerificationCode   String?
@@ -371,94 +412,98 @@ model OnboardingEnrollment {
   phoneVerified           Boolean   @default(false)
 
   // Fortune 500 Consents
-  ackBackgroundCheck      Boolean   @default(false)
-  ackDrugFree             Boolean   @default(false)
-  ackSocialMedia          Boolean   @default(false)
-  ackSanitation           Boolean   @default(false)
-  ackEquipment            Boolean   @default(false)
-  mediaConsent            String?
-  ackDirectDeposit        Boolean   @default(false)
+  ackBackgroundCheck Boolean @default(false)
+  ackDrugFree        Boolean @default(false)
+  ackSocialMedia     Boolean @default(false)
+  ackSanitation      Boolean @default(false)
+  ackEquipment       Boolean @default(false)
+  mediaConsent       String?
+  ackDirectDeposit   Boolean @default(false)
 
   // Portal account
-  portalEmail               String?
-  portalPasswordHash        String?
-  portalAccountRequested    Boolean   @default(false)
-  portalAccountApproved     Boolean   @default(false)
-  portalAccountApprovedAt   DateTime?
+  portalEmail             String?
+  portalPasswordHash      String?
+  portalAccountRequested  Boolean   @default(false)
+  portalAccountApproved   Boolean   @default(false)
+  portalAccountApprovedAt DateTime?
 
   // Verification
-  verificationCode      String?
-  squareTeamMemberId    String?
-  squareCreationError   String?
+  verificationCode    String?
+  squareTeamMemberId  String?
+  squareCreationError String?
 
   // Reminders & Cancellation
-  lastReminderSentAt    DateTime?
-  reminderCount         Int       @default(0)
-  cancelledAt           DateTime?
+  lastReminderSentAt DateTime?
+  reminderCount      Int       @default(0)
+  cancelledAt        DateTime?
 
-  completedAt           DateTime?
-  expiresAt             DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @default(now()) @updatedAt
+  completedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
 
-  location              Location  @relation(fields: [locationId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
   @@index([tenantId])
   @@map("onboarding_enrollments")
 }
 
 model SuiteSubscription {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  status    String   @default("active")
-  plan      String   @default("monthly")
-  price     Float    @default(40)
-  startDate DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  status    String    @default("active")
+  plan      String    @default("monthly")
+  price     Float     @default(40)
+  startDate DateTime  @default(now())
   endDate   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("suite_subscriptions")
 }
 
 model TaxReceipt {
-  id           String   @id @default(cuid())
-  userId       String
-  imageData    String?  @db.Text
-  vendor       String?
-  amount       Float?
-  category     String?
-  description  String?
-  receiptDate  DateTime?
-  isDeductible Boolean  @default(true)
-  aiAnalysis   String?  @db.Text
-  taxYear      Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+  id               String    @id @default(cuid())
+  userId           String
+  imageData        String?   @db.Text
+  vendor           String?
+  amount           Float?
+  category         String?
+  description      String?
+  receiptDate      DateTime?
+  isDeductible     Boolean   @default(true)
+  aiAnalysis       String?   @db.Text
+  taxYear          Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
   scheduleC_line   String?
-  isSplit          Boolean  @default(false)
-  businessPercent  Float    @default(100)
+  isSplit          Boolean   @default(false)
+  businessPercent  Float     @default(100)
   businessAmount   Float?
-  isDuplicate      Boolean  @default(false)
+  isDuplicate      Boolean   @default(false)
   merchantCategory String?
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("tax_receipts")
 }
 
 model MileageLog {
-  id        String   @id @default(cuid())
-  userId    String
-  date      DateTime
-  purpose   String
-  miles     Float
-  amount    Float
-  notes     String?
-  taxYear   Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  date         DateTime
+  purpose      String
+  miles        Float
+  amount       Float
+  notes        String?
+  taxYear      Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
   fromLocation String?
   toLocation   String?
   isRoundTrip  Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("mileage_logs")
 }
 
@@ -474,6 +519,7 @@ model QuarterlyPayment {
   confirmationNum String?
   status          String    @default("upcoming")
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, taxYear, quarter])
   @@map("quarterly_payments")
 }
@@ -487,6 +533,7 @@ model TaxYear {
   estimatedTax    Float   @default(0)
   isFinalized     Boolean @default(false)
   user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, year])
   @@map("tax_years")
 }
@@ -505,6 +552,7 @@ model CreditProfile {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now()) @updatedAt
   user                  User      @relation(fields: [userId], references: [id])
+
   @@map("credit_profiles")
 }
 
@@ -521,6 +569,7 @@ model DisputeLetter {
   sentAt        DateTime?
   createdAt     DateTime  @default(now())
   user          User      @relation(fields: [userId], references: [id])
+
   @@map("dispute_letters")
 }
 
@@ -535,24 +584,26 @@ model IncomeVerification {
   purpose      String?
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
+
   @@map("income_verifications")
 }
 
 model InsuranceProfile {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  status          String    @default("none")
-  policyNumber    String?
-  provider        String?   @default("Next Insurance")
-  coverageAmount  Float?    @default(1000000)
-  monthlyPremium  Float?    @default(15)
-  startDate       DateTime?
-  expirationDate  DateTime?
-  certificateUrl  String?
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
-  user            User      @relation(fields: [userId], references: [id])
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  status         String    @default("none")
+  policyNumber   String?
+  provider       String?   @default("Next Insurance")
+  coverageAmount Float?    @default(1000000)
+  monthlyPremium Float?    @default(15)
+  startDate      DateTime?
+  expirationDate DateTime?
+  certificateUrl String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  user           User      @relation(fields: [userId], references: [id])
+
   @@map("insurance_profiles")
 }
 
@@ -571,6 +622,7 @@ model IncidentReport {
   status           String   @default("documented")
   createdAt        DateTime @default(now())
   user             User     @relation(fields: [userId], references: [id])
+
   @@map("incident_reports")
 }
 
@@ -584,38 +636,41 @@ model OtherIncome {
   taxYear   Int
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
   @@map("other_income")
 }
 
 model EduCourse {
-  id              String   @id @default(cuid())
+  id              String             @id @default(cuid())
   title           String
   description     String
   category        String
   instructor      String?
-  durationMinutes Int      @default(30)
-  level           String   @default("beginner")
+  durationMinutes Int                @default(30)
+  level           String             @default("beginner")
   thumbnailUrl    String?
   videoUrl        String?
-  isFeatured      Boolean  @default(false)
-  isTdlrApproved  Boolean  @default(false)
-  tdlrHours       Float    @default(0)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  isFeatured      Boolean            @default(false)
+  isTdlrApproved  Boolean            @default(false)
+  tdlrHours       Float              @default(0)
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
   completions     CourseCompletion[]
   submission      VideoSubmission?
+
   @@map("edu_courses")
 }
 
 model CourseCompletion {
   id          String    @id @default(cuid())
   userId      String
-  courseId     String
+  courseId    String
   completedAt DateTime  @default(now())
   score       Int?
   notes       String?
   user        User      @relation(fields: [userId], references: [id])
   course      EduCourse @relation(fields: [courseId], references: [id])
+
   @@unique([userId, courseId])
   @@map("course_completions")
 }
@@ -632,6 +687,7 @@ model TdlrLicenseRenewal {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @default(now()) @updatedAt
   user              User      @relation(fields: [userId], references: [id])
+
   @@map("tdlr_license_renewals")
 }
 
@@ -652,6 +708,7 @@ model HealthProfile {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @default(now()) @updatedAt
   user              User      @relation(fields: [userId], references: [id])
+
   @@map("health_profiles")
 }
 
@@ -678,12 +735,14 @@ model VideoSubmission {
   updatedAt        DateTime   @default(now()) @updatedAt
   submitter        User       @relation("VideoSubmissions", fields: [submittedBy], references: [id])
   location         Location   @relation(fields: [locationId], references: [id])
+
   @@map("video_submissions")
 }
 
 model PayrollPeriod {
   id              String         @id @default(cuid())
   tenantId        String?
+  tenant          Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId      String
   periodStart     DateTime
   periodEnd       DateTime
@@ -697,6 +756,7 @@ model PayrollPeriod {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @default(now()) @updatedAt
   entries         PayrollEntry[]
+
   @@index([tenantId])
   @@map("payroll_periods")
 }
@@ -714,12 +774,14 @@ model PayrollEntry {
   totalPayout     Float         @default(0)
   period          PayrollPeriod @relation(fields: [periodId], references: [id])
   createdAt       DateTime      @default(now())
+
   @@map("payroll_entries")
 }
 
 model AuditLog {
   id         String    @id @default(cuid())
   tenantId   String?
+  tenant     Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   action     String
   entity     String
   entityId   String?
@@ -732,12 +794,15 @@ model AuditLog {
   createdAt  DateTime  @default(now())
   user       User?     @relation(fields: [userId], references: [id])
   location   Location? @relation(fields: [locationId], references: [id])
+
   @@index([tenantId])
   @@map("audit_logs")
 }
 
 model SocialPost {
   id           String    @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId   String
   platform     String
   content      String    @db.Text
@@ -757,6 +822,8 @@ model SocialPost {
   createdBy    String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([tenantId])
   @@map("social_posts")
 }
 
@@ -770,6 +837,7 @@ model SocialToken {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   location      Location  @relation(fields: [locationId], references: [id])
+
   @@map("social_tokens")
 }
 
@@ -787,6 +855,7 @@ model SocialComment {
   replyText    String?
   repliedAt    DateTime?
   location     Location  @relation(fields: [locationId], references: [id])
+
   @@map("social_comments")
 }
 
@@ -802,6 +871,7 @@ model SocialAnalytics {
   postsCount     Int      @default(0)
   createdAt      DateTime @default(now())
   location       Location @relation(fields: [locationId], references: [id])
+
   @@unique([locationId, platform, date])
   @@map("social_analytics")
 }
@@ -811,27 +881,30 @@ model SystemSetting {
   key       String   @unique
   value     String   @db.Text
   updatedAt DateTime @default(now()) @updatedAt
+
   @@map("system_settings")
 }
 
 model WaitlistEntry {
-  id                   String    @id @default(cuid())
-  tenantId             String?
-  locationId           String
-  customerName         String
-  customerPhone        String
-  customerEmail        String?
-  requestedDate        DateTime
-  requestedStylist     String?
-  requestedService     String?
-  notes                String?
-  status               String    @default("waiting")
-  notifiedAt           DateTime?
-  notificationExpiry   DateTime?
-  notificationStatus   String?
-  notificationToken    String?   @unique
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @default(now()) @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId         String
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  requestedDate      DateTime
+  requestedStylist   String?
+  requestedService   String?
+  notes              String?
+  status             String    @default("waiting")
+  notifiedAt         DateTime?
+  notificationExpiry DateTime?
+  notificationStatus String?
+  notificationToken  String?   @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+
   @@index([tenantId])
   @@map("waitlist_entries")
 }
@@ -870,6 +943,7 @@ model TdlrCacheMetadata {
 model Client {
   id               String          @id @default(cuid())
   tenantId         String?
+  tenant           Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   squareCustomerId String          @unique
   firstName        String?
   lastName         String?
@@ -894,6 +968,7 @@ model Client {
 model ClientFormula {
   id              String   @id @default(cuid())
   tenantId        String?
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clientId        String
   client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   appliedBy       String
@@ -919,6 +994,8 @@ model ClientFormula {
 
 model CardOnFileRequest {
   id                    String    @id @default(cuid())
+  tenantId              String?
+  tenant                Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   token                 String    @unique @default(cuid())
   tokenExpiry           DateTime
   clientName            String
@@ -936,11 +1013,14 @@ model CardOnFileRequest {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  @@index([tenantId])
   @@map("card_on_file_requests")
 }
 
 model AppointmentNote {
   id               String   @id @default(cuid())
+  tenantId         String?
+  tenant           Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   squareBookingId  String
   clientId         String?
   squareCustomerId String?
@@ -953,11 +1033,14 @@ model AppointmentNote {
 
   @@index([squareBookingId])
   @@index([squareCustomerId])
+  @@index([tenantId])
   @@map("appointment_notes")
 }
 
 model FinancialAccount {
   id                String            @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId        String
   accountName       String
   accountType       String
@@ -971,24 +1054,27 @@ model FinancialAccount {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   transactions      BankTransaction[]
+
+  @@index([tenantId])
   @@map("financial_accounts")
 }
 
 model BankTransaction {
-  id                   String           @id @default(cuid())
-  financialAccountId   String
-  financialAccount     FinancialAccount @relation(fields: [financialAccountId], references: [id])
-  stripeTransactionId  String?          @unique
-  date                 DateTime
-  description          String
-  amount               Float
-  category             String?
-  subcategory          String?
-  isReconciled         Boolean          @default(false)
-  notes                String?
-  receiptUrl           String?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  id                  String           @id @default(cuid())
+  financialAccountId  String
+  financialAccount    FinancialAccount @relation(fields: [financialAccountId], references: [id])
+  stripeTransactionId String?          @unique
+  date                DateTime
+  description         String
+  amount              Float
+  category            String?
+  subcategory         String?
+  isReconciled        Boolean          @default(false)
+  notes               String?
+  receiptUrl          String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
   @@index([financialAccountId])
   @@index([date])
   @@map("bank_transactions")
@@ -997,6 +1083,7 @@ model BankTransaction {
 model Expense {
   id                 String   @id @default(cuid())
   tenantId           String?
+  tenant             Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId         String
   date               DateTime
   vendor             String
@@ -1014,6 +1101,7 @@ model Expense {
   approvedBy         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
   @@index([locationId])
   @@index([date])
   @@index([category])
@@ -1024,6 +1112,7 @@ model Expense {
 model Invoice {
   id               String    @id @default(cuid())
   tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invoiceNumber    String    @unique
   locationId       String
   clientName       String
@@ -1046,6 +1135,7 @@ model Invoice {
   createdBy        String
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
   @@index([locationId])
   @@index([status])
   @@index([squareCustomerId])
@@ -1055,6 +1145,8 @@ model Invoice {
 
 model BoothRental {
   id            String               @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId    String
   renterName    String
   renterEmail   String?
@@ -1072,7 +1164,9 @@ model BoothRental {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   payments      BoothRentalPayment[]
+
   @@index([locationId])
+  @@index([tenantId])
   @@map("booth_rentals")
 }
 
@@ -1087,73 +1181,84 @@ model BoothRentalPayment {
   paymentMethod String?
   notes         String?
   createdAt     DateTime    @default(now())
+
   @@index([boothRentalId])
   @@index([status])
   @@map("booth_rental_payments")
 }
 
 model TaxRecord {
-  id                    String   @id @default(cuid())
-  locationId            String
-  year                  Int
-  quarter               Int?
-  periodStart           DateTime
-  periodEnd             DateTime
-  grossRevenue          Float    @default(0)
-  totalExpenses         Float    @default(0)
-  netIncome             Float    @default(0)
-  salesTaxCollected     Float    @default(0)
-  salesTaxRate          Float    @default(0.0825)
-  estimatedFederalTax   Float    @default(0)
-  estimatedSelfEmployTax Float   @default(0)
-  totalTaxLiability     Float    @default(0)
-  status                String   @default("draft")
-  notes                 String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  tenantId               String?
+  tenant                 Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId             String
+  year                   Int
+  quarter                Int?
+  periodStart            DateTime
+  periodEnd              DateTime
+  grossRevenue           Float    @default(0)
+  totalExpenses          Float    @default(0)
+  netIncome              Float    @default(0)
+  salesTaxCollected      Float    @default(0)
+  salesTaxRate           Float    @default(0.0825)
+  estimatedFederalTax    Float    @default(0)
+  estimatedSelfEmployTax Float    @default(0)
+  totalTaxLiability      Float    @default(0)
+  status                 String   @default("draft")
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
   @@index([locationId])
   @@index([year, quarter])
+  @@index([tenantId])
   @@map("tax_records")
 }
 
 model ContractorPayment {
-  id               String    @id @default(cuid())
-  locationId       String
-  staffMemberId    String?
-  contractorName   String
-  contractorEmail  String?
-  ein              String?
-  ssn              String?
-  year             Int
-  totalPaid        Float     @default(0)
-  serviceCommission Float    @default(0)
-  tips             Float     @default(0)
-  requires1099     Boolean   @default(false)
-  form1099Sent     Boolean   @default(false)
-  form1099SentAt   DateTime?
-  notes            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId        String
+  staffMemberId     String?
+  contractorName    String
+  contractorEmail   String?
+  ein               String?
+  ssn               String?
+  year              Int
+  totalPaid         Float     @default(0)
+  serviceCommission Float     @default(0)
+  tips              Float     @default(0)
+  requires1099      Boolean   @default(false)
+  form1099Sent      Boolean   @default(false)
+  form1099SentAt    DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
   @@index([locationId])
   @@index([year])
+  @@index([tenantId])
   @@map("contractor_payments")
 }
 
 model BusinessModel {
-  id               String   @id @default(cuid())
-  tenantId         String?
-  locationId       String   @unique
-  modelType        String
-  commissionRate   Float    @default(0.40)
-  salesTaxRate     Float    @default(0.0825)
-  boothRentalRate  Float?
-  suiteRentalRate  Float?
-  w2PayrollEnabled    Boolean  @default(false)
-  fiscalYearStart     Int      @default(1)
-  onboardingComplete  Boolean  @default(false)
-  notes               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId         String   @unique
+  modelType          String
+  commissionRate     Float    @default(0.40)
+  salesTaxRate       Float    @default(0.0825)
+  boothRentalRate    Float?
+  suiteRentalRate    Float?
+  w2PayrollEnabled   Boolean  @default(false)
+  fiscalYearStart    Int      @default(1)
+  onboardingComplete Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
   @@index([tenantId])
   @@map("business_models")
 }
@@ -1161,6 +1266,7 @@ model BusinessModel {
 model OffboardingRecord {
   id                      String    @id @default(cuid())
   tenantId                String?
+  tenant                  Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   staffMemberId           String
   staffMemberName         String
   locationId              String
@@ -1186,30 +1292,31 @@ model OffboardingRecord {
 }
 
 model SocialConnection {
-  id                    String    @id @default(cuid())
-  tenantId              String?
-  locationId            String
-  platform              String
-  platformUserId        String
-  platformUserName      String
-  platformUserAvatar    String?
-  pageId                String?
-  pageName              String?
-  pageAvatar            String?
-  instagramAccountId    String?
-  instagramUsername      String?
-  instagramAvatar       String?
-  accessToken           String    @db.Text
-  accessTokenExpiry     DateTime?
-  refreshToken          String?   @db.Text
-  scope                 String?
-  isActive              Boolean   @default(true)
-  lastSyncAt            DateTime?
-  followerCount         Int?
-  followingCount        Int?
-  postCount             Int?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId         String
+  platform           String
+  platformUserId     String
+  platformUserName   String
+  platformUserAvatar String?
+  pageId             String?
+  pageName           String?
+  pageAvatar         String?
+  instagramAccountId String?
+  instagramUsername  String?
+  instagramAvatar    String?
+  accessToken        String    @db.Text
+  accessTokenExpiry  DateTime?
+  refreshToken       String?   @db.Text
+  scope              String?
+  isActive           Boolean   @default(true)
+  lastSyncAt         DateTime?
+  followerCount      Int?
+  followingCount     Int?
+  postCount          Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@unique([locationId, platform, pageId])
   @@index([locationId])
@@ -1227,12 +1334,14 @@ model SocialOAuthState {
   redirectUri String
   expiresAt   DateTime
   createdAt   DateTime @default(now())
+
   @@map("social_oauth_states")
 }
 
 model ApiKey {
   id            String    @id @default(cuid())
   tenantId      String?
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name          String
   keyId         String    @unique
   keySecretHash String
@@ -1277,6 +1386,7 @@ model ApiKeyLog {
 model PerformanceGoal {
   id            String   @id @default(cuid())
   tenantId      String?
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   staffMemberId String
   locationId    String
   goalType      String
@@ -1302,6 +1412,8 @@ model PerformanceGoal {
 
 model PerformanceBonus {
   id            String    @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   staffMemberId String
   goalId        String?
   amount        Float
@@ -1318,11 +1430,14 @@ model PerformanceBonus {
   updatedAt     DateTime  @updatedAt
 
   @@index([staffMemberId])
+  @@index([tenantId])
   @@map("performance_bonuses")
 }
 
 model RebookRecord {
   id                String    @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   staffMemberId     String
   locationId        String
   clientSquareId    String
@@ -1334,6 +1449,7 @@ model RebookRecord {
 
   @@index([staffMemberId])
   @@index([locationId])
+  @@index([tenantId])
   @@map("rebook_records")
 }
 
@@ -1344,6 +1460,7 @@ model RebookRecord {
 model ReviewRequest {
   id               String    @id @default(cuid())
   tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId       String
   clientSquareId   String
   clientName       String
@@ -1376,6 +1493,7 @@ model ReviewRequest {
 model PortalPermission {
   id            String   @id @default(cuid())
   tenantId      String?
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId    String?
   staffMemberId String?
   role          String
@@ -1400,6 +1518,7 @@ model PortalPermission {
 model ChurnPrediction {
   id                   String    @id @default(cuid())
   tenantId             String?
+  tenant               Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId           String
   clientSquareId       String
   clientName           String
@@ -1434,6 +1553,8 @@ model ChurnPrediction {
 
 model ReynaConversation {
   id             String   @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessionId      String   @unique
   userId         String
   locationId     String?
@@ -1448,11 +1569,14 @@ model ReynaConversation {
 
   @@index([userId])
   @@index([locationId])
+  @@index([tenantId])
   @@map("reyna_conversations")
 }
 
 model ReynaKnowledge {
   id          String   @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category    String
   key         String
   value       Json
@@ -1464,181 +1588,244 @@ model ReynaKnowledge {
 
   @@unique([category, key, locationId])
   @@index([category])
+  @@index([tenantId])
   @@map("reyna_knowledge")
 }
 
 // ═══════════════════════════════════════
-// RunMySalon Multi-Tenancy
+// RunMySalon Multi-Tenancy Foundation
 // ═══════════════════════════════════════
 
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  MANAGER
+  STYLIST
+  FRONT_DESK
+  ACCOUNTANT
+}
+
+enum POSProvider {
+  KASSE
+  SQUARE
+  GLOSSGENIUS
+  MEEVO
+  VAGARO
+  MINDBODY
+}
+
+enum POSConnectionStatus {
+  PENDING
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
 model Tenant {
-  id                String    @id @default(cuid())
-  name              String
-  slug              String    @unique
-  subdomain         String    @unique
-  customDomain      String?
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  name            String
+  legalName       String?
+  status          TenantStatus @default(TRIAL)
+  trialEndsAt     DateTime?
+  timezone        String       @default("America/Chicago")
+  currency        String       @default("USD")
+  locale          String       @default("en-US")
+  ownerEmail      String
+  ownerPhone      String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  state           String?
+  postalCode      String?
+  country         String       @default("US")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  suspendedAt     DateTime?
+  suspendedReason String?
 
-  // Branding
-  logoUrl           String?
-  faviconUrl        String?
-  primaryColor      String    @default("#606E74")
-  accentColor       String    @default("#7a8f96")
-  brandName         String
+  memberships    TenantMembership[]
+  invitations    TenantInvitation[]
+  posConnections TenantPOSConnection[]
+  branding       TenantBranding?
+  subscription   TenantSubscription?
 
-  // Business info
-  ownerName         String
-  ownerEmail        String
-  ownerPhone        String?
-  businessAddress   String?
-  businessCity      String?
-  businessState     String    @default("TX")
-  businessZip       String?
-  taxId             String?
+  // Reverse relations for tenant-scoped models
+  locations             Location[]
+  staffMembers          StaffMember[]
+  clients               Client[]
+  clientFormulas        ClientFormula[]
+  inventoryItems        InventoryItem[]
+  schedules             Schedule[]
+  shifts                Shift[]
+  adminAlerts           AdminAlert[]
+  purchaseOrders        PurchaseOrder[]
+  conductRecords        ConductRecord[]
+  onboardingEnrollments OnboardingEnrollment[]
+  cardOnFileRequests    CardOnFileRequest[]
+  appointmentNotes      AppointmentNote[]
+  financialAccounts     FinancialAccount[]
+  expenses              Expense[]
+  invoices              Invoice[]
+  boothRentals          BoothRental[]
+  taxRecords            TaxRecord[]
+  contractorPayments    ContractorPayment[]
+  businessModels        BusinessModel[]
+  offboardingRecords    OffboardingRecord[]
+  payrollPeriods        PayrollPeriod[]
+  auditLogs             AuditLog[]
+  socialPosts           SocialPost[]
+  socialConnections     SocialConnection[]
+  waitlistEntries       WaitlistEntry[]
+  performanceGoals      PerformanceGoal[]
+  performanceBonuses    PerformanceBonus[]
+  rebookRecords         RebookRecord[]
+  reviewRequests        ReviewRequest[]
+  portalPermissions     PortalPermission[]
+  churnPredictions      ChurnPrediction[]
+  reynaConversations    ReynaConversation[]
+  reynaKnowledge        ReynaKnowledge[]
+  apiKeys               ApiKey[]
+  giftCards             GiftCard[]
+  referralCodes         ReferralCode[]
+  referrals             Referral[]
+  loyaltyAccounts       LoyaltyAccount[]
+  memberships2          Membership[]
+  marketingCampaigns    MarketingCampaign[]
+  kioskSessions         KioskSession[]
+  voiceCallLogs         VoiceCallLog[]
 
-  // POS Integration
-  posProvider       String    @default("kasse")
-  posConnected      Boolean   @default(false)
-  posAccessToken    String?
-  posLocationIds    Json?
-  posWebhookSecret  String?
-
-  // Square specific
-  squareAccessToken String?
-  squareMerchantId  String?
-
-  // GlossGenius specific
-  glossGeniusApiKey String?
-
-  // Meevo specific
-  meevoApiKey       String?
-  meevoSiteId       String?
-
-  // Billing
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  stripePriceId        String?
-  subscriptionStatus   String   @default("trial")
-  trialEndsAt          DateTime?
-  subscriptionStartedAt DateTime?
-  subscriptionEndsAt   DateTime?
-  billingEmail         String?
-  planType             String   @default("starter")
-
-  // Settings
-  timezone          String    @default("America/Chicago")
-  currency          String    @default("USD")
-  commissionRate    Float     @default(0.40)
-  salesTaxRate      Float     @default(0.0825)
-  payPeriod         String    @default("weekly")
-  payDay            String    @default("tuesday")
-  onboardingComplete Boolean  @default(false)
-  onboardingStep    Int       @default(0)
-
-  // Status
-  isActive          Boolean   @default(true)
-  isSuspended       Boolean   @default(false)
-  suspendedReason   String?
-
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  locations         TenantLocation[]
-  invites           TenantInvite[]
-  billingEvents     BillingEvent[]
-
-  @@index([slug])
-  @@index([subdomain])
-  @@index([subscriptionStatus])
+  @@index([status])
+  @@index([ownerEmail])
   @@map("tenants")
 }
 
-model TenantLocation {
-  id                String   @id @default(cuid())
-  tenantId          String
-  name              String
-  address           String?
-  city              String?
-  state             String?
-  zip               String?
-  phone             String?
-  email             String?
-  posLocationId     String?
-  timezone          String   @default("America/Chicago")
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model TenantMembership {
+  id        String     @id @default(cuid())
+  tenantId  String?
+  userId    String
+  role      TenantRole @default(STYLIST)
+  invitedBy String?
+  joinedAt  DateTime   @default(now())
+  revokedAt DateTime?
 
-  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-  @@map("tenant_locations")
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId, role])
+  @@map("tenant_memberships")
 }
 
-model TenantInvite {
-  id          String    @id @default(cuid())
-  tenantId    String
-  email       String
-  role        String    @default("STYLIST")
-  token       String    @unique @default(cuid())
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdBy   String
-  createdAt   DateTime  @default(now())
+model TenantInvitation {
+  id         String     @id @default(cuid())
+  tenantId   String?
+  email      String
+  role       TenantRole
+  token      String     @unique
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime   @default(now())
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
+  @@index([tenantId, email])
   @@index([token])
-  @@map("tenant_invites")
+  @@map("tenant_invitations")
 }
 
-model BillingEvent {
-  id            String   @id @default(cuid())
-  tenantId      String
-  type          String
-  amount        Float?
-  currency      String   @default("USD")
-  stripeEventId String?  @unique
-  metadata      Json?
-  createdAt     DateTime @default(now())
+model TenantPOSConnection {
+  id                  String              @id @default(cuid())
+  tenantId            String?
+  provider            POSProvider
+  isPrimary           Boolean             @default(false)
+  status              POSConnectionStatus @default(PENDING)
+  credentialsEnc      String?
+  externalAccountId   String?
+  externalLocationIds String[]            @default([])
+  connectedAt         DateTime?
+  lastSyncAt          DateTime?
+  lastSyncError       String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-  @@map("billing_events")
+  @@unique([tenantId, provider])
+  @@index([status])
+  @@map("tenant_pos_connections")
 }
 
-model SuperAdminLog {
-  id          String   @id @default(cuid())
-  adminId     String
-  action      String
-  targetType  String?
-  targetId    String?
-  metadata    Json?
-  ipAddress   String?
-  createdAt   DateTime @default(now())
+model TenantBranding {
+  tenantId      String   @id
+  logoUrl       String?
+  faviconUrl    String?
+  primaryColor  String   @default("#606E74")
+  accentColor   String   @default("#7a8f96")
+  emailFromName String?
+  emailReplyTo  String?
+  showPoweredBy Boolean  @default(true)
+  customDomain  String?  @unique
+  updatedAt     DateTime @updatedAt
 
-  @@index([adminId])
-  @@map("super_admin_logs")
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_brandings")
 }
+
+model TenantSubscription {
+  tenantId             String    @id
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  status               String    @default("trialing")
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  canceledAt           DateTime?
+  trialEndsAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_subscriptions")
+}
+
+// ═══════════════════════════════════════
+// Tenant-scoped feature models
+// (kept from previous prompt, now with Tenant relations)
+// ═══════════════════════════════════════
 
 model GiftCard {
-  id             String    @id @default(cuid())
-  tenantId       String
-  code           String    @unique
-  initialAmount  Float
-  currentBalance Float
-  recipientName  String?
-  recipientEmail String?
+  id              String    @id @default(cuid())
+  tenantId        String?
+  code            String    @unique
+  initialAmount   Float
+  currentBalance  Float
+  recipientName   String?
+  recipientEmail  String?
   personalMessage String?
-  locationId     String?
-  expiresAt      DateTime?
-  purchasedAt    DateTime  @default(now())
-  redeemedAt     DateTime?
-  status         String    @default("active")
-  createdBy      String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  locationId      String?
+  expiresAt       DateTime?
+  purchasedAt     DateTime  @default(now())
+  redeemedAt      DateTime?
+  status          String    @default("active")
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([code])
@@ -1646,14 +1833,16 @@ model GiftCard {
 }
 
 model ReferralCode {
-  id            String   @id @default(cuid())
-  tenantId      String
-  clientId      String?
-  code          String   @unique
-  totalReferrals Int     @default(0)
-  totalRewards  Float    @default(0)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  tenantId       String?
+  clientId       String?
+  code           String   @unique
+  totalReferrals Int      @default(0)
+  totalRewards   Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([code])
@@ -1661,35 +1850,39 @@ model ReferralCode {
 }
 
 model Referral {
-  id              String    @id @default(cuid())
-  tenantId        String
-  referrerCodeId  String
+  id               String    @id @default(cuid())
+  tenantId         String?
+  referrerCodeId   String
   referredClientId String?
-  referredName    String?
-  referredEmail   String?
-  rewardType      String?
-  rewardAmount    Float?
-  rewardIssued    Boolean   @default(false)
-  rewardIssuedAt  DateTime?
-  bookingId       String?
-  createdAt       DateTime  @default(now())
+  referredName     String?
+  referredEmail    String?
+  rewardType       String?
+  rewardAmount     Float?
+  rewardIssued     Boolean   @default(false)
+  rewardIssuedAt   DateTime?
+  bookingId        String?
+  createdAt        DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("referrals")
 }
 
 model LoyaltyAccount {
-  id             String   @id @default(cuid())
-  tenantId       String
-  clientId       String?
-  clientName     String
-  pointsBalance  Int      @default(0)
-  totalEarned    Int      @default(0)
-  totalRedeemed  Int      @default(0)
-  tier           String   @default("bronze")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  transactions   LoyaltyTransaction[]
+  id            String               @id @default(cuid())
+  tenantId      String?
+  clientId      String?
+  clientName    String
+  pointsBalance Int                  @default(0)
+  totalEarned   Int                  @default(0)
+  totalRedeemed Int                  @default(0)
+  tier          String               @default("bronze")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  transactions  LoyaltyTransaction[]
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("loyalty_accounts")
@@ -1710,16 +1903,18 @@ model LoyaltyTransaction {
 }
 
 model Membership {
-  id            String   @id @default(cuid())
-  tenantId      String
-  name          String
-  price         Float
-  billingCycle  String   @default("monthly")
-  benefits      Json
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  members       MemberSubscription[]
+  id           String               @id @default(cuid())
+  tenantId     String?
+  name         String
+  price        Float
+  billingCycle String               @default("monthly")
+  benefits     Json
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  members      MemberSubscription[]
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("memberships")
@@ -1745,30 +1940,32 @@ model MemberSubscription {
 }
 
 model MarketingCampaign {
-  id            String    @id @default(cuid())
-  tenantId      String
-  name          String
-  segmentType   String
-  channel       String
-  messageTemplate String  @db.Text
-  status        String    @default("draft")
-  isAlwaysOn    Boolean   @default(false)
-  scheduledAt   DateTime?
-  sentAt        DateTime?
-  recipientCount Int      @default(0)
-  openCount     Int       @default(0)
-  clickCount    Int       @default(0)
-  createdBy     String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  tenantId        String?
+  name            String
+  segmentType     String
+  channel         String
+  messageTemplate String    @db.Text
+  status          String    @default("draft")
+  isAlwaysOn      Boolean   @default(false)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  recipientCount  Int       @default(0)
+  openCount       Int       @default(0)
+  clickCount      Int       @default(0)
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("marketing_campaigns")
 }
 
 model KioskSession {
-  id            String    @id @default(cuid())
-  tenantId      String
+  id            String   @id @default(cuid())
+  tenantId      String?
   locationId    String?
   clientName    String?
   clientPhone   String?
@@ -1776,27 +1973,31 @@ model KioskSession {
   checkInType   String
   appointmentId String?
   stylistId     String?
-  status        String    @default("checked_in")
-  checkedInAt   DateTime  @default(now())
+  status        String   @default("checked_in")
+  checkedInAt   DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("kiosk_sessions")
 }
 
 model VoiceCallLog {
-  id            String    @id @default(cuid())
-  tenantId      String
-  callSid       String?   @unique
-  callerNumber  String?
-  calledNumber  String?
-  direction     String    @default("inbound")
-  duration      Int?
-  transcript    String?   @db.Text
-  aiResponse    String?   @db.Text
+  id             String   @id @default(cuid())
+  tenantId       String?
+  callSid        String?  @unique
+  callerNumber   String?
+  calledNumber   String?
+  direction      String   @default("inbound")
+  duration       Int?
+  transcript     String?  @db.Text
+  aiResponse     String?  @db.Text
   bookingCreated Boolean  @default(false)
-  bookingId     String?
-  status        String    @default("completed")
-  createdAt     DateTime  @default(now())
+  bookingId      String?
+  status         String   @default("completed")
+  createdAt      DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("voice_call_logs")

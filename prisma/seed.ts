@@ -1,273 +1,131 @@
-// @ts-nocheck
+import { PrismaClient } from "@prisma/client"
 
-import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient()
 
-const prisma = new PrismaClient();
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "ceo@36west.org"
+const DEV_TENANT_SLUG = "devsalon"
+const DEFAULT_TENANT_ID = "clsalonenvy000000000000000"
 
 async function main() {
-  const cc = await prisma.location.upsert({
-    where: { squareLocationId: "LTJSA6QR1HGW6" },
-    update: {},
-    create: {
-      name: "Corpus Christi",
-      squareLocationId: "LTJSA6QR1HGW6",
-      address: "5601 S Padre Island Dr STE E, TX 78412",
-      phone: "(361) 889-1102",
-    },
-  });
+  console.log("Seeding database...")
 
-  const sa = await prisma.location.upsert({
-    where: { squareLocationId: "LXJYXDXWR0XZF" },
-    update: {},
+  // 1. Super admin user
+  const superAdmin = await prisma.user.upsert({
+    where: { email: SUPER_ADMIN_EMAIL },
+    update: { superAdmin: true, name: "Robert Reyna" },
     create: {
-      name: "San Antonio",
-      squareLocationId: "LXJYXDXWR0XZF",
-      address: "11826 Wurzbach Rd, TX 78230",
-      phone: "(210) 660-3339",
-    },
-  });
-
-  const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
-  await prisma.user.upsert({
-    where: { email: "ceo@36west.org" },
-    update: {
-      role: "OWNER",
-      inviteStatus: "ACCEPTED",
-    },
-    create: {
-      email: "ceo@36west.org",
+      email: SUPER_ADMIN_EMAIL,
       name: "Robert Reyna",
       role: "OWNER",
-      passwordHash,
-      locationId: null,
       inviteStatus: "ACCEPTED",
+      superAdmin: true,
     },
-  });
+  })
+  console.log(`  Super admin: ${superAdmin.email} (${superAdmin.id})`)
 
-  const ccStaff: {
-    fullName: string;
-    email: string;
-    squareTeamMemberId: string;
-    position: string;
-    inviteStatus: string;
-  }[] = [
-    {
-      fullName: "Clarissa Reyna",
-      email: "salonenvycorpuschristitx@gmail.com",
-      squareTeamMemberId: "TMbc13IBzS8Z43AO",
-      position: "manager",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Alexis Rodriguez",
-      email: "alexisrxo96@gmail.com",
-      squareTeamMemberId: "TMaExUyYaWYlvSqh",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Kaylie Espinoza",
-      email: "beauty.bysky928@gmail.com",
-      squareTeamMemberId: "TMCzd3unwciKEVX7",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Ashlynn Ochoa",
-      email: "ashlynn5468@icloud.com",
-      squareTeamMemberId: "TMn7kInT8g7Vrgxi",
-      position: "stylist",
-      inviteStatus: "invited",
-    },
-    {
-      fullName: "Jessy Blamey",
-      email: "jessyblamey@gmail.com",
-      squareTeamMemberId: "TMMdDDwU8WXpCZ9m",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Mia Gonzales",
-      email: "gmia53696@gmail.com",
-      squareTeamMemberId: "TM_xI40vPph2_Cos",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-  ];
+  // 2. Dev tenant
+  const trialEndsAt = new Date()
+  trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-  const saStaff: typeof ccStaff = [
-    {
-      fullName: "Melissa Cruz",
-      email: "melissacruz2025@icloud.com",
-      squareTeamMemberId: "TMMJKxeQuMlMW1Dw",
-      position: "manager",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Madelynn Martinez",
-      email: "madelynn@salonenvycc.com",
-      squareTeamMemberId: "TM5CjcvcHRXZQ4hP",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Jaylee Jaeger",
-      email: "jaylee@salonenvysa.com",
-      squareTeamMemberId: "TMcc0QbHuUZfgcIB",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-    {
-      fullName: "Aubree Saldana",
-      email: "aubree@salonenvysa.com",
-      squareTeamMemberId: "TMfFCmgJ5RV-WCBq",
-      position: "stylist",
-      inviteStatus: "not_invited",
-    },
-    {
-      fullName: "Kiyara Smith",
-      email: "kiyarals99@gmail.com",
-      squareTeamMemberId: "TMk1YstlrnPrKw8p",
-      position: "stylist",
-      inviteStatus: "active",
-    },
-  ];
-
-  // Clear all existing staff to fix wrong location assignments
-  await prisma.staffMember.deleteMany({});
-
-  for (const s of ccStaff) {
-    await prisma.staffMember.upsert({
-      where: { squareTeamMemberId: s.squareTeamMemberId },
-      update: {
-        fullName: s.fullName,
-        email: s.email,
-        position: s.position,
-        inviteStatus: s.inviteStatus,
-        locationId: cc.id,
-      },
-      create: {
-        ...s,
-        locationId: cc.id,
-      },
-    });
-  }
-
-  for (const s of saStaff) {
-    await prisma.staffMember.upsert({
-      where: { squareTeamMemberId: s.squareTeamMemberId },
-      update: {
-        fullName: s.fullName,
-        email: s.email,
-        position: s.position,
-        inviteStatus: s.inviteStatus,
-        locationId: sa.id,
-      },
-      create: {
-        ...s,
-        locationId: sa.id,
-      },
-    });
-  }
-
-  const alertCount = await prisma.adminAlert.count();
-  if (alertCount === 0) {
-    await prisma.adminAlert.create({
-      data: {
-        title: "Welcome to Salon Envy® Portal",
-        body: "Your dashboard is connected. Sample alerts will appear here.",
-        severity: "info",
-      },
-    });
-  }
-
-  // ── Test logins: managers + stylists ──
-  const testPassword = await bcrypt.hash("SalonEnvy2026!", 12);
-
-  // SA Manager
-  const saManager = await prisma.user.upsert({
-    where: { email: "manager.sa@salonenvyusa.com" },
-    update: { passwordHash: testPassword, role: "MANAGER", locationId: sa.id, inviteStatus: "ACCEPTED" },
+  const devTenant = await prisma.tenant.upsert({
+    where: { slug: DEV_TENANT_SLUG },
+    update: { name: "Dev Salon", ownerEmail: SUPER_ADMIN_EMAIL },
     create: {
-      email: "manager.sa@salonenvyusa.com",
-      name: "SA Manager",
-      passwordHash: testPassword,
-      role: "MANAGER",
-      locationId: sa.id,
-      inviteStatus: "ACCEPTED",
+      slug: DEV_TENANT_SLUG,
+      name: "Dev Salon",
+      status: "ACTIVE",
+      ownerEmail: SUPER_ADMIN_EMAIL,
+      ownerPhone: "+13615551234",
+      timezone: "America/Chicago",
+      currency: "USD",
+      locale: "en-US",
+      addressLine1: "5425 S Padre Island Dr",
+      city: "Corpus Christi",
+      state: "TX",
+      postalCode: "78411",
+      country: "US",
+      trialEndsAt,
     },
-  });
+  })
+  console.log(`  Dev tenant: ${devTenant.slug} (${devTenant.id})`)
 
-  // CC Manager
-  const ccManager = await prisma.user.upsert({
-    where: { email: "manager.cc@salonenvyusa.com" },
-    update: { passwordHash: testPassword, role: "MANAGER", locationId: cc.id, inviteStatus: "ACCEPTED" },
+  // 3. Membership: super admin as OWNER of dev tenant
+  await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: { tenantId: devTenant.id, userId: superAdmin.id },
+    },
+    update: { role: "OWNER" },
     create: {
-      email: "manager.cc@salonenvyusa.com",
-      name: "CC Manager",
-      passwordHash: testPassword,
-      role: "MANAGER",
-      locationId: cc.id,
-      inviteStatus: "ACCEPTED",
+      tenantId: devTenant.id,
+      userId: superAdmin.id,
+      role: "OWNER",
     },
-  });
+  })
+  console.log(`  Membership: ${superAdmin.email} is OWNER of ${devTenant.slug}`)
 
-  // Stylist: Melissa Cruz (SA)
-  const melissaUser = await prisma.user.upsert({
-    where: { email: "melissa@salonenvyusa.com" },
-    update: { passwordHash: testPassword, role: "STYLIST", locationId: sa.id, inviteStatus: "ACCEPTED" },
+  // 4. TenantBranding row with defaults
+  await prisma.tenantBranding.upsert({
+    where: { tenantId: devTenant.id },
+    update: {},
     create: {
-      email: "melissa@salonenvyusa.com",
-      name: "Melissa Cruz",
-      passwordHash: testPassword,
-      role: "STYLIST",
-      locationId: sa.id,
-      inviteStatus: "ACCEPTED",
+      tenantId: devTenant.id,
+      primaryColor: "#606E74",
+      accentColor: "#7a8f96",
+      showPoweredBy: true,
     },
-  });
-  // Link Melissa's user to her StaffMember
-  await prisma.staffMember.updateMany({
-    where: { squareTeamMemberId: "TMMJKxeQuMlMW1Dw" },
-    data: { userId: melissaUser.id },
-  });
+  })
+  console.log(`  Branding: defaults set for ${devTenant.slug}`)
 
-  // Stylist: Clarissa Reyna (CC)
-  const clarissaUser = await prisma.user.upsert({
-    where: { email: "clarissa@salonenvyusa.com" },
-    update: { passwordHash: testPassword, role: "STYLIST", locationId: cc.id, inviteStatus: "ACCEPTED" },
+  // 5. TenantSubscription row
+  await prisma.tenantSubscription.upsert({
+    where: { tenantId: devTenant.id },
+    update: {},
     create: {
-      email: "clarissa@salonenvyusa.com",
-      name: "Clarissa Reyna",
-      passwordHash: testPassword,
-      role: "STYLIST",
-      locationId: cc.id,
-      inviteStatus: "ACCEPTED",
+      tenantId: devTenant.id,
+      status: "active",
+      trialEndsAt,
     },
-  });
-  // Link Clarissa's user to her StaffMember
-  await prisma.staffMember.updateMany({
-    where: { squareTeamMemberId: "TMbc13IBzS8Z43AO" },
-    data: { userId: clarissaUser.id },
-  });
+  })
+  console.log(`  Subscription: active for ${devTenant.slug}`)
 
-  console.log("✅ Seeded test logins:");
-  console.log("   Manager SA: manager.sa@salonenvyusa.com / SalonEnvy2026!");
-  console.log("   Manager CC: manager.cc@salonenvyusa.com / SalonEnvy2026!");
-  console.log("   Stylist SA: melissa@salonenvyusa.com / SalonEnvy2026!");
-  console.log("   Stylist CC: clarissa@salonenvyusa.com / SalonEnvy2026!");
+  // Also ensure the default Salon Envy tenant exists (for production data)
+  const salonEnvy = await prisma.tenant.upsert({
+    where: { slug: "salonenvy" },
+    update: {},
+    create: {
+      id: DEFAULT_TENANT_ID,
+      slug: "salonenvy",
+      name: "Salon Envy USA",
+      status: "ACTIVE",
+      ownerEmail: SUPER_ADMIN_EMAIL,
+      timezone: "America/Chicago",
+      currency: "USD",
+      locale: "en-US",
+      country: "US",
+    },
+  })
+  console.log(`  Salon Envy tenant: ${salonEnvy.slug} (${salonEnvy.id})`)
 
-  // Suppress unused variable warnings
-  void saManager; void ccManager;
+  // Membership for super admin on Salon Envy
+  await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: { tenantId: salonEnvy.id, userId: superAdmin.id },
+    },
+    update: { role: "OWNER" },
+    create: {
+      tenantId: salonEnvy.id,
+      userId: superAdmin.id,
+      role: "OWNER",
+    },
+  })
+  console.log(`  Membership: ${superAdmin.email} is OWNER of ${salonEnvy.slug}`)
 
-  console.log("✅ Seeded locations, owner, staff, sample alert");
+  console.log("Seed complete.")
 }
 
 main()
   .catch((e) => {
-    console.error(e);
-    process.exit(1);
+    console.error("Seed error:", e)
+    process.exit(1)
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect())

@@ -11,16 +11,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const tenant = await prisma.tenant.findUnique({
     where: { id },
     include: {
-      locations: true,
-      billingEvents: { orderBy: { createdAt: "desc" }, take: 20 },
-      _count: { select: { invites: true } },
+      memberships: { include: { user: { select: { id: true, email: true, name: true } } } },
+      branding: true,
+      subscription: true,
+      posConnections: true,
     },
   })
   if (!tenant) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const users = await prisma.user.findMany({ where: { tenantId: id } })
-
-  return NextResponse.json({ tenant, users })
+  return NextResponse.json({ tenant })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +44,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params
   await prisma.tenant.update({
     where: { id },
-    data: { isActive: false, isSuspended: true, suspendedReason: "Deleted by admin" },
+    data: { status: "SUSPENDED", suspendedAt: new Date(), suspendedReason: "Deleted by admin" },
   })
 
   return NextResponse.json({ success: true })
