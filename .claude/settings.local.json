@@ -24,7 +24,11 @@
       "Bash(git commit:*)",
       "Bash(curl:*)",
       "Bash(npx tsx:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(cp -r \"\\(portal\\)\" \"\\(tenant\\)\")",
+      "Bash(rm -rf \"\\(portal\\)\")",
+      "Bash(npx tsc:*)",
+      "Bash(grep -n \"tenantId.*String$\" prisma/schema.prisma)"
     ]
   }
 }

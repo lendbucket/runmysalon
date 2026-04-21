@@ -162,7 +162,7 @@ export async function middleware(req: NextRequest) {
   requestHeaders.set("x-tenant-slug", tenantSlug!)
 
   // Auth protection for tenant routes (except public paths)
-  const publicPaths = ["/login", "/signup", "/api/auth", "/tenant-not-found", "/tenant-suspended", "/tenant-canceled"]
+  const publicPaths = ["/login", "/signup", "/forgot-password", "/reset-password", "/api/auth", "/tenant-not-found", "/tenant-suspended", "/tenant-canceled", "/switch-tenant"]
   const isPublicPath = publicPaths.some(p => pathname.startsWith(p))
 
   if (!isPublicPath) {
