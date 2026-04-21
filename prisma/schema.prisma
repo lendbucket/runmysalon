@@ -50,6 +50,12 @@ model User {
   alertReads          AlertRead[]
   auditLogs           AuditLog[]
   superAdmin          Boolean              @default(false)
+  mfaEnabled          Boolean              @default(false)
+  mfaSecret           String?
+  mfaBackupCodes      Json?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  loginCount          Int                  @default(0)
   memberships         TenantMembership[]
 
   @@index([tenantId])
@@ -1630,29 +1636,47 @@ enum POSConnectionStatus {
 }
 
 model Tenant {
-  id              String       @id @default(cuid())
-  slug            String       @unique
-  name            String
-  legalName       String?
-  status          TenantStatus @default(TRIAL)
-  trialEndsAt     DateTime?
-  timezone        String       @default("America/Chicago")
-  currency        String       @default("USD")
-  locale          String       @default("en-US")
-  ownerEmail      String
-  ownerPhone      String?
-  addressLine1    String?
-  addressLine2    String?
-  city            String?
-  state           String?
-  postalCode      String?
-  country         String       @default("US")
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  suspendedAt     DateTime?
-  suspendedReason String?
+  id                   String       @id @default(cuid())
+  slug                 String       @unique
+  name                 String
+  legalName            String?
+  status               TenantStatus @default(TRIAL)
+  trialEndsAt          DateTime?
+  timezone             String       @default("America/Chicago")
+  currency             String       @default("USD")
+  locale               String       @default("en-US")
+  ownerEmail           String
+  ownerPhone           String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  state                String?
+  postalCode           String?
+  country              String       @default("US")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  suspendedAt          DateTime?
+  suspendedReason      String?
+  locationCount        Int          @default(1)
+  annualRevenueBracket String?
+  entityType           String?
+  ein                  String?
+  businessCategory     String?
+  yearsInBusiness      Int?
+  employeeCount        Int?
+  businessGoals        Json?
+  planTier             String?
+  onboardingComplete   Boolean      @default(false)
+  signupSourceIp       String?
+  signupUserAgent      String?
+  softwareProviderSlug String?
+  kasseWaitlist        Boolean      @default(false)
+  placeId              String?
+  latitude             Float?
+  longitude            Float?
 
   memberships    TenantMembership[]
+  aiAgent        TenantAIAgent?
   invitations    TenantInvitation[]
   posConnections TenantPOSConnection[]
   branding       TenantBranding?
@@ -2001,4 +2025,110 @@ model VoiceCallLog {
 
   @@index([tenantId])
   @@map("voice_call_logs")
+}
+
+// ═══════════════════════════════════════
+// Signup Wizard
+// ═══════════════════════════════════════
+
+model SignupSession {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String?
+  emailVerifiedAt    DateTime?
+  emailVerifyToken   String?   @unique
+  emailVerifyExpires DateTime?
+  phoneNumber        String?
+  phoneVerifiedAt    DateTime?
+  phoneVerifyCode    String?
+  phoneVerifyExpires DateTime?
+  currentStep        String    @default("email_pending")
+  businessData       Json?
+  tosAcceptedAt      DateTime?
+  tosIpAddress       String?
+  tosUserAgent       String?
+  tosVersion         String?
+  tosSignedName      String?
+  createdTenantId    String?
+  expiresAt          DateTime
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([email])
+  @@index([emailVerifyToken])
+  @@index([expiresAt])
+  @@map("signup_sessions")
+}
+
+model SoftwareProvider {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  category         String
+  logoUrl          String?
+  websiteUrl       String?
+  integrationState String   @default("waitlist")
+  description      String?
+  displayOrder     Int      @default(100)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category, displayOrder])
+  @@index([slug])
+  @@map("software_providers")
+}
+
+model CustomSoftwareRequest {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  signupEmail  String?
+  softwareName String
+  websiteUrl   String?
+  requestedAt  DateTime @default(now())
+  status       String   @default("pending")
+
+  @@index([softwareName])
+  @@map("custom_software_requests")
+}
+
+model TermsOfServiceVersion {
+  id            String   @id @default(cuid())
+  version       String   @unique
+  content       String   @db.Text
+  effectiveDate DateTime
+  isActive      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([version])
+  @@map("terms_of_service_versions")
+}
+
+model TenantAIAgent {
+  id                 String    @id @default(cuid())
+  tenantId           String    @unique
+  personality        String    @default("encouraging")
+  knowledgeBase      Json      @default("{}")
+  lastInteractionAt  DateTime?
+  totalConversations Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_ai_agents")
+}
+
+model EnvyConversation {
+  id              String   @id @default(cuid())
+  signupSessionId String?
+  tenantId        String?
+  context         String
+  messages        Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([signupSessionId])
+  @@index([tenantId])
+  @@map("envy_conversations")
 }
