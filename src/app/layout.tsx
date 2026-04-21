@@ -1,18 +1,17 @@
 import type { Metadata, Viewport } from "next"
-import { Inter, Noto_Serif } from "next/font/google"
+import { Plus_Jakarta_Sans, Fira_Code } from "next/font/google"
 import Script from "next/script"
 import "./globals.css"
 import { Providers } from "./providers"
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-jakarta",
 })
 
-const notoSerif = Noto_Serif({
+const firaCode = Fira_Code({
   subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-noto-serif",
+  variable: "--font-fira-code",
 })
 
 export const metadata: Metadata = {
@@ -50,8 +49,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${notoSerif.variable}`}
-        style={{ backgroundColor: "#0f1d24", margin: 0 }}
+        className={`${jakarta.variable} ${firaCode.variable} bg-[#06080d] text-white antialiased`}
+        style={{ margin: 0 }}
       >
         <Providers>
           {children}
